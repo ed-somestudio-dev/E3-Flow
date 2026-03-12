@@ -2,6 +2,7 @@ export type TransactionType = 'income' | 'expense';
 export type PayableStatus = 'pending' | 'paid' | 'overdue';
 export type ReceivableStatus = 'pending' | 'received' | 'overdue';
 export type AccountType = 'checking' | 'savings' | 'cash' | 'credit_card';
+export type RecurrenceFrequency = 'monthly' | 'weekly' | 'yearly';
 
 export interface FinancialAccount {
   id: string;
@@ -44,6 +45,9 @@ export interface Payable {
   paymentMethod?: string;
   status: PayableStatus;
   notes?: string;
+  recurring?: boolean;
+  recurrenceFrequency?: RecurrenceFrequency;
+  recurrenceEndDate?: string;
 }
 
 export interface Receivable {
@@ -63,7 +67,7 @@ export interface Budget {
   id: string;
   categoryId: string;
   amount: number;
-  month: string; // YYYY-MM
+  month: string;
 }
 
 export interface FinanceData {
