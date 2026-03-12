@@ -1,5 +1,5 @@
 import {
-  LayoutDashboard, FileText, FileInput, ArrowUpDown, Wallet, PiggyBank, Target, Sun, Moon,
+  LayoutDashboard, FileText, FileInput, ArrowUpDown, Wallet, PiggyBank, Target, Sun, Moon, BarChart3,
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useTheme } from '@/lib/theme-context';
@@ -9,15 +9,16 @@ import {
 } from '@/components/ui/sidebar';
 
 const mainItems = [
-  { title: 'Dashboard', url: '/', icon: LayoutDashboard },
-  { title: 'Transactions', url: '/transactions', icon: ArrowUpDown },
-  { title: 'Accounts Payable', url: '/payables', icon: FileText },
-  { title: 'Accounts Receivable', url: '/receivables', icon: FileInput },
+  { title: 'Painel', url: '/', icon: LayoutDashboard },
+  { title: 'Transações', url: '/transactions', icon: ArrowUpDown },
+  { title: 'Contas a Pagar', url: '/payables', icon: FileText },
+  { title: 'Contas a Receber', url: '/receivables', icon: FileInput },
 ];
 
 const manageItems = [
-  { title: 'Accounts', url: '/accounts', icon: Wallet },
-  { title: 'Budgets', url: '/budgets', icon: Target },
+  { title: 'Contas', url: '/accounts', icon: Wallet },
+  { title: 'Orçamentos', url: '/budgets', icon: Target },
+  { title: 'Relatórios', url: '/reports', icon: BarChart3 },
 ];
 
 export function AppSidebar() {
@@ -37,9 +38,8 @@ export function AppSidebar() {
           )}
           {collapsed && <PiggyBank className="h-7 w-7 text-sidebar-primary mx-auto" />}
         </div>
-
         <SidebarGroup>
-          <SidebarGroupLabel>Overview</SidebarGroupLabel>
+          <SidebarGroupLabel>Visão Geral</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {mainItems.map(item => (
@@ -55,9 +55,8 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-
         <SidebarGroup>
-          <SidebarGroupLabel>Manage</SidebarGroupLabel>
+          <SidebarGroupLabel>Gerenciar</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {manageItems.map(item => (
@@ -74,14 +73,11 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-
       <SidebarFooter>
-        <button
-          onClick={toggleTheme}
-          className="flex items-center gap-2 px-4 py-3 text-sidebar-muted hover:text-sidebar-foreground transition-colors w-full"
-        >
+        <button onClick={toggleTheme}
+          className="flex items-center gap-2 px-4 py-3 text-sidebar-muted hover:text-sidebar-foreground transition-colors w-full">
           {theme === 'light' ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
-          {!collapsed && <span className="text-sm">{theme === 'light' ? 'Dark Mode' : 'Light Mode'}</span>}
+          {!collapsed && <span className="text-sm">{theme === 'light' ? 'Modo Escuro' : 'Modo Claro'}</span>}
         </button>
       </SidebarFooter>
     </Sidebar>
