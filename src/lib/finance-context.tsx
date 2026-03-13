@@ -12,16 +12,17 @@ interface FinanceContextType {
   addPayable: (p: Omit<Payable, 'id'>) => void;
   updatePayable: (p: Payable) => void;
   deletePayable: (id: string) => void;
-  markPayablePaid: (id: string) => void;
+  markPayablePaid: (id: string, accountId?: string) => void;
   // Receivables
   addReceivable: (r: Omit<Receivable, 'id'>) => void;
   updateReceivable: (r: Receivable) => void;
   deleteReceivable: (id: string) => void;
-  markReceivableReceived: (id: string) => void;
+  markReceivableReceived: (id: string, accountId?: string) => void;
   // Accounts
   addAccount: (a: Omit<FinancialAccount, 'id'>) => void;
   updateAccount: (a: FinancialAccount) => void;
   deleteAccount: (id: string) => void;
+  transferBetweenAccounts: (fromId: string, toId: string, amount: number) => void;
   // Budgets
   addBudget: (b: Omit<Budget, 'id'>) => void;
   updateBudget: (b: Budget) => void;
@@ -33,6 +34,10 @@ interface FinanceContextType {
 }
 
 const FinanceContext = createContext<FinanceContextType | null>(null);
+
+function adjustAccountBalance(accounts: FinancialAccount[], accountId: string, delta: number): FinancialAccount[] {
+  return accounts.map(a => a.id === accountId ? { ...a, balance: a.balance + delta } : a);
+}
 
 export function FinanceProvider({ children }: { children: React.ReactNode }) {
   const [data, setData] = useState<FinanceData>(loadData);
@@ -55,16 +60,55 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
   const update = useCallback((fn: (prev: FinanceData) => FinanceData) => setData(fn), []);
 
+  // Transactions - affect account balance
   const addTransaction = useCallback((tx: Omit<Transaction, 'id'>) => {
-    update(prev => ({ ...prev, transactions: [...prev.transactions, { ...tx, id: generateId() }] }));
-  }, [update]);
-  const updateTransaction = useCallback((tx: Transaction) => {
-    update(prev => ({ ...prev, transactions: prev.transactions.map(t => t.id === tx.id ? tx : t) }));
-  }, [update]);
-  const deleteTransaction = useCallback((id: string) => {
-    update(prev => ({ ...prev, transactions: prev.transactions.filter(t => t.id !== id) }));
+    update(prev => {
+      const delta = tx.type === 'income' ? tx.amount : -tx.amount;
+      return {
+        ...prev,
+        transactions: [...prev.transactions, { ...tx, id: generateId() }],
+        accounts: adjustAccountBalance(prev.accounts, tx.accountId, delta),
+      };
+    });
   }, [update]);
 
+  const updateTransaction = useCallback((tx: Transaction) => {
+    update(prev => {
+      const oldTx = prev.transactions.find(t => t.id === tx.id);
+      let accounts = prev.accounts;
+      if (oldTx) {
+        // Reverse old transaction
+        const oldDelta = oldTx.type === 'income' ? -oldTx.amount : oldTx.amount;
+        accounts = adjustAccountBalance(accounts, oldTx.accountId, oldDelta);
+        // Apply new transaction
+        const newDelta = tx.type === 'income' ? tx.amount : -tx.amount;
+        accounts = adjustAccountBalance(accounts, tx.accountId, newDelta);
+      }
+      return {
+        ...prev,
+        transactions: prev.transactions.map(t => t.id === tx.id ? tx : t),
+        accounts,
+      };
+    });
+  }, [update]);
+
+  const deleteTransaction = useCallback((id: string) => {
+    update(prev => {
+      const tx = prev.transactions.find(t => t.id === id);
+      let accounts = prev.accounts;
+      if (tx) {
+        const delta = tx.type === 'income' ? -tx.amount : tx.amount;
+        accounts = adjustAccountBalance(accounts, tx.accountId, delta);
+      }
+      return {
+        ...prev,
+        transactions: prev.transactions.filter(t => t.id !== id),
+        accounts,
+      };
+    });
+  }, [update]);
+
+  // Payables
   const addPayable = useCallback((p: Omit<Payable, 'id'>) => {
     update(prev => ({ ...prev, payables: [...prev.payables, { ...p, id: generateId() }] }));
   }, [update]);
@@ -74,11 +118,24 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   const deletePayable = useCallback((id: string) => {
     update(prev => ({ ...prev, payables: prev.payables.filter(x => x.id !== id) }));
   }, [update]);
-  const markPayablePaid = useCallback((id: string) => {
+  const markPayablePaid = useCallback((id: string, accountId?: string) => {
     const today = new Date().toISOString().split('T')[0];
-    update(prev => ({ ...prev, payables: prev.payables.map(x => x.id === id ? { ...x, status: 'paid' as const, paymentDate: today } : x) }));
+    update(prev => {
+      const payable = prev.payables.find(x => x.id === id);
+      const targetAccountId = accountId || payable?.accountId;
+      let accounts = prev.accounts;
+      if (payable && targetAccountId) {
+        accounts = adjustAccountBalance(accounts, targetAccountId, -payable.amount);
+      }
+      return {
+        ...prev,
+        payables: prev.payables.map(x => x.id === id ? { ...x, status: 'paid' as const, paymentDate: today, accountId: targetAccountId } : x),
+        accounts,
+      };
+    });
   }, [update]);
 
+  // Receivables
   const addReceivable = useCallback((r: Omit<Receivable, 'id'>) => {
     update(prev => ({ ...prev, receivables: [...prev.receivables, { ...r, id: generateId() }] }));
   }, [update]);
@@ -88,11 +145,24 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   const deleteReceivable = useCallback((id: string) => {
     update(prev => ({ ...prev, receivables: prev.receivables.filter(x => x.id !== id) }));
   }, [update]);
-  const markReceivableReceived = useCallback((id: string) => {
+  const markReceivableReceived = useCallback((id: string, accountId?: string) => {
     const today = new Date().toISOString().split('T')[0];
-    update(prev => ({ ...prev, receivables: prev.receivables.map(x => x.id === id ? { ...x, status: 'received' as const, paymentDate: today } : x) }));
+    update(prev => {
+      const receivable = prev.receivables.find(x => x.id === id);
+      const targetAccountId = accountId || receivable?.accountId;
+      let accounts = prev.accounts;
+      if (receivable && targetAccountId) {
+        accounts = adjustAccountBalance(accounts, targetAccountId, receivable.amount);
+      }
+      return {
+        ...prev,
+        receivables: prev.receivables.map(x => x.id === id ? { ...x, status: 'received' as const, paymentDate: today, accountId: targetAccountId } : x),
+        accounts,
+      };
+    });
   }, [update]);
 
+  // Accounts
   const addAccount = useCallback((a: Omit<FinancialAccount, 'id'>) => {
     update(prev => ({ ...prev, accounts: [...prev.accounts, { ...a, id: generateId() }] }));
   }, [update]);
@@ -102,7 +172,14 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   const deleteAccount = useCallback((id: string) => {
     update(prev => ({ ...prev, accounts: prev.accounts.filter(x => x.id !== id) }));
   }, [update]);
+  const transferBetweenAccounts = useCallback((fromId: string, toId: string, amount: number) => {
+    update(prev => ({
+      ...prev,
+      accounts: adjustAccountBalance(adjustAccountBalance(prev.accounts, fromId, -amount), toId, amount),
+    }));
+  }, [update]);
 
+  // Budgets
   const addBudget = useCallback((b: Omit<Budget, 'id'>) => {
     update(prev => ({ ...prev, budgets: [...prev.budgets, { ...b, id: generateId() }] }));
   }, [update]);
@@ -122,7 +199,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       data, addTransaction, updateTransaction, deleteTransaction,
       addPayable, updatePayable, deletePayable, markPayablePaid,
       addReceivable, updateReceivable, deleteReceivable, markReceivableReceived,
-      addAccount, updateAccount, deleteAccount,
+      addAccount, updateAccount, deleteAccount, transferBetweenAccounts,
       addBudget, updateBudget, deleteBudget,
       getCategoryName, getAccountName, getCategoryColor,
     }}>

@@ -39,6 +39,7 @@ export interface Payable {
   description: string;
   supplier: string;
   categoryId: string;
+  accountId?: string;
   amount: number;
   dueDate: string;
   paymentDate?: string;
@@ -55,6 +56,7 @@ export interface Receivable {
   clientName: string;
   description: string;
   categoryId: string;
+  accountId?: string;
   amount: number;
   dueDate: string;
   paymentDate?: string;

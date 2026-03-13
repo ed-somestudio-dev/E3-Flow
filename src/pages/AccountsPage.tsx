@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useFinance } from '@/lib/finance-context';
 import { FinancialAccount, AccountType } from '@/lib/types';
-import { Plus, Trash2, Edit2, Wallet, PiggyBank, Banknote, CreditCard } from 'lucide-react';
+import { Plus, Trash2, Edit2, Wallet, PiggyBank, Banknote, CreditCard, ArrowRightLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -18,9 +18,10 @@ const typeLabels: Record<AccountType, string> = {
 };
 
 export default function AccountsPage() {
-  const { data, addAccount, updateAccount, deleteAccount } = useFinance();
+  const { data, addAccount, updateAccount, deleteAccount, transferBetweenAccounts } = useFinance();
   const [editingItem, setEditingItem] = useState<FinancialAccount | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [transferOpen, setTransferOpen] = useState(false);
   const totalBalance = data.accounts.reduce((s, a) => s + a.balance, 0);
 
   return (
@@ -30,16 +31,21 @@ export default function AccountsPage() {
           <h1 className="text-2xl font-bold">Contas Financeiras</h1>
           <p className="text-muted-foreground text-sm">Saldo total: <span className="mono font-semibold text-foreground">{fmt(totalBalance)}</span></p>
         </div>
-        <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) setEditingItem(null); }}>
-          <DialogTrigger asChild>
-            <Button onClick={() => setEditingItem(null)}><Plus className="h-4 w-4 mr-2" />Nova Conta</Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader><DialogTitle>{editingItem ? 'Editar' : 'Nova'} Conta</DialogTitle></DialogHeader>
-            <AccountForm item={editingItem}
-              onSave={(a) => { if (editingItem) updateAccount({ ...a, id: editingItem.id } as FinancialAccount); else addAccount(a); setDialogOpen(false); setEditingItem(null); }} />
-          </DialogContent>
-        </Dialog>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setTransferOpen(true)}>
+            <ArrowRightLeft className="h-4 w-4 mr-2" />Transferir
+          </Button>
+          <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) setEditingItem(null); }}>
+            <DialogTrigger asChild>
+              <Button onClick={() => setEditingItem(null)}><Plus className="h-4 w-4 mr-2" />Nova Conta</Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader><DialogTitle>{editingItem ? 'Editar' : 'Nova'} Conta</DialogTitle></DialogHeader>
+              <AccountForm item={editingItem}
+                onSave={(a) => { if (editingItem) updateAccount({ ...a, id: editingItem.id } as FinancialAccount); else addAccount(a); setDialogOpen(false); setEditingItem(null); }} />
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {data.accounts.map(acc => {
@@ -77,6 +83,54 @@ export default function AccountsPage() {
           );
         })}
       </div>
+
+      {/* Transfer Dialog */}
+      <Dialog open={transferOpen} onOpenChange={setTransferOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Transferência entre Contas</DialogTitle></DialogHeader>
+          <TransferForm accounts={data.accounts} onTransfer={(from, to, amount) => {
+            transferBetweenAccounts(from, to, amount);
+            setTransferOpen(false);
+          }} />
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function TransferForm({ accounts, onTransfer }: {
+  accounts: FinancialAccount[];
+  onTransfer: (fromId: string, toId: string, amount: number) => void;
+}) {
+  const [fromId, setFromId] = useState('');
+  const [toId, setToId] = useState('');
+  const [amount, setAmount] = useState('');
+
+  const fromAccount = accounts.find(a => a.id === fromId);
+  const isValid = fromId && toId && fromId !== toId && parseFloat(amount) > 0;
+
+  return (
+    <div className="space-y-4">
+      <div><Label>Conta de Origem</Label>
+        <Select value={fromId} onValueChange={setFromId}>
+          <SelectTrigger><SelectValue placeholder="Selecionar" /></SelectTrigger>
+          <SelectContent>{accounts.map(a => <SelectItem key={a.id} value={a.id}>{a.name} — {fmt(a.balance)}</SelectItem>)}</SelectContent>
+        </Select>
+      </div>
+      <div><Label>Conta de Destino</Label>
+        <Select value={toId} onValueChange={setToId}>
+          <SelectTrigger><SelectValue placeholder="Selecionar" /></SelectTrigger>
+          <SelectContent>{accounts.filter(a => a.id !== fromId).map(a => <SelectItem key={a.id} value={a.id}>{a.name} — {fmt(a.balance)}</SelectItem>)}</SelectContent>
+        </Select>
+      </div>
+      <div>
+        <Label>Valor</Label>
+        <Input type="number" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0,00" />
+        {fromAccount && <p className="text-xs text-muted-foreground mt-1">Saldo disponível: {fmt(fromAccount.balance)}</p>}
+      </div>
+      <Button className="w-full" disabled={!isValid} onClick={() => onTransfer(fromId, toId, parseFloat(amount))}>
+        <ArrowRightLeft className="h-4 w-4 mr-2" />Transferir
+      </Button>
     </div>
   );
 }
