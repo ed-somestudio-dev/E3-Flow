@@ -19,16 +19,38 @@ function StatusBadge({ status }: { status: PayableStatus }) {
 }
 
 export default function PayablesPage() {
-  const { data, addPayable, updatePayable, deletePayable, markPayablePaid, getCategoryName } = useFinance();
+  const { data, addPayable, updatePayable, deletePayable, markPayablePaid, getCategoryName, getAccountName } = useFinance();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [editingItem, setEditingItem] = useState<Payable | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [payDialogOpen, setPayDialogOpen] = useState(false);
+  const [payingId, setPayingId] = useState<string | null>(null);
+  const [payAccountId, setPayAccountId] = useState('');
 
   const filtered = data.payables
     .filter(p => statusFilter === 'all' || p.status === statusFilter)
     .filter(p => p.description.toLowerCase().includes(search.toLowerCase()) || p.supplier.toLowerCase().includes(search.toLowerCase()))
     .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+
+  const handleMarkPaid = (id: string) => {
+    const payable = data.payables.find(p => p.id === id);
+    if (payable?.accountId) {
+      markPayablePaid(id, payable.accountId);
+    } else {
+      setPayingId(id);
+      setPayAccountId(data.accounts[0]?.id || '');
+      setPayDialogOpen(true);
+    }
+  };
+
+  const confirmPay = () => {
+    if (payingId && payAccountId) {
+      markPayablePaid(payingId, payAccountId);
+      setPayDialogOpen(false);
+      setPayingId(null);
+    }
+  };
 
   return (
     <div className="space-y-6 max-w-5xl">
@@ -43,7 +65,7 @@ export default function PayablesPage() {
           </DialogTrigger>
           <DialogContent className="max-h-[90vh] overflow-y-auto">
             <DialogHeader><DialogTitle>{editingItem ? 'Editar' : 'Nova'} Conta a Pagar</DialogTitle></DialogHeader>
-            <PayableForm item={editingItem} categories={data.categories.filter(c => c.type === 'expense')}
+            <PayableForm item={editingItem} categories={data.categories.filter(c => c.type === 'expense')} accounts={data.accounts}
               onSave={(p) => { if (editingItem) updatePayable({ ...p, id: editingItem.id } as Payable); else addPayable(p); setDialogOpen(false); setEditingItem(null); }} />
           </DialogContent>
         </Dialog>
@@ -72,6 +94,7 @@ export default function PayablesPage() {
                 <th className="text-left py-3 px-4 font-medium text-muted-foreground">Descrição</th>
                 <th className="text-left py-3 px-4 font-medium text-muted-foreground">Fornecedor</th>
                 <th className="text-left py-3 px-4 font-medium text-muted-foreground">Categoria</th>
+                <th className="text-left py-3 px-4 font-medium text-muted-foreground">Conta</th>
                 <th className="text-left py-3 px-4 font-medium text-muted-foreground">Status</th>
                 <th className="text-right py-3 px-4 font-medium text-muted-foreground">Valor</th>
                 <th className="text-right py-3 px-4 font-medium text-muted-foreground">Ações</th>
@@ -89,12 +112,13 @@ export default function PayablesPage() {
                   </td>
                   <td className="py-3 px-4 text-muted-foreground">{p.supplier}</td>
                   <td className="py-3 px-4 text-muted-foreground">{getCategoryName(p.categoryId)}</td>
+                  <td className="py-3 px-4 text-muted-foreground">{p.accountId ? getAccountName(p.accountId) : '—'}</td>
                   <td className="py-3 px-4"><StatusBadge status={p.status} /></td>
                   <td className="py-3 px-4 text-right mono font-semibold text-destructive">{fmt(p.amount)}</td>
                   <td className="py-3 px-4 text-right">
                     <div className="flex items-center justify-end gap-1">
                       {p.status !== 'paid' && (
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-success hover:text-success" onClick={() => markPayablePaid(p.id)}>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-success hover:text-success" onClick={() => handleMarkPaid(p.id)}>
                           <CheckCircle className="h-3.5 w-3.5" />
                         </Button>
                       )}
@@ -104,22 +128,40 @@ export default function PayablesPage() {
                   </td>
                 </motion.tr>
               ))}
-              {filtered.length === 0 && <tr><td colSpan={7} className="text-center py-12 text-muted-foreground">Nenhuma conta encontrada</td></tr>}
+              {filtered.length === 0 && <tr><td colSpan={8} className="text-center py-12 text-muted-foreground">Nenhuma conta encontrada</td></tr>}
             </tbody>
           </table>
         </div>
       </div>
+
+      {/* Pay dialog - select account */}
+      <Dialog open={payDialogOpen} onOpenChange={setPayDialogOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Selecionar Conta para Pagamento</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div><Label>Conta</Label>
+              <Select value={payAccountId} onValueChange={setPayAccountId}>
+                <SelectTrigger><SelectValue placeholder="Selecionar conta" /></SelectTrigger>
+                <SelectContent>{data.accounts.map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <Button className="w-full" disabled={!payAccountId} onClick={confirmPay}>Confirmar Pagamento</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
-function PayableForm({ item, categories, onSave }: {
+function PayableForm({ item, categories, accounts, onSave }: {
   item: Payable | null; categories: { id: string; name: string }[];
+  accounts: { id: string; name: string }[];
   onSave: (p: Omit<Payable, 'id'>) => void;
 }) {
   const [description, setDescription] = useState(item?.description || '');
   const [supplier, setSupplier] = useState(item?.supplier || '');
   const [categoryId, setCategoryId] = useState(item?.categoryId || '');
+  const [accountId, setAccountId] = useState(item?.accountId || '');
   const [amount, setAmount] = useState(item?.amount?.toString() || '');
   const [dueDate, setDueDate] = useState(item?.dueDate || '');
   const [notes, setNotes] = useState(item?.notes || '');
@@ -137,9 +179,17 @@ function PayableForm({ item, categories, onSave }: {
             <SelectContent>{categories.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
           </Select>
         </div>
-        <div><Label>Valor</Label><Input type="number" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} /></div>
+        <div><Label>Conta</Label>
+          <Select value={accountId} onValueChange={setAccountId}>
+            <SelectTrigger><SelectValue placeholder="Selecionar" /></SelectTrigger>
+            <SelectContent>{accounts.map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
       </div>
-      <div><Label>Data de Vencimento</Label><Input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} /></div>
+      <div className="grid grid-cols-2 gap-3">
+        <div><Label>Valor</Label><Input type="number" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} /></div>
+        <div><Label>Vencimento</Label><Input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} /></div>
+      </div>
 
       <div className="flex items-center gap-2">
         <Checkbox id="recurring" checked={recurring} onCheckedChange={(c) => setRecurring(c === true)} />
@@ -161,7 +211,7 @@ function PayableForm({ item, categories, onSave }: {
       <div><Label>Notas (opcional)</Label><Input value={notes} onChange={e => setNotes(e.target.value)} /></div>
       <Button className="w-full" disabled={!description || !supplier || !categoryId || !amount || !dueDate}
         onClick={() => onSave({
-          description, supplier, categoryId, amount: parseFloat(amount), dueDate,
+          description, supplier, categoryId, accountId: accountId || undefined, amount: parseFloat(amount), dueDate,
           status: item?.status || 'pending', notes: notes || undefined,
           recurring: recurring || undefined,
           recurrenceFrequency: recurring ? recurrenceFrequency : undefined,

@@ -18,16 +18,38 @@ function StatusBadge({ status }: { status: ReceivableStatus }) {
 }
 
 export default function ReceivablesPage() {
-  const { data, addReceivable, updateReceivable, deleteReceivable, markReceivableReceived, getCategoryName } = useFinance();
+  const { data, addReceivable, updateReceivable, deleteReceivable, markReceivableReceived, getCategoryName, getAccountName } = useFinance();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [editingItem, setEditingItem] = useState<Receivable | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [receiveDialogOpen, setReceiveDialogOpen] = useState(false);
+  const [receivingId, setReceivingId] = useState<string | null>(null);
+  const [receiveAccountId, setReceiveAccountId] = useState('');
 
   const filtered = data.receivables
     .filter(r => statusFilter === 'all' || r.status === statusFilter)
     .filter(r => r.description.toLowerCase().includes(search.toLowerCase()) || r.clientName.toLowerCase().includes(search.toLowerCase()))
     .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+
+  const handleMarkReceived = (id: string) => {
+    const receivable = data.receivables.find(r => r.id === id);
+    if (receivable?.accountId) {
+      markReceivableReceived(id, receivable.accountId);
+    } else {
+      setReceivingId(id);
+      setReceiveAccountId(data.accounts[0]?.id || '');
+      setReceiveDialogOpen(true);
+    }
+  };
+
+  const confirmReceive = () => {
+    if (receivingId && receiveAccountId) {
+      markReceivableReceived(receivingId, receiveAccountId);
+      setReceiveDialogOpen(false);
+      setReceivingId(null);
+    }
+  };
 
   return (
     <div className="space-y-6 max-w-5xl">
@@ -42,7 +64,7 @@ export default function ReceivablesPage() {
           </DialogTrigger>
           <DialogContent>
             <DialogHeader><DialogTitle>{editingItem ? 'Editar' : 'Novo'} Recebível</DialogTitle></DialogHeader>
-            <ReceivableForm item={editingItem} categories={data.categories.filter(c => c.type === 'income')}
+            <ReceivableForm item={editingItem} categories={data.categories.filter(c => c.type === 'income')} accounts={data.accounts}
               onSave={(r) => { if (editingItem) updateReceivable({ ...r, id: editingItem.id } as Receivable); else addReceivable(r); setDialogOpen(false); setEditingItem(null); }} />
           </DialogContent>
         </Dialog>
@@ -71,6 +93,7 @@ export default function ReceivablesPage() {
                 <th className="text-left py-3 px-4 font-medium text-muted-foreground">Cliente</th>
                 <th className="text-left py-3 px-4 font-medium text-muted-foreground">Descrição</th>
                 <th className="text-left py-3 px-4 font-medium text-muted-foreground">Categoria</th>
+                <th className="text-left py-3 px-4 font-medium text-muted-foreground">Conta</th>
                 <th className="text-left py-3 px-4 font-medium text-muted-foreground">Status</th>
                 <th className="text-right py-3 px-4 font-medium text-muted-foreground">Valor</th>
                 <th className="text-right py-3 px-4 font-medium text-muted-foreground">Ações</th>
@@ -83,12 +106,13 @@ export default function ReceivablesPage() {
                   <td className="py-3 px-4 font-medium">{r.clientName}</td>
                   <td className="py-3 px-4 text-muted-foreground">{r.description}</td>
                   <td className="py-3 px-4 text-muted-foreground">{getCategoryName(r.categoryId)}</td>
+                  <td className="py-3 px-4 text-muted-foreground">{r.accountId ? getAccountName(r.accountId) : '—'}</td>
                   <td className="py-3 px-4"><StatusBadge status={r.status} /></td>
                   <td className="py-3 px-4 text-right mono font-semibold text-success">{fmt(r.amount)}</td>
                   <td className="py-3 px-4 text-right">
                     <div className="flex items-center justify-end gap-1">
                       {r.status !== 'received' && (
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-success hover:text-success" onClick={() => markReceivableReceived(r.id)}>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-success hover:text-success" onClick={() => handleMarkReceived(r.id)}>
                           <CheckCircle className="h-3.5 w-3.5" />
                         </Button>
                       )}
@@ -98,22 +122,40 @@ export default function ReceivablesPage() {
                   </td>
                 </motion.tr>
               ))}
-              {filtered.length === 0 && <tr><td colSpan={7} className="text-center py-12 text-muted-foreground">Nenhum recebível encontrado</td></tr>}
+              {filtered.length === 0 && <tr><td colSpan={8} className="text-center py-12 text-muted-foreground">Nenhum recebível encontrado</td></tr>}
             </tbody>
           </table>
         </div>
       </div>
+
+      {/* Receive dialog - select account */}
+      <Dialog open={receiveDialogOpen} onOpenChange={setReceiveDialogOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Selecionar Conta para Recebimento</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div><Label>Conta</Label>
+              <Select value={receiveAccountId} onValueChange={setReceiveAccountId}>
+                <SelectTrigger><SelectValue placeholder="Selecionar conta" /></SelectTrigger>
+                <SelectContent>{data.accounts.map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <Button className="w-full" disabled={!receiveAccountId} onClick={confirmReceive}>Confirmar Recebimento</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
-function ReceivableForm({ item, categories, onSave }: {
+function ReceivableForm({ item, categories, accounts, onSave }: {
   item: Receivable | null; categories: { id: string; name: string }[];
+  accounts: { id: string; name: string }[];
   onSave: (r: Omit<Receivable, 'id'>) => void;
 }) {
   const [clientName, setClientName] = useState(item?.clientName || '');
   const [description, setDescription] = useState(item?.description || '');
   const [categoryId, setCategoryId] = useState(item?.categoryId || '');
+  const [accountId, setAccountId] = useState(item?.accountId || '');
   const [amount, setAmount] = useState(item?.amount?.toString() || '');
   const [dueDate, setDueDate] = useState(item?.dueDate || '');
   const [notes, setNotes] = useState(item?.notes || '');
@@ -129,12 +171,20 @@ function ReceivableForm({ item, categories, onSave }: {
             <SelectContent>{categories.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
           </Select>
         </div>
-        <div><Label>Valor</Label><Input type="number" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} /></div>
+        <div><Label>Conta</Label>
+          <Select value={accountId} onValueChange={setAccountId}>
+            <SelectTrigger><SelectValue placeholder="Selecionar" /></SelectTrigger>
+            <SelectContent>{accounts.map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
       </div>
-      <div><Label>Data de Vencimento</Label><Input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} /></div>
+      <div className="grid grid-cols-2 gap-3">
+        <div><Label>Valor</Label><Input type="number" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} /></div>
+        <div><Label>Vencimento</Label><Input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} /></div>
+      </div>
       <div><Label>Notas (opcional)</Label><Input value={notes} onChange={e => setNotes(e.target.value)} /></div>
       <Button className="w-full" disabled={!clientName || !description || !categoryId || !amount || !dueDate}
-        onClick={() => onSave({ clientName, description, categoryId, amount: parseFloat(amount), dueDate, status: item?.status || 'pending', notes: notes || undefined })}>
+        onClick={() => onSave({ clientName, description, categoryId, accountId: accountId || undefined, amount: parseFloat(amount), dueDate, status: item?.status || 'pending', notes: notes || undefined })}>
         {item ? 'Atualizar' : 'Criar'} Recebível
       </Button>
     </div>
