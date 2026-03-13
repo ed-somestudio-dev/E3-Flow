@@ -1,3 +1,4 @@
+/* Finance Context - v2 */
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { FinanceData, FinancialAccount, Transaction, Payable, Receivable, Budget } from './types';
 import { loadData, saveData, generateId } from './store';
