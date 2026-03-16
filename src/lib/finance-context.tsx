@@ -152,8 +152,9 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     if (error) { toast.error('Erro ao criar transação'); return; }
     // Update account balance
     const delta = tx.type === 'income' ? tx.amount : -tx.amount;
-    await supabase.rpc('increment_balance' as any, { account_id: tx.accountId, delta } as any)
-      .then(async () => fetchAll());
+    const acc = data.accounts.find(a => a.id === tx.accountId);
+    if (acc) await supabase.from('financial_accounts').update({ balance: acc.balance + delta }).eq('id', tx.accountId);
+    fetchAll();
   }, [user, fetchAll]);
 
   const updateTransaction = useCallback(async (tx: Transaction) => {
