@@ -1,34 +1,30 @@
-/* Finance Context - v2 */
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
-import { FinanceData, FinancialAccount, Transaction, Payable, Receivable, Budget } from './types';
-import { loadData, saveData, generateId } from './store';
+import { FinanceData, FinancialAccount, Transaction, Payable, Receivable, Budget, Category } from './types';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from './auth-context';
+import { toast } from 'sonner';
 
 interface FinanceContextType {
   data: FinanceData;
-  // Transactions
-  addTransaction: (tx: Omit<Transaction, 'id'>) => void;
-  updateTransaction: (tx: Transaction) => void;
-  deleteTransaction: (id: string) => void;
-  // Payables
-  addPayable: (p: Omit<Payable, 'id'>) => void;
-  updatePayable: (p: Payable) => void;
-  deletePayable: (id: string) => void;
-  markPayablePaid: (id: string, accountId?: string) => void;
-  // Receivables
-  addReceivable: (r: Omit<Receivable, 'id'>) => void;
-  updateReceivable: (r: Receivable) => void;
-  deleteReceivable: (id: string) => void;
-  markReceivableReceived: (id: string, accountId?: string) => void;
-  // Accounts
-  addAccount: (a: Omit<FinancialAccount, 'id'>) => void;
-  updateAccount: (a: FinancialAccount) => void;
-  deleteAccount: (id: string) => void;
-  transferBetweenAccounts: (fromId: string, toId: string, amount: number) => void;
-  // Budgets
-  addBudget: (b: Omit<Budget, 'id'>) => void;
-  updateBudget: (b: Budget) => void;
-  deleteBudget: (id: string) => void;
-  // Helpers
+  loading: boolean;
+  addTransaction: (tx: Omit<Transaction, 'id'>) => Promise<void>;
+  updateTransaction: (tx: Transaction) => Promise<void>;
+  deleteTransaction: (id: string) => Promise<void>;
+  addPayable: (p: Omit<Payable, 'id'>) => Promise<void>;
+  updatePayable: (p: Payable) => Promise<void>;
+  deletePayable: (id: string) => Promise<void>;
+  markPayablePaid: (id: string, accountId?: string) => Promise<void>;
+  addReceivable: (r: Omit<Receivable, 'id'>) => Promise<void>;
+  updateReceivable: (r: Receivable) => Promise<void>;
+  deleteReceivable: (id: string) => Promise<void>;
+  markReceivableReceived: (id: string, accountId?: string) => Promise<void>;
+  addAccount: (a: Omit<FinancialAccount, 'id'>) => Promise<void>;
+  updateAccount: (a: FinancialAccount) => Promise<void>;
+  deleteAccount: (id: string) => Promise<void>;
+  transferBetweenAccounts: (fromId: string, toId: string, amount: number) => Promise<void>;
+  addBudget: (b: Omit<Budget, 'id'>) => Promise<void>;
+  updateBudget: (b: Budget) => Promise<void>;
+  deleteBudget: (id: string) => Promise<void>;
   getCategoryName: (id: string) => string;
   getAccountName: (id: string) => string;
   getCategoryColor: (id: string) => string;
@@ -36,168 +32,329 @@ interface FinanceContextType {
 
 const FinanceContext = createContext<FinanceContextType | null>(null);
 
-function adjustAccountBalance(accounts: FinancialAccount[], accountId: string, delta: number): FinancialAccount[] {
-  return accounts.map(a => a.id === accountId ? { ...a, balance: a.balance + delta } : a);
+const emptyData: FinanceData = {
+  accounts: [], categories: [], transactions: [], payables: [], receivables: [], budgets: [],
+};
+
+const defaultCategories: Omit<Category, 'id'>[] = [
+  { name: 'Vendas', type: 'income', icon: 'TrendingUp', color: '#0ea5e9' },
+  { name: 'Serviços', type: 'income', icon: 'Briefcase', color: '#8b5cf6' },
+  { name: 'Salário', type: 'income', icon: 'Wallet', color: '#10b981' },
+  { name: 'Outras Receitas', type: 'income', icon: 'Plus', color: '#6366f1' },
+  { name: 'Alimentação', type: 'expense', icon: 'UtensilsCrossed', color: '#f97316' },
+  { name: 'Transporte', type: 'expense', icon: 'Car', color: '#eab308' },
+  { name: 'Moradia', type: 'expense', icon: 'Home', color: '#ef4444' },
+  { name: 'Utilidades', type: 'expense', icon: 'Zap', color: '#14b8a6' },
+  { name: 'Internet', type: 'expense', icon: 'Wifi', color: '#3b82f6' },
+  { name: 'Impostos', type: 'expense', icon: 'Receipt', color: '#a855f7' },
+  { name: 'Outras Despesas', type: 'expense', icon: 'Minus', color: '#78716c' },
+];
+
+function mapAccount(row: any): FinancialAccount {
+  return {
+    id: row.id, name: row.name, type: row.type, balance: Number(row.balance),
+    color: row.color, creditLimit: row.credit_limit ? Number(row.credit_limit) : undefined,
+    billingCloseDay: row.billing_close_day ?? undefined, dueDay: row.due_day ?? undefined,
+  };
+}
+
+function mapTransaction(row: any): Transaction {
+  return {
+    id: row.id, type: row.type, description: row.description,
+    categoryId: row.category_id, amount: Number(row.amount),
+    date: row.date, accountId: row.account_id, notes: row.notes ?? undefined,
+  };
+}
+
+function mapPayable(row: any): Payable {
+  return {
+    id: row.id, description: row.description, supplier: row.supplier,
+    categoryId: row.category_id, accountId: row.account_id ?? undefined,
+    amount: Number(row.amount), dueDate: row.due_date, paymentDate: row.payment_date ?? undefined,
+    paymentMethod: row.payment_method ?? undefined, status: row.status,
+    notes: row.notes ?? undefined, recurring: row.recurring ?? undefined,
+    recurrenceFrequency: row.recurrence_frequency ?? undefined,
+    recurrenceEndDate: row.recurrence_end_date ?? undefined,
+  };
+}
+
+function mapReceivable(row: any): Receivable {
+  return {
+    id: row.id, clientName: row.client_name, description: row.description,
+    categoryId: row.category_id, accountId: row.account_id ?? undefined,
+    amount: Number(row.amount), dueDate: row.due_date, paymentDate: row.payment_date ?? undefined,
+    paymentMethod: row.payment_method ?? undefined, status: row.status,
+    notes: row.notes ?? undefined,
+  };
+}
+
+function mapCategory(row: any): Category {
+  return { id: row.id, name: row.name, type: row.type, icon: row.icon, color: row.color };
+}
+
+function mapBudget(row: any): Budget {
+  return { id: row.id, categoryId: row.category_id, amount: Number(row.amount), month: row.month };
 }
 
 export function FinanceProvider({ children }: { children: React.ReactNode }) {
-  const [data, setData] = useState<FinanceData>(loadData);
+  const { user } = useAuth();
+  const [data, setData] = useState<FinanceData>(emptyData);
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => { saveData(data); }, [data]);
+  const fetchAll = useCallback(async () => {
+    if (!user) { setData(emptyData); setLoading(false); return; }
+    setLoading(true);
+    try {
+      const [cats, accs, txs, pays, recs, buds] = await Promise.all([
+        supabase.from('categories').select('*').eq('user_id', user.id),
+        supabase.from('financial_accounts').select('*').eq('user_id', user.id),
+        supabase.from('transactions').select('*').eq('user_id', user.id).order('date', { ascending: false }),
+        supabase.from('payables').select('*').eq('user_id', user.id).order('due_date'),
+        supabase.from('receivables').select('*').eq('user_id', user.id).order('due_date'),
+        supabase.from('budgets').select('*').eq('user_id', user.id),
+      ]);
 
-  // Auto-detect overdue
-  useEffect(() => {
+      let categories = (cats.data || []).map(mapCategory);
+
+      // Seed default categories for new users
+      if (categories.length === 0) {
+        const inserts = defaultCategories.map(c => ({ ...c, user_id: user.id }));
+        const { data: inserted } = await supabase.from('categories').insert(inserts).select();
+        categories = (inserted || []).map(mapCategory);
+      }
+
+      setData({
+        categories,
+        accounts: (accs.data || []).map(mapAccount),
+        transactions: (txs.data || []).map(mapTransaction),
+        payables: (pays.data || []).map(mapPayable),
+        receivables: (recs.data || []).map(mapReceivable),
+        budgets: (buds.data || []).map(mapBudget),
+      });
+    } catch (err) {
+      console.error('Failed to fetch data:', err);
+      toast.error('Erro ao carregar dados');
+    } finally {
+      setLoading(false);
+    }
+  }, [user]);
+
+  useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  // --- Transactions ---
+  const addTransaction = useCallback(async (tx: Omit<Transaction, 'id'>) => {
+    if (!user) return;
+    const { error } = await supabase.from('transactions').insert({
+      user_id: user.id, type: tx.type, description: tx.description,
+      category_id: tx.categoryId, amount: tx.amount, date: tx.date,
+      account_id: tx.accountId, notes: tx.notes || null,
+    });
+    if (error) { toast.error('Erro ao criar transação'); return; }
+    // Update account balance
+    const delta = tx.type === 'income' ? tx.amount : -tx.amount;
+    await supabase.rpc('increment_balance' as any, { account_id: tx.accountId, delta } as any)
+      .then(async () => fetchAll());
+  }, [user, fetchAll]);
+
+  const updateTransaction = useCallback(async (tx: Transaction) => {
+    if (!user) return;
+    // Get old transaction to reverse balance
+    const old = data.transactions.find(t => t.id === tx.id);
+    if (old) {
+      const oldDelta = old.type === 'income' ? -old.amount : old.amount;
+      await supabase.from('financial_accounts').update({ balance: data.accounts.find(a => a.id === old.accountId)!.balance + oldDelta }).eq('id', old.accountId);
+    }
+    await supabase.from('transactions').update({
+      type: tx.type, description: tx.description, category_id: tx.categoryId,
+      amount: tx.amount, date: tx.date, account_id: tx.accountId, notes: tx.notes || null,
+    }).eq('id', tx.id);
+    if (old) {
+      const newDelta = tx.type === 'income' ? tx.amount : -tx.amount;
+      const acc = data.accounts.find(a => a.id === tx.accountId);
+      const oldDelta = old.type === 'income' ? -old.amount : old.amount;
+      const currentBalance = acc ? (acc.id === old.accountId ? acc.balance + oldDelta : acc.balance) : 0;
+      await supabase.from('financial_accounts').update({ balance: currentBalance + newDelta }).eq('id', tx.accountId);
+    }
+    fetchAll();
+  }, [user, data, fetchAll]);
+
+  const deleteTransaction = useCallback(async (id: string) => {
+    if (!user) return;
+    const tx = data.transactions.find(t => t.id === id);
+    await supabase.from('transactions').delete().eq('id', id);
+    if (tx) {
+      const delta = tx.type === 'income' ? -tx.amount : tx.amount;
+      const acc = data.accounts.find(a => a.id === tx.accountId);
+      if (acc) await supabase.from('financial_accounts').update({ balance: acc.balance + delta }).eq('id', tx.accountId);
+    }
+    fetchAll();
+  }, [user, data, fetchAll]);
+
+  // --- Payables ---
+  const addPayable = useCallback(async (p: Omit<Payable, 'id'>) => {
+    if (!user) return;
+    const { error } = await supabase.from('payables').insert({
+      user_id: user.id, description: p.description, supplier: p.supplier,
+      category_id: p.categoryId, account_id: p.accountId || null,
+      amount: p.amount, due_date: p.dueDate, status: p.status,
+      notes: p.notes || null, recurring: p.recurring || false,
+      recurrence_frequency: p.recurrenceFrequency || null,
+      recurrence_end_date: p.recurrenceEndDate || null,
+    });
+    if (error) { toast.error('Erro ao criar conta a pagar'); return; }
+    fetchAll();
+  }, [user, fetchAll]);
+
+  const updatePayable = useCallback(async (p: Payable) => {
+    if (!user) return;
+    await supabase.from('payables').update({
+      description: p.description, supplier: p.supplier,
+      category_id: p.categoryId, account_id: p.accountId || null,
+      amount: p.amount, due_date: p.dueDate, status: p.status,
+      notes: p.notes || null, recurring: p.recurring || false,
+      recurrence_frequency: p.recurrenceFrequency || null,
+      recurrence_end_date: p.recurrenceEndDate || null,
+    }).eq('id', p.id);
+    fetchAll();
+  }, [user, fetchAll]);
+
+  const deletePayable = useCallback(async (id: string) => {
+    if (!user) return;
+    await supabase.from('payables').delete().eq('id', id);
+    fetchAll();
+  }, [user, fetchAll]);
+
+  const markPayablePaid = useCallback(async (id: string, accountId?: string) => {
+    if (!user) return;
+    const payable = data.payables.find(x => x.id === id);
+    const targetAccountId = accountId || payable?.accountId;
     const today = new Date().toISOString().split('T')[0];
-    setData(prev => ({
-      ...prev,
-      payables: prev.payables.map(p =>
-        p.status === 'pending' && p.dueDate < today ? { ...p, status: 'overdue' as const } : p
-      ),
-      receivables: prev.receivables.map(r =>
-        r.status === 'pending' && r.dueDate < today ? { ...r, status: 'overdue' as const } : r
-      ),
-    }));
-  }, []);
+    await supabase.from('payables').update({
+      status: 'paid', payment_date: today, account_id: targetAccountId || null,
+    }).eq('id', id);
+    if (payable && targetAccountId) {
+      const acc = data.accounts.find(a => a.id === targetAccountId);
+      if (acc) await supabase.from('financial_accounts').update({ balance: acc.balance - payable.amount }).eq('id', targetAccountId);
+    }
+    fetchAll();
+  }, [user, data, fetchAll]);
 
-  const update = useCallback((fn: (prev: FinanceData) => FinanceData) => setData(fn), []);
-
-  // Transactions - affect account balance
-  const addTransaction = useCallback((tx: Omit<Transaction, 'id'>) => {
-    update(prev => {
-      const delta = tx.type === 'income' ? tx.amount : -tx.amount;
-      return {
-        ...prev,
-        transactions: [...prev.transactions, { ...tx, id: generateId() }],
-        accounts: adjustAccountBalance(prev.accounts, tx.accountId, delta),
-      };
+  // --- Receivables ---
+  const addReceivable = useCallback(async (r: Omit<Receivable, 'id'>) => {
+    if (!user) return;
+    const { error } = await supabase.from('receivables').insert({
+      user_id: user.id, client_name: r.clientName, description: r.description,
+      category_id: r.categoryId, account_id: r.accountId || null,
+      amount: r.amount, due_date: r.dueDate, status: r.status,
+      notes: r.notes || null,
     });
-  }, [update]);
+    if (error) { toast.error('Erro ao criar conta a receber'); return; }
+    fetchAll();
+  }, [user, fetchAll]);
 
-  const updateTransaction = useCallback((tx: Transaction) => {
-    update(prev => {
-      const oldTx = prev.transactions.find(t => t.id === tx.id);
-      let accounts = prev.accounts;
-      if (oldTx) {
-        // Reverse old transaction
-        const oldDelta = oldTx.type === 'income' ? -oldTx.amount : oldTx.amount;
-        accounts = adjustAccountBalance(accounts, oldTx.accountId, oldDelta);
-        // Apply new transaction
-        const newDelta = tx.type === 'income' ? tx.amount : -tx.amount;
-        accounts = adjustAccountBalance(accounts, tx.accountId, newDelta);
-      }
-      return {
-        ...prev,
-        transactions: prev.transactions.map(t => t.id === tx.id ? tx : t),
-        accounts,
-      };
-    });
-  }, [update]);
+  const updateReceivable = useCallback(async (r: Receivable) => {
+    if (!user) return;
+    await supabase.from('receivables').update({
+      client_name: r.clientName, description: r.description,
+      category_id: r.categoryId, account_id: r.accountId || null,
+      amount: r.amount, due_date: r.dueDate, status: r.status,
+      notes: r.notes || null,
+    }).eq('id', r.id);
+    fetchAll();
+  }, [user, fetchAll]);
 
-  const deleteTransaction = useCallback((id: string) => {
-    update(prev => {
-      const tx = prev.transactions.find(t => t.id === id);
-      let accounts = prev.accounts;
-      if (tx) {
-        const delta = tx.type === 'income' ? -tx.amount : tx.amount;
-        accounts = adjustAccountBalance(accounts, tx.accountId, delta);
-      }
-      return {
-        ...prev,
-        transactions: prev.transactions.filter(t => t.id !== id),
-        accounts,
-      };
-    });
-  }, [update]);
+  const deleteReceivable = useCallback(async (id: string) => {
+    if (!user) return;
+    await supabase.from('receivables').delete().eq('id', id);
+    fetchAll();
+  }, [user, fetchAll]);
 
-  // Payables
-  const addPayable = useCallback((p: Omit<Payable, 'id'>) => {
-    update(prev => ({ ...prev, payables: [...prev.payables, { ...p, id: generateId() }] }));
-  }, [update]);
-  const updatePayable = useCallback((p: Payable) => {
-    update(prev => ({ ...prev, payables: prev.payables.map(x => x.id === p.id ? p : x) }));
-  }, [update]);
-  const deletePayable = useCallback((id: string) => {
-    update(prev => ({ ...prev, payables: prev.payables.filter(x => x.id !== id) }));
-  }, [update]);
-  const markPayablePaid = useCallback((id: string, accountId?: string) => {
+  const markReceivableReceived = useCallback(async (id: string, accountId?: string) => {
+    if (!user) return;
+    const receivable = data.receivables.find(x => x.id === id);
+    const targetAccountId = accountId || receivable?.accountId;
     const today = new Date().toISOString().split('T')[0];
-    update(prev => {
-      const payable = prev.payables.find(x => x.id === id);
-      const targetAccountId = accountId || payable?.accountId;
-      let accounts = prev.accounts;
-      if (payable && targetAccountId) {
-        accounts = adjustAccountBalance(accounts, targetAccountId, -payable.amount);
-      }
-      return {
-        ...prev,
-        payables: prev.payables.map(x => x.id === id ? { ...x, status: 'paid' as const, paymentDate: today, accountId: targetAccountId } : x),
-        accounts,
-      };
+    await supabase.from('receivables').update({
+      status: 'received', payment_date: today, account_id: targetAccountId || null,
+    }).eq('id', id);
+    if (receivable && targetAccountId) {
+      const acc = data.accounts.find(a => a.id === targetAccountId);
+      if (acc) await supabase.from('financial_accounts').update({ balance: acc.balance + receivable.amount }).eq('id', targetAccountId);
+    }
+    fetchAll();
+  }, [user, data, fetchAll]);
+
+  // --- Accounts ---
+  const addAccount = useCallback(async (a: Omit<FinancialAccount, 'id'>) => {
+    if (!user) return;
+    const { error } = await supabase.from('financial_accounts').insert({
+      user_id: user.id, name: a.name, type: a.type, balance: a.balance,
+      color: a.color, credit_limit: a.creditLimit || null,
+      billing_close_day: a.billingCloseDay || null, due_day: a.dueDay || null,
     });
-  }, [update]);
+    if (error) { toast.error('Erro ao criar conta'); return; }
+    fetchAll();
+  }, [user, fetchAll]);
 
-  // Receivables
-  const addReceivable = useCallback((r: Omit<Receivable, 'id'>) => {
-    update(prev => ({ ...prev, receivables: [...prev.receivables, { ...r, id: generateId() }] }));
-  }, [update]);
-  const updateReceivable = useCallback((r: Receivable) => {
-    update(prev => ({ ...prev, receivables: prev.receivables.map(x => x.id === r.id ? r : x) }));
-  }, [update]);
-  const deleteReceivable = useCallback((id: string) => {
-    update(prev => ({ ...prev, receivables: prev.receivables.filter(x => x.id !== id) }));
-  }, [update]);
-  const markReceivableReceived = useCallback((id: string, accountId?: string) => {
-    const today = new Date().toISOString().split('T')[0];
-    update(prev => {
-      const receivable = prev.receivables.find(x => x.id === id);
-      const targetAccountId = accountId || receivable?.accountId;
-      let accounts = prev.accounts;
-      if (receivable && targetAccountId) {
-        accounts = adjustAccountBalance(accounts, targetAccountId, receivable.amount);
-      }
-      return {
-        ...prev,
-        receivables: prev.receivables.map(x => x.id === id ? { ...x, status: 'received' as const, paymentDate: today, accountId: targetAccountId } : x),
-        accounts,
-      };
+  const updateAccount = useCallback(async (a: FinancialAccount) => {
+    if (!user) return;
+    await supabase.from('financial_accounts').update({
+      name: a.name, type: a.type, balance: a.balance, color: a.color,
+      credit_limit: a.creditLimit || null,
+      billing_close_day: a.billingCloseDay || null, due_day: a.dueDay || null,
+    }).eq('id', a.id);
+    fetchAll();
+  }, [user, fetchAll]);
+
+  const deleteAccount = useCallback(async (id: string) => {
+    if (!user) return;
+    const { error } = await supabase.from('financial_accounts').delete().eq('id', id);
+    if (error) { toast.error('Não é possível excluir conta com transações vinculadas'); return; }
+    fetchAll();
+  }, [user, fetchAll]);
+
+  const transferBetweenAccounts = useCallback(async (fromId: string, toId: string, amount: number) => {
+    if (!user) return;
+    const fromAcc = data.accounts.find(a => a.id === fromId);
+    const toAcc = data.accounts.find(a => a.id === toId);
+    if (!fromAcc || !toAcc) return;
+    await Promise.all([
+      supabase.from('financial_accounts').update({ balance: fromAcc.balance - amount }).eq('id', fromId),
+      supabase.from('financial_accounts').update({ balance: toAcc.balance + amount }).eq('id', toId),
+    ]);
+    fetchAll();
+  }, [user, data, fetchAll]);
+
+  // --- Budgets ---
+  const addBudget = useCallback(async (b: Omit<Budget, 'id'>) => {
+    if (!user) return;
+    const { error } = await supabase.from('budgets').insert({
+      user_id: user.id, category_id: b.categoryId, amount: b.amount, month: b.month,
     });
-  }, [update]);
+    if (error) { toast.error('Erro ao criar orçamento'); return; }
+    fetchAll();
+  }, [user, fetchAll]);
 
-  // Accounts
-  const addAccount = useCallback((a: Omit<FinancialAccount, 'id'>) => {
-    update(prev => ({ ...prev, accounts: [...prev.accounts, { ...a, id: generateId() }] }));
-  }, [update]);
-  const updateAccount = useCallback((a: FinancialAccount) => {
-    update(prev => ({ ...prev, accounts: prev.accounts.map(x => x.id === a.id ? a : x) }));
-  }, [update]);
-  const deleteAccount = useCallback((id: string) => {
-    update(prev => ({ ...prev, accounts: prev.accounts.filter(x => x.id !== id) }));
-  }, [update]);
-  const transferBetweenAccounts = useCallback((fromId: string, toId: string, amount: number) => {
-    update(prev => ({
-      ...prev,
-      accounts: adjustAccountBalance(adjustAccountBalance(prev.accounts, fromId, -amount), toId, amount),
-    }));
-  }, [update]);
+  const updateBudget = useCallback(async (b: Budget) => {
+    if (!user) return;
+    await supabase.from('budgets').update({ category_id: b.categoryId, amount: b.amount, month: b.month }).eq('id', b.id);
+    fetchAll();
+  }, [user, fetchAll]);
 
-  // Budgets
-  const addBudget = useCallback((b: Omit<Budget, 'id'>) => {
-    update(prev => ({ ...prev, budgets: [...prev.budgets, { ...b, id: generateId() }] }));
-  }, [update]);
-  const updateBudget = useCallback((b: Budget) => {
-    update(prev => ({ ...prev, budgets: prev.budgets.map(x => x.id === b.id ? b : x) }));
-  }, [update]);
-  const deleteBudget = useCallback((id: string) => {
-    update(prev => ({ ...prev, budgets: prev.budgets.filter(x => x.id !== id) }));
-  }, [update]);
+  const deleteBudget = useCallback(async (id: string) => {
+    if (!user) return;
+    await supabase.from('budgets').delete().eq('id', id);
+    fetchAll();
+  }, [user, fetchAll]);
 
-  const getCategoryName = useCallback((id: string) => data.categories.find(c => c.id === id)?.name || 'Unknown', [data.categories]);
-  const getAccountName = useCallback((id: string) => data.accounts.find(a => a.id === id)?.name || 'Unknown', [data.accounts]);
+  const getCategoryName = useCallback((id: string) => data.categories.find(c => c.id === id)?.name || 'Desconhecido', [data.categories]);
+  const getAccountName = useCallback((id: string) => data.accounts.find(a => a.id === id)?.name || 'Desconhecido', [data.accounts]);
   const getCategoryColor = useCallback((id: string) => data.categories.find(c => c.id === id)?.color || '#888', [data.categories]);
 
   return (
     <FinanceContext.Provider value={{
-      data, addTransaction, updateTransaction, deleteTransaction,
+      data, loading,
+      addTransaction, updateTransaction, deleteTransaction,
       addPayable, updatePayable, deletePayable, markPayablePaid,
       addReceivable, updateReceivable, deleteReceivable, markReceivableReceived,
       addAccount, updateAccount, deleteAccount, transferBetweenAccounts,
