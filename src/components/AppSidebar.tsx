@@ -1,8 +1,9 @@
 import {
-  LayoutDashboard, FileText, FileInput, ArrowUpDown, Wallet, PiggyBank, Target, Sun, Moon, BarChart3,
+  LayoutDashboard, FileText, FileInput, ArrowUpDown, Wallet, PiggyBank, Target, Sun, Moon, BarChart3, LogOut,
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useTheme } from '@/lib/theme-context';
+import { useAuth } from '@/lib/auth-context';
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarFooter, useSidebar,
