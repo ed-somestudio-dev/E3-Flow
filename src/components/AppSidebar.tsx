@@ -81,6 +81,11 @@ export function AppSidebar() {
           {theme === 'light' ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
           {!collapsed && <span className="text-sm">{theme === 'light' ? 'Modo Escuro' : 'Modo Claro'}</span>}
         </button>
+        <button onClick={signOut}
+          className="flex items-center gap-2 px-4 py-3 text-sidebar-muted hover:text-destructive transition-colors w-full">
+          <LogOut className="h-4 w-4" />
+          {!collapsed && <span className="text-sm">Sair</span>}
+        </button>
       </SidebarFooter>
     </Sidebar>
   );
