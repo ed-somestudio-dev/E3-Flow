@@ -14,7 +14,317 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      budgets: {
+        Row: {
+          amount: number
+          category_id: string
+          created_at: string
+          id: string
+          month: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          category_id: string
+          created_at?: string
+          id?: string
+          month: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          category_id?: string
+          created_at?: string
+          id?: string
+          month?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budgets_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      categories: {
+        Row: {
+          color: string
+          created_at: string
+          icon: string
+          id: string
+          name: string
+          type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          icon?: string
+          id?: string
+          name: string
+          type: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          icon?: string
+          id?: string
+          name?: string
+          type?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      financial_accounts: {
+        Row: {
+          balance: number
+          billing_close_day: number | null
+          color: string
+          created_at: string
+          credit_limit: number | null
+          due_day: number | null
+          id: string
+          name: string
+          type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          balance?: number
+          billing_close_day?: number | null
+          color?: string
+          created_at?: string
+          credit_limit?: number | null
+          due_day?: number | null
+          id?: string
+          name: string
+          type: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          balance?: number
+          billing_close_day?: number | null
+          color?: string
+          created_at?: string
+          credit_limit?: number | null
+          due_day?: number | null
+          id?: string
+          name?: string
+          type?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      payables: {
+        Row: {
+          account_id: string | null
+          amount: number
+          category_id: string
+          created_at: string
+          description: string
+          due_date: string
+          id: string
+          notes: string | null
+          payment_date: string | null
+          payment_method: string | null
+          recurrence_end_date: string | null
+          recurrence_frequency: string | null
+          recurring: boolean | null
+          status: string
+          supplier: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          account_id?: string | null
+          amount: number
+          category_id: string
+          created_at?: string
+          description: string
+          due_date: string
+          id?: string
+          notes?: string | null
+          payment_date?: string | null
+          payment_method?: string | null
+          recurrence_end_date?: string | null
+          recurrence_frequency?: string | null
+          recurring?: boolean | null
+          status?: string
+          supplier: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          account_id?: string | null
+          amount?: number
+          category_id?: string
+          created_at?: string
+          description?: string
+          due_date?: string
+          id?: string
+          notes?: string | null
+          payment_date?: string | null
+          payment_method?: string | null
+          recurrence_end_date?: string | null
+          recurrence_frequency?: string | null
+          recurring?: boolean | null
+          status?: string
+          supplier?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payables_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "financial_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payables_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      receivables: {
+        Row: {
+          account_id: string | null
+          amount: number
+          category_id: string
+          client_name: string
+          created_at: string
+          description: string
+          due_date: string
+          id: string
+          notes: string | null
+          payment_date: string | null
+          payment_method: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          account_id?: string | null
+          amount: number
+          category_id: string
+          client_name: string
+          created_at?: string
+          description: string
+          due_date: string
+          id?: string
+          notes?: string | null
+          payment_date?: string | null
+          payment_method?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          account_id?: string | null
+          amount?: number
+          category_id?: string
+          client_name?: string
+          created_at?: string
+          description?: string
+          due_date?: string
+          id?: string
+          notes?: string | null
+          payment_date?: string | null
+          payment_method?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "receivables_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "financial_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "receivables_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      transactions: {
+        Row: {
+          account_id: string
+          amount: number
+          category_id: string
+          created_at: string
+          date: string
+          description: string
+          id: string
+          notes: string | null
+          type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          account_id: string
+          amount: number
+          category_id: string
+          created_at?: string
+          date: string
+          description: string
+          id?: string
+          notes?: string | null
+          type: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          account_id?: string
+          amount?: number
+          category_id?: string
+          created_at?: string
+          date?: string
+          description?: string
+          id?: string
+          notes?: string | null
+          type?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transactions_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "financial_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
