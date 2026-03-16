@@ -1,8 +1,9 @@
 import {
-  LayoutDashboard, FileText, FileInput, ArrowUpDown, Wallet, PiggyBank, Target, Sun, Moon, BarChart3,
+  LayoutDashboard, FileText, FileInput, ArrowUpDown, Wallet, PiggyBank, Target, Sun, Moon, BarChart3, LogOut,
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useTheme } from '@/lib/theme-context';
+import { useAuth } from '@/lib/auth-context';
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarFooter, useSidebar,
@@ -25,6 +26,7 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === 'collapsed';
   const { theme, toggleTheme } = useTheme();
+  const { signOut } = useAuth();
 
   return (
     <Sidebar collapsible="icon">
@@ -78,6 +80,11 @@ export function AppSidebar() {
           className="flex items-center gap-2 px-4 py-3 text-sidebar-muted hover:text-sidebar-foreground transition-colors w-full">
           {theme === 'light' ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
           {!collapsed && <span className="text-sm">{theme === 'light' ? 'Modo Escuro' : 'Modo Claro'}</span>}
+        </button>
+        <button onClick={signOut}
+          className="flex items-center gap-2 px-4 py-3 text-sidebar-muted hover:text-destructive transition-colors w-full">
+          <LogOut className="h-4 w-4" />
+          {!collapsed && <span className="text-sm">Sair</span>}
         </button>
       </SidebarFooter>
     </Sidebar>
