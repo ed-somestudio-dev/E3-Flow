@@ -27,7 +27,7 @@ function ProtectedRoutes() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-3">
-          <img src={logoFluxoPro} alt="FluxoPro" className="h-10 w-10 object-contain animate-pulse" />
+          <img src={logoFluxoPro} alt="FluxoPro" className="h-14 object-contain animate-pulse" />
           <p className="text-muted-foreground text-sm">Carregando...</p>
         </div>
       </div>
