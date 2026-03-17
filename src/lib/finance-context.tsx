@@ -154,7 +154,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     const delta = tx.type === 'income' ? tx.amount : -tx.amount;
     const acc = data.accounts.find(a => a.id === tx.accountId);
     if (acc) await supabase.from('financial_accounts').update({ balance: acc.balance + delta }).eq('id', tx.accountId);
-    fetchAll();
+    await fetchAll();
   }, [user, data, fetchAll]);
 
   const updateTransaction = useCallback(async (tx: Transaction) => {
