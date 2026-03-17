@@ -16,7 +16,7 @@ import BudgetsPage from "@/pages/BudgetsPage";
 import ReportsPage from "@/pages/ReportsPage";
 import AuthPage from "@/pages/AuthPage";
 import NotFound from "@/pages/NotFound";
-import { PiggyBank } from "lucide-react";
+import logoFluxoPro from '@/assets/Logo_FluxoPro.png';
 
 const queryClient = new QueryClient();
 
@@ -27,7 +27,7 @@ function ProtectedRoutes() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-3">
-          <PiggyBank className="h-10 w-10 text-primary animate-pulse" />
+          <img src={logoFluxoPro} alt="FluxoPro" className="h-10 w-10 object-contain animate-pulse" />
           <p className="text-muted-foreground text-sm">Carregando...</p>
         </div>
       </div>

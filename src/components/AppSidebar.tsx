@@ -1,6 +1,7 @@
 import {
-  LayoutDashboard, FileText, FileInput, ArrowUpDown, Wallet, PiggyBank, Target, Sun, Moon, BarChart3, LogOut,
+  LayoutDashboard, FileText, FileInput, ArrowUpDown, Wallet, Target, Sun, Moon, BarChart3, LogOut,
 } from 'lucide-react';
+import logoFluxoPro from '@/assets/Logo_FluxoPro.png';
 import { NavLink } from '@/components/NavLink';
 import { useTheme } from '@/lib/theme-context';
 import { useAuth } from '@/lib/auth-context';
@@ -34,11 +35,11 @@ export function AppSidebar() {
         <div className="px-4 py-5">
           {!collapsed && (
             <div className="flex items-center gap-2">
-              <PiggyBank className="h-7 w-7 text-sidebar-primary" />
-              <span className="text-lg font-bold text-sidebar-foreground">FinanceFlow</span>
+              <img src={logoFluxoPro} alt="FluxoPro" className="h-8 w-8 object-contain" />
+              <span className="text-lg font-bold text-sidebar-foreground">FluxoPro</span>
             </div>
           )}
-          {collapsed && <PiggyBank className="h-7 w-7 text-sidebar-primary mx-auto" />}
+          {collapsed && <img src={logoFluxoPro} alt="FluxoPro" className="h-8 w-8 object-contain mx-auto" />}
         </div>
         <SidebarGroup>
           <SidebarGroupLabel>Visão Geral</SidebarGroupLabel>
