@@ -257,13 +257,14 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
   const updateReceivable = useCallback(async (r: Receivable) => {
     if (!user) return;
-    await supabase.from('receivables').update({
+    const { error } = await supabase.from('receivables').update({
       client_name: r.clientName, description: r.description,
       category_id: r.categoryId, account_id: r.accountId || null,
       amount: r.amount, due_date: r.dueDate, status: r.status,
       notes: r.notes || null,
-    }).eq('id', r.id);
-    fetchAll();
+    }).eq('id', r.id).eq('user_id', user.id);
+    if (error) { console.error('updateReceivable error:', error); toast.error('Erro ao atualizar conta a receber'); return; }
+    await fetchAll();
   }, [user, fetchAll]);
 
   const deleteReceivable = useCallback(async (id: string) => {
