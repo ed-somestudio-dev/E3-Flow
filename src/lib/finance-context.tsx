@@ -339,8 +339,8 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     const { error } = await supabase.from('budgets').insert({
       user_id: user.id, category_id: b.categoryId, amount: b.amount, month: b.month,
     });
-    if (error) { toast.error('Erro ao criar orçamento'); return; }
-    fetchAll();
+    if (error) { console.error('addBudget error:', error); toast.error('Erro ao criar orçamento'); return; }
+    await fetchAll();
   }, [user, fetchAll]);
 
   const updateBudget = useCallback(async (b: Budget) => {
