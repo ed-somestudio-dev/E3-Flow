@@ -345,8 +345,9 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
   const updateBudget = useCallback(async (b: Budget) => {
     if (!user) return;
-    await supabase.from('budgets').update({ category_id: b.categoryId, amount: b.amount, month: b.month }).eq('id', b.id);
-    fetchAll();
+    const { error } = await supabase.from('budgets').update({ category_id: b.categoryId, amount: b.amount, month: b.month }).eq('id', b.id).eq('user_id', user.id);
+    if (error) { console.error('updateBudget error:', error); toast.error('Erro ao atualizar orçamento'); return; }
+    await fetchAll();
   }, [user, fetchAll]);
 
   const deleteBudget = useCallback(async (id: string) => {
