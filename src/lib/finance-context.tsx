@@ -305,12 +305,13 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
   const updateAccount = useCallback(async (a: FinancialAccount) => {
     if (!user) return;
-    await supabase.from('financial_accounts').update({
+    const { error } = await supabase.from('financial_accounts').update({
       name: a.name, type: a.type, balance: a.balance, color: a.color,
       credit_limit: a.creditLimit || null,
       billing_close_day: a.billingCloseDay || null, due_day: a.dueDay || null,
-    }).eq('id', a.id);
-    fetchAll();
+    }).eq('id', a.id).eq('user_id', user.id);
+    if (error) { console.error('updateAccount error:', error); toast.error('Erro ao atualizar conta'); return; }
+    await fetchAll();
   }, [user, fetchAll]);
 
   const deleteAccount = useCallback(async (id: string) => {
