@@ -299,8 +299,8 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       color: a.color, credit_limit: a.creditLimit || null,
       billing_close_day: a.billingCloseDay || null, due_day: a.dueDay || null,
     });
-    if (error) { toast.error('Erro ao criar conta'); return; }
-    fetchAll();
+    if (error) { console.error('addAccount error:', error); toast.error('Erro ao criar conta'); return; }
+    await fetchAll();
   }, [user, fetchAll]);
 
   const updateAccount = useCallback(async (a: FinancialAccount) => {
