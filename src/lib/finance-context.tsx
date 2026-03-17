@@ -208,15 +208,16 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
   const updatePayable = useCallback(async (p: Payable) => {
     if (!user) return;
-    await supabase.from('payables').update({
+    const { error } = await supabase.from('payables').update({
       description: p.description, supplier: p.supplier,
       category_id: p.categoryId, account_id: p.accountId || null,
       amount: p.amount, due_date: p.dueDate, status: p.status,
       notes: p.notes || null, recurring: p.recurring || false,
       recurrence_frequency: p.recurrenceFrequency || null,
       recurrence_end_date: p.recurrenceEndDate || null,
-    }).eq('id', p.id);
-    fetchAll();
+    }).eq('id', p.id).eq('user_id', user.id);
+    if (error) { console.error('updatePayable error:', error); toast.error('Erro ao atualizar conta a pagar'); return; }
+    await fetchAll();
   }, [user, fetchAll]);
 
   const deletePayable = useCallback(async (id: string) => {
