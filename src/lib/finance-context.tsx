@@ -222,8 +222,9 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
   const deletePayable = useCallback(async (id: string) => {
     if (!user) return;
-    await supabase.from('payables').delete().eq('id', id);
-    fetchAll();
+    const { error } = await supabase.from('payables').delete().eq('id', id).eq('user_id', user.id);
+    if (error) { console.error('deletePayable error:', error); toast.error('Erro ao excluir conta a pagar'); return; }
+    await fetchAll();
   }, [user, fetchAll]);
 
   const markPayablePaid = useCallback(async (id: string, accountId?: string) => {
