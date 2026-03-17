@@ -280,14 +280,15 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     const receivable = data.receivables.find(x => x.id === id);
     const targetAccountId = accountId || receivable?.accountId;
     const today = new Date().toISOString().split('T')[0];
-    await supabase.from('receivables').update({
+    const { error } = await supabase.from('receivables').update({
       status: 'received', payment_date: today, account_id: targetAccountId || null,
-    }).eq('id', id);
+    }).eq('id', id).eq('user_id', user.id);
+    if (error) { console.error('markReceivableReceived error:', error); toast.error('Erro ao marcar como recebido'); return; }
     if (receivable && targetAccountId) {
       const acc = data.accounts.find(a => a.id === targetAccountId);
       if (acc) await supabase.from('financial_accounts').update({ balance: acc.balance + receivable.amount }).eq('id', targetAccountId);
     }
-    fetchAll();
+    await fetchAll();
   }, [user, data, fetchAll]);
 
   // --- Accounts ---
