@@ -16,7 +16,7 @@ import BudgetsPage from "@/pages/BudgetsPage";
 import ReportsPage from "@/pages/ReportsPage";
 import AuthPage from "@/pages/AuthPage";
 import NotFound from "@/pages/NotFound";
-import { PiggyBank } from "lucide-react";
+import logoFluxoPro from '@/assets/Logo_FluxoPro.png';
 
 const queryClient = new QueryClient();
 
