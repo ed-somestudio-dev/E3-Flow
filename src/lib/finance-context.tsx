@@ -232,14 +232,15 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     const payable = data.payables.find(x => x.id === id);
     const targetAccountId = accountId || payable?.accountId;
     const today = new Date().toISOString().split('T')[0];
-    await supabase.from('payables').update({
+    const { error } = await supabase.from('payables').update({
       status: 'paid', payment_date: today, account_id: targetAccountId || null,
-    }).eq('id', id);
+    }).eq('id', id).eq('user_id', user.id);
+    if (error) { console.error('markPayablePaid error:', error); toast.error('Erro ao marcar como pago'); return; }
     if (payable && targetAccountId) {
       const acc = data.accounts.find(a => a.id === targetAccountId);
       if (acc) await supabase.from('financial_accounts').update({ balance: acc.balance - payable.amount }).eq('id', targetAccountId);
     }
-    fetchAll();
+    await fetchAll();
   }, [user, data, fetchAll]);
 
   // --- Receivables ---
