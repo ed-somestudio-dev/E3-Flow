@@ -202,8 +202,8 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       recurrence_frequency: p.recurrenceFrequency || null,
       recurrence_end_date: p.recurrenceEndDate || null,
     });
-    if (error) { toast.error('Erro ao criar conta a pagar'); return; }
-    fetchAll();
+    if (error) { console.error('addPayable error:', error); toast.error('Erro ao criar conta a pagar'); return; }
+    await fetchAll();
   }, [user, fetchAll]);
 
   const updatePayable = useCallback(async (p: Payable) => {
