@@ -352,8 +352,9 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
   const deleteBudget = useCallback(async (id: string) => {
     if (!user) return;
-    await supabase.from('budgets').delete().eq('id', id);
-    fetchAll();
+    const { error } = await supabase.from('budgets').delete().eq('id', id).eq('user_id', user.id);
+    if (error) { console.error('deleteBudget error:', error); toast.error('Erro ao excluir orçamento'); return; }
+    await fetchAll();
   }, [user, fetchAll]);
 
   const getCategoryName = useCallback((id: string) => data.categories.find(c => c.id === id)?.name || 'Desconhecido', [data.categories]);
