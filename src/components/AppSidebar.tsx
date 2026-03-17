@@ -34,10 +34,7 @@ export function AppSidebar() {
       <SidebarContent>
         <div className="px-4 py-5">
           {!collapsed && (
-            <div className="flex items-center gap-2">
-              <img src={logoFluxoPro} alt="FluxoPro" className="h-8 w-8 object-contain" />
-              <span className="text-lg font-bold text-sidebar-foreground">FluxoPro</span>
-            </div>
+            <img src={logoFluxoPro} alt="FluxoPro" className="h-12 object-contain" />
           )}
           {collapsed && <img src={logoFluxoPro} alt="FluxoPro" className="h-8 w-8 object-contain mx-auto" />}
         </div>

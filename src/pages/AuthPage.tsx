@@ -47,9 +47,8 @@ export default function AuthPage() {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center space-y-2">
-          <div className="flex items-center justify-center gap-2">
-            <img src={logoFluxoPro} alt="FluxoPro" className="h-10 w-10 object-contain" />
-            <span className="text-2xl font-bold">FluxoPro</span>
+          <div className="flex items-center justify-center">
+            <img src={logoFluxoPro} alt="FluxoPro" className="h-16 object-contain" />
           </div>
           <p className="text-muted-foreground text-sm">
             {isSignUp ? 'Crie sua conta para começar' : 'Entre na sua conta'}
