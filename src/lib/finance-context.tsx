@@ -330,7 +330,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       supabase.from('financial_accounts').update({ balance: fromAcc.balance - amount }).eq('id', fromId),
       supabase.from('financial_accounts').update({ balance: toAcc.balance + amount }).eq('id', toId),
     ]);
-    fetchAll();
+    await fetchAll();
   }, [user, data, fetchAll]);
 
   // --- Budgets ---
