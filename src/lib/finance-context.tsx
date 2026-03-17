@@ -176,7 +176,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       const currentBalance = acc ? (acc.id === old.accountId ? acc.balance + oldDelta : acc.balance) : 0;
       await supabase.from('financial_accounts').update({ balance: currentBalance + newDelta }).eq('id', tx.accountId);
     }
-    fetchAll();
+    await fetchAll();
   }, [user, data, fetchAll]);
 
   const deleteTransaction = useCallback(async (id: string) => {
