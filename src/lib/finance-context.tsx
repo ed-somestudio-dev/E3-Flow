@@ -269,8 +269,9 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
   const deleteReceivable = useCallback(async (id: string) => {
     if (!user) return;
-    await supabase.from('receivables').delete().eq('id', id);
-    fetchAll();
+    const { error } = await supabase.from('receivables').delete().eq('id', id).eq('user_id', user.id);
+    if (error) { console.error('deleteReceivable error:', error); toast.error('Erro ao excluir conta a receber'); return; }
+    await fetchAll();
   }, [user, fetchAll]);
 
   const markReceivableReceived = useCallback(async (id: string, accountId?: string) => {
