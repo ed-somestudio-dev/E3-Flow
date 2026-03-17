@@ -316,9 +316,9 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
   const deleteAccount = useCallback(async (id: string) => {
     if (!user) return;
-    const { error } = await supabase.from('financial_accounts').delete().eq('id', id);
-    if (error) { toast.error('Não é possível excluir conta com transações vinculadas'); return; }
-    fetchAll();
+    const { error } = await supabase.from('financial_accounts').delete().eq('id', id).eq('user_id', user.id);
+    if (error) { console.error('deleteAccount error:', error); toast.error('Não é possível excluir conta com transações vinculadas'); return; }
+    await fetchAll();
   }, [user, fetchAll]);
 
   const transferBetweenAccounts = useCallback(async (fromId: string, toId: string, amount: number) => {
