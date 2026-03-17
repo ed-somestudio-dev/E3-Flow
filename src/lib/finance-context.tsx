@@ -154,7 +154,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     const delta = tx.type === 'income' ? tx.amount : -tx.amount;
     const acc = data.accounts.find(a => a.id === tx.accountId);
     if (acc) await supabase.from('financial_accounts').update({ balance: acc.balance + delta }).eq('id', tx.accountId);
-    fetchAll();
+    await fetchAll();
   }, [user, data, fetchAll]);
 
   const updateTransaction = useCallback(async (tx: Transaction) => {
@@ -176,7 +176,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       const currentBalance = acc ? (acc.id === old.accountId ? acc.balance + oldDelta : acc.balance) : 0;
       await supabase.from('financial_accounts').update({ balance: currentBalance + newDelta }).eq('id', tx.accountId);
     }
-    fetchAll();
+    await fetchAll();
   }, [user, data, fetchAll]);
 
   const deleteTransaction = useCallback(async (id: string) => {
@@ -188,7 +188,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       const acc = data.accounts.find(a => a.id === tx.accountId);
       if (acc) await supabase.from('financial_accounts').update({ balance: acc.balance + delta }).eq('id', tx.accountId);
     }
-    fetchAll();
+    await fetchAll();
   }, [user, data, fetchAll]);
 
   // --- Payables ---
@@ -202,27 +202,29 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       recurrence_frequency: p.recurrenceFrequency || null,
       recurrence_end_date: p.recurrenceEndDate || null,
     });
-    if (error) { toast.error('Erro ao criar conta a pagar'); return; }
-    fetchAll();
+    if (error) { console.error('addPayable error:', error); toast.error('Erro ao criar conta a pagar'); return; }
+    await fetchAll();
   }, [user, fetchAll]);
 
   const updatePayable = useCallback(async (p: Payable) => {
     if (!user) return;
-    await supabase.from('payables').update({
+    const { error } = await supabase.from('payables').update({
       description: p.description, supplier: p.supplier,
       category_id: p.categoryId, account_id: p.accountId || null,
       amount: p.amount, due_date: p.dueDate, status: p.status,
       notes: p.notes || null, recurring: p.recurring || false,
       recurrence_frequency: p.recurrenceFrequency || null,
       recurrence_end_date: p.recurrenceEndDate || null,
-    }).eq('id', p.id);
-    fetchAll();
+    }).eq('id', p.id).eq('user_id', user.id);
+    if (error) { console.error('updatePayable error:', error); toast.error('Erro ao atualizar conta a pagar'); return; }
+    await fetchAll();
   }, [user, fetchAll]);
 
   const deletePayable = useCallback(async (id: string) => {
     if (!user) return;
-    await supabase.from('payables').delete().eq('id', id);
-    fetchAll();
+    const { error } = await supabase.from('payables').delete().eq('id', id).eq('user_id', user.id);
+    if (error) { console.error('deletePayable error:', error); toast.error('Erro ao excluir conta a pagar'); return; }
+    await fetchAll();
   }, [user, fetchAll]);
 
   const markPayablePaid = useCallback(async (id: string, accountId?: string) => {
@@ -230,14 +232,15 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     const payable = data.payables.find(x => x.id === id);
     const targetAccountId = accountId || payable?.accountId;
     const today = new Date().toISOString().split('T')[0];
-    await supabase.from('payables').update({
+    const { error } = await supabase.from('payables').update({
       status: 'paid', payment_date: today, account_id: targetAccountId || null,
-    }).eq('id', id);
+    }).eq('id', id).eq('user_id', user.id);
+    if (error) { console.error('markPayablePaid error:', error); toast.error('Erro ao marcar como pago'); return; }
     if (payable && targetAccountId) {
       const acc = data.accounts.find(a => a.id === targetAccountId);
       if (acc) await supabase.from('financial_accounts').update({ balance: acc.balance - payable.amount }).eq('id', targetAccountId);
     }
-    fetchAll();
+    await fetchAll();
   }, [user, data, fetchAll]);
 
   // --- Receivables ---
@@ -249,25 +252,27 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       amount: r.amount, due_date: r.dueDate, status: r.status,
       notes: r.notes || null,
     });
-    if (error) { toast.error('Erro ao criar conta a receber'); return; }
-    fetchAll();
+    if (error) { console.error('addReceivable error:', error); toast.error('Erro ao criar conta a receber'); return; }
+    await fetchAll();
   }, [user, fetchAll]);
 
   const updateReceivable = useCallback(async (r: Receivable) => {
     if (!user) return;
-    await supabase.from('receivables').update({
+    const { error } = await supabase.from('receivables').update({
       client_name: r.clientName, description: r.description,
       category_id: r.categoryId, account_id: r.accountId || null,
       amount: r.amount, due_date: r.dueDate, status: r.status,
       notes: r.notes || null,
-    }).eq('id', r.id);
-    fetchAll();
+    }).eq('id', r.id).eq('user_id', user.id);
+    if (error) { console.error('updateReceivable error:', error); toast.error('Erro ao atualizar conta a receber'); return; }
+    await fetchAll();
   }, [user, fetchAll]);
 
   const deleteReceivable = useCallback(async (id: string) => {
     if (!user) return;
-    await supabase.from('receivables').delete().eq('id', id);
-    fetchAll();
+    const { error } = await supabase.from('receivables').delete().eq('id', id).eq('user_id', user.id);
+    if (error) { console.error('deleteReceivable error:', error); toast.error('Erro ao excluir conta a receber'); return; }
+    await fetchAll();
   }, [user, fetchAll]);
 
   const markReceivableReceived = useCallback(async (id: string, accountId?: string) => {
@@ -275,14 +280,15 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     const receivable = data.receivables.find(x => x.id === id);
     const targetAccountId = accountId || receivable?.accountId;
     const today = new Date().toISOString().split('T')[0];
-    await supabase.from('receivables').update({
+    const { error } = await supabase.from('receivables').update({
       status: 'received', payment_date: today, account_id: targetAccountId || null,
-    }).eq('id', id);
+    }).eq('id', id).eq('user_id', user.id);
+    if (error) { console.error('markReceivableReceived error:', error); toast.error('Erro ao marcar como recebido'); return; }
     if (receivable && targetAccountId) {
       const acc = data.accounts.find(a => a.id === targetAccountId);
       if (acc) await supabase.from('financial_accounts').update({ balance: acc.balance + receivable.amount }).eq('id', targetAccountId);
     }
-    fetchAll();
+    await fetchAll();
   }, [user, data, fetchAll]);
 
   // --- Accounts ---
@@ -293,25 +299,26 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       color: a.color, credit_limit: a.creditLimit || null,
       billing_close_day: a.billingCloseDay || null, due_day: a.dueDay || null,
     });
-    if (error) { toast.error('Erro ao criar conta'); return; }
-    fetchAll();
+    if (error) { console.error('addAccount error:', error); toast.error('Erro ao criar conta'); return; }
+    await fetchAll();
   }, [user, fetchAll]);
 
   const updateAccount = useCallback(async (a: FinancialAccount) => {
     if (!user) return;
-    await supabase.from('financial_accounts').update({
+    const { error } = await supabase.from('financial_accounts').update({
       name: a.name, type: a.type, balance: a.balance, color: a.color,
       credit_limit: a.creditLimit || null,
       billing_close_day: a.billingCloseDay || null, due_day: a.dueDay || null,
-    }).eq('id', a.id);
-    fetchAll();
+    }).eq('id', a.id).eq('user_id', user.id);
+    if (error) { console.error('updateAccount error:', error); toast.error('Erro ao atualizar conta'); return; }
+    await fetchAll();
   }, [user, fetchAll]);
 
   const deleteAccount = useCallback(async (id: string) => {
     if (!user) return;
-    const { error } = await supabase.from('financial_accounts').delete().eq('id', id);
-    if (error) { toast.error('Não é possível excluir conta com transações vinculadas'); return; }
-    fetchAll();
+    const { error } = await supabase.from('financial_accounts').delete().eq('id', id).eq('user_id', user.id);
+    if (error) { console.error('deleteAccount error:', error); toast.error('Não é possível excluir conta com transações vinculadas'); return; }
+    await fetchAll();
   }, [user, fetchAll]);
 
   const transferBetweenAccounts = useCallback(async (fromId: string, toId: string, amount: number) => {
@@ -323,7 +330,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       supabase.from('financial_accounts').update({ balance: fromAcc.balance - amount }).eq('id', fromId),
       supabase.from('financial_accounts').update({ balance: toAcc.balance + amount }).eq('id', toId),
     ]);
-    fetchAll();
+    await fetchAll();
   }, [user, data, fetchAll]);
 
   // --- Budgets ---
@@ -332,20 +339,22 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     const { error } = await supabase.from('budgets').insert({
       user_id: user.id, category_id: b.categoryId, amount: b.amount, month: b.month,
     });
-    if (error) { toast.error('Erro ao criar orçamento'); return; }
-    fetchAll();
+    if (error) { console.error('addBudget error:', error); toast.error('Erro ao criar orçamento'); return; }
+    await fetchAll();
   }, [user, fetchAll]);
 
   const updateBudget = useCallback(async (b: Budget) => {
     if (!user) return;
-    await supabase.from('budgets').update({ category_id: b.categoryId, amount: b.amount, month: b.month }).eq('id', b.id);
-    fetchAll();
+    const { error } = await supabase.from('budgets').update({ category_id: b.categoryId, amount: b.amount, month: b.month }).eq('id', b.id).eq('user_id', user.id);
+    if (error) { console.error('updateBudget error:', error); toast.error('Erro ao atualizar orçamento'); return; }
+    await fetchAll();
   }, [user, fetchAll]);
 
   const deleteBudget = useCallback(async (id: string) => {
     if (!user) return;
-    await supabase.from('budgets').delete().eq('id', id);
-    fetchAll();
+    const { error } = await supabase.from('budgets').delete().eq('id', id).eq('user_id', user.id);
+    if (error) { console.error('deleteBudget error:', error); toast.error('Erro ao excluir orçamento'); return; }
+    await fetchAll();
   }, [user, fetchAll]);
 
   const getCategoryName = useCallback((id: string) => data.categories.find(c => c.id === id)?.name || 'Desconhecido', [data.categories]);
