@@ -252,8 +252,8 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       amount: r.amount, due_date: r.dueDate, status: r.status,
       notes: r.notes || null,
     });
-    if (error) { toast.error('Erro ao criar conta a receber'); return; }
-    fetchAll();
+    if (error) { console.error('addReceivable error:', error); toast.error('Erro ao criar conta a receber'); return; }
+    await fetchAll();
   }, [user, fetchAll]);
 
   const updateReceivable = useCallback(async (r: Receivable) => {
