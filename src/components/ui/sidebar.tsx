@@ -138,6 +138,18 @@ const Sidebar = React.forwardRef<
 >(({ side = "left", variant = "sidebar", collapsible = "offcanvas", className, children, ...props }, ref) => {
   const { isMobile, state, openMobile, setOpenMobile } = useSidebar();
 
+  const handleMobileLinkClickCapture = React.useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement;
+    const anchor = target.closest("a[href]");
+
+    if (!anchor) return;
+
+    const href = anchor.getAttribute("href");
+    if (!href || href.startsWith("#") || href.startsWith("http")) return;
+
+    requestAnimationFrame(() => setOpenMobile(false));
+  }, [setOpenMobile]);
+
   if (collapsible === "none") {
     return (
       <div
@@ -164,7 +176,7 @@ const Sidebar = React.forwardRef<
           }
           side={side}
         >
-          <div className="flex h-full w-full flex-col">{children}</div>
+          <div className="flex h-full w-full flex-col" onClickCapture={handleMobileLinkClickCapture}>{children}</div>
         </SheetContent>
       </Sheet>
     );

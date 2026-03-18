@@ -1,8 +1,6 @@
-import { useEffect } from 'react';
 import {
   LayoutDashboard, FileText, FileInput, ArrowUpDown, Wallet, Target, Sun, Moon, BarChart3, LogOut,
 } from 'lucide-react';
-import { useLocation } from 'react-router-dom';
 import logoFluxoPro from '@/assets/Logo_FluxoPro.png';
 import { NavLink } from '@/components/NavLink';
 import { useTheme } from '@/lib/theme-context';
@@ -15,8 +13,8 @@ import {
 const mainItems = [
   { title: 'Painel', url: '/', icon: LayoutDashboard },
   { title: 'Transações', url: '/transactions', icon: ArrowUpDown },
-  { title: 'Contas a Pagar', url: '/payables', icon: FileText },
-  { title: 'Contas a Receber', url: '/receivables', icon: FileInput },
+  { title: 'Contas a\u00A0Pagar', url: '/payables', icon: FileText },
+  { title: 'Contas a\u00A0Receber', url: '/receivables', icon: FileInput },
 ];
 
 const manageItems = [
@@ -26,23 +24,10 @@ const manageItems = [
 ];
 
 export function AppSidebar() {
-  const { state, isMobile, setOpenMobile } = useSidebar();
+  const { state } = useSidebar();
   const collapsed = state === 'collapsed';
   const { theme, toggleTheme } = useTheme();
   const { signOut } = useAuth();
-  const location = useLocation();
-
-  useEffect(() => {
-    if (isMobile) {
-      setOpenMobile(false);
-    }
-  }, [location.pathname, isMobile, setOpenMobile]);
-
-  const handleNavClick = () => {
-    if (isMobile) {
-      requestAnimationFrame(() => setOpenMobile(false));
-    }
-  };
 
   return (
     <Sidebar collapsible="icon">
@@ -60,7 +45,7 @@ export function AppSidebar() {
               {mainItems.map(item => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
-                    <NavLink to={item.url} end={item.url === '/'} onClick={handleNavClick} activeClassName="bg-sidebar-accent text-sidebar-primary font-medium">
+                    <NavLink to={item.url} end={item.url === '/'} activeClassName="bg-sidebar-accent text-sidebar-primary font-medium">
                       <item.icon className="h-4 w-4 mr-2" />
                       {!collapsed && <span>{item.title}</span>}
                     </NavLink>
@@ -77,7 +62,7 @@ export function AppSidebar() {
               {manageItems.map(item => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
-                    <NavLink to={item.url} onClick={handleNavClick} activeClassName="bg-sidebar-accent text-sidebar-primary font-medium">
+                    <NavLink to={item.url} activeClassName="bg-sidebar-accent text-sidebar-primary font-medium">
                       <item.icon className="h-4 w-4 mr-2" />
                       {!collapsed && <span>{item.title}</span>}
                     </NavLink>
