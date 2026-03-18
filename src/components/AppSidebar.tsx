@@ -1,6 +1,8 @@
+import { useEffect } from 'react';
 import {
   LayoutDashboard, FileText, FileInput, ArrowUpDown, Wallet, Target, Sun, Moon, BarChart3, LogOut,
 } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
 import logoFluxoPro from '@/assets/Logo_FluxoPro.png';
 import { NavLink } from '@/components/NavLink';
 import { useTheme } from '@/lib/theme-context';
@@ -14,7 +16,7 @@ const mainItems = [
   { title: 'Painel', url: '/', icon: LayoutDashboard },
   { title: 'Transações', url: '/transactions', icon: ArrowUpDown },
   { title: 'Contas a Pagar', url: '/payables', icon: FileText },
-  { title: 'Contas a\u00A0Receber', url: '/receivables', icon: FileInput },
+  { title: 'Contas a Receber', url: '/receivables', icon: FileInput },
 ];
 
 const manageItems = [
@@ -28,10 +30,17 @@ export function AppSidebar() {
   const collapsed = state === 'collapsed';
   const { theme, toggleTheme } = useTheme();
   const { signOut } = useAuth();
+  const location = useLocation();
+
+  useEffect(() => {
+    if (isMobile) {
+      setOpenMobile(false);
+    }
+  }, [location.pathname, isMobile, setOpenMobile]);
 
   const handleNavClick = () => {
     if (isMobile) {
-      setOpenMobile(false);
+      requestAnimationFrame(() => setOpenMobile(false));
     }
   };
 
@@ -40,9 +49,9 @@ export function AppSidebar() {
       <SidebarContent>
         <div className="px-4 py-5">
           {!collapsed && (
-            <img src={logoFluxoPro} alt="FluxoPro" className="h-12 object-contain" />
+            <img src={logoFluxoPro} alt="FluxoPro" className="h-48 w-full object-contain" />
           )}
-          {collapsed && <img src={logoFluxoPro} alt="FluxoPro" className="h-8 w-8 object-contain mx-auto" />}
+          {collapsed && <img src={logoFluxoPro} alt="FluxoPro" className="h-10 w-10 object-contain mx-auto" />}
         </div>
         <SidebarGroup>
           <SidebarGroupLabel>Visão Geral</SidebarGroupLabel>
