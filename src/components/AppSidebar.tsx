@@ -24,10 +24,16 @@ const manageItems = [
 ];
 
 export function AppSidebar() {
-  const { state } = useSidebar();
+  const { state, isMobile, setOpenMobile } = useSidebar();
   const collapsed = state === 'collapsed';
   const { theme, toggleTheme } = useTheme();
   const { signOut } = useAuth();
+
+  const handleNavClick = () => {
+    if (isMobile) {
+      setOpenMobile(false);
+    }
+  };
 
   return (
     <Sidebar collapsible="icon">
@@ -45,7 +51,7 @@ export function AppSidebar() {
               {mainItems.map(item => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
-                    <NavLink to={item.url} end={item.url === '/'} activeClassName="bg-sidebar-accent text-sidebar-primary font-medium">
+                    <NavLink to={item.url} end={item.url === '/'} onClick={handleNavClick} activeClassName="bg-sidebar-accent text-sidebar-primary font-medium">
                       <item.icon className="h-4 w-4 mr-2" />
                       {!collapsed && <span>{item.title}</span>}
                     </NavLink>
@@ -62,7 +68,7 @@ export function AppSidebar() {
               {manageItems.map(item => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
-                    <NavLink to={item.url} activeClassName="bg-sidebar-accent text-sidebar-primary font-medium">
+                    <NavLink to={item.url} onClick={handleNavClick} activeClassName="bg-sidebar-accent text-sidebar-primary font-medium">
                       <item.icon className="h-4 w-4 mr-2" />
                       {!collapsed && <span>{item.title}</span>}
                     </NavLink>
