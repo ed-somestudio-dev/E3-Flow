@@ -1,5 +1,5 @@
 import {
-  LayoutDashboard, FileText, FileInput, ArrowUpDown, Wallet, Target, Sun, Moon, BarChart3, LogOut,
+  LayoutDashboard, FileText, FileInput, ArrowUpDown, Wallet, Target, Sun, Moon, BarChart3, LogOut, Tag,
 } from 'lucide-react';
 import logoFluxoPro from '@/assets/Logo_FluxoPro.png';
 import { NavLink } from '@/components/NavLink';
