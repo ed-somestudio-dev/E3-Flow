@@ -360,6 +360,32 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     await fetchAll();
   }, [user, fetchAll]);
 
+  // --- Categories ---
+  const addCategory = useCallback(async (c: Omit<Category, 'id'>) => {
+    if (!user) return;
+    const { error } = await supabase.from('categories').insert({
+      user_id: user.id, name: c.name, type: c.type, icon: c.icon, color: c.color,
+    });
+    if (error) { toast.error('Erro ao criar categoria'); return; }
+    await fetchAll();
+  }, [user, fetchAll]);
+
+  const updateCategory = useCallback(async (c: Category) => {
+    if (!user) return;
+    const { error } = await supabase.from('categories').update({
+      name: c.name, type: c.type, icon: c.icon, color: c.color,
+    }).eq('id', c.id).eq('user_id', user.id);
+    if (error) { toast.error('Erro ao atualizar categoria'); return; }
+    await fetchAll();
+  }, [user, fetchAll]);
+
+  const deleteCategory = useCallback(async (id: string) => {
+    if (!user) return;
+    const { error } = await supabase.from('categories').delete().eq('id', id).eq('user_id', user.id);
+    if (error) { toast.error('Não é possível excluir categoria com dados vinculados'); return; }
+    await fetchAll();
+  }, [user, fetchAll]);
+
   const getCategoryName = useCallback((id: string) => data.categories.find(c => c.id === id)?.name || 'Desconhecido', [data.categories]);
   const getAccountName = useCallback((id: string) => data.accounts.find(a => a.id === id)?.name || 'Desconhecido', [data.accounts]);
   const getCategoryColor = useCallback((id: string) => data.categories.find(c => c.id === id)?.color || '#888', [data.categories]);
