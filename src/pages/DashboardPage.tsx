@@ -100,7 +100,7 @@ export default function DashboardPage() {
     }));
   }, [data.transactions, getCategoryName, getCategoryColor]);
 
-  const recurringBills = data.payables.filter(p => p.recurring && p.status !== 'paid');
+  const pendingBills = data.payables.filter(p => p.status !== 'paid');
 
   return (
     <div className="space-y-6 max-w-7xl">
