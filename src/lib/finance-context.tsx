@@ -70,11 +70,14 @@ function mapTransaction(row: any): Transaction {
 }
 
 function mapPayable(row: any): Payable {
+  const today = new Date().toISOString().split('T')[0];
+  let status = row.status;
+  if (status === 'pending' && row.due_date < today) status = 'overdue';
   return {
     id: row.id, description: row.description, supplier: row.supplier,
     categoryId: row.category_id, accountId: row.account_id ?? undefined,
     amount: Number(row.amount), dueDate: row.due_date, paymentDate: row.payment_date ?? undefined,
-    paymentMethod: row.payment_method ?? undefined, status: row.status,
+    paymentMethod: row.payment_method ?? undefined, status,
     notes: row.notes ?? undefined, recurring: row.recurring ?? undefined,
     recurrenceFrequency: row.recurrence_frequency ?? undefined,
     recurrenceEndDate: row.recurrence_end_date ?? undefined,
