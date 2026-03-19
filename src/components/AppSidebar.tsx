@@ -19,8 +19,9 @@ const mainItems = [
 
 const manageItems = [
   { title: 'Contas', url: '/accounts', icon: Wallet },
-  { title: 'Orçamentos', url: '/budgets', icon: Target },
-  { title: 'Relatórios', url: '/reports', icon: BarChart3 },
+  { title: 'Categorias', url: '/categories', icon: Tag },
+  { title: 'Or\u00E7amentos', url: '/budgets', icon: Target },
+  { title: 'Relat\u00F3rios', url: '/reports', icon: BarChart3 },
 ];
 
 export function AppSidebar() {
