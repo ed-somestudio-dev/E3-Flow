@@ -141,8 +141,9 @@ export default function DashboardPage() {
           <div className="space-y-1 text-sm max-h-[6.5rem] overflow-y-auto">
             {pendingBills.map(p => (
               <p key={p.id} className="text-muted-foreground">
-                <span className="text-foreground font-medium">{p.description}</span> — {fmt(p.amount)} · Vence {fmtDate(p.dueDate)}
-                {p.status === 'overdue' && <span className="ml-2 text-xs text-destructive font-medium">(Vencida)</span>}
+                <span className="text-foreground font-medium">{p.description}</span>
+                {p.status === 'overdue' && <span className="ml-1 text-xs text-destructive font-semibold">(Vencida)</span>}
+                {' — '}{fmt(p.amount)} · {p.status === 'overdue' ? 'Venceu' : 'Vence'} {fmtDate(p.dueDate)}
                 {p.recurring && <span className="ml-2 text-xs text-primary">({p.recurrenceFrequency === 'monthly' ? 'Mensal' : p.recurrenceFrequency === 'weekly' ? 'Semanal' : 'Anual'})</span>}
               </p>
             ))}
