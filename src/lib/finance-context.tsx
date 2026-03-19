@@ -398,6 +398,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       addReceivable, updateReceivable, deleteReceivable, markReceivableReceived,
       addAccount, updateAccount, deleteAccount, transferBetweenAccounts,
       addBudget, updateBudget, deleteBudget,
+      addCategory, updateCategory, deleteCategory,
       getCategoryName, getAccountName, getCategoryColor,
     }}>
       {children}
