@@ -100,7 +100,7 @@ export default function DashboardPage() {
     }));
   }, [data.transactions, getCategoryName, getCategoryColor]);
 
-  const recurringBills = data.payables.filter(p => p.recurring && p.status !== 'paid');
+  const pendingBills = data.payables.filter(p => p.status !== 'paid');
 
   return (
     <div className="space-y-6 max-w-7xl">
@@ -131,18 +131,19 @@ export default function DashboardPage() {
         </motion.div>
       )}
 
-      {/* Contas Recorrentes */}
-      {recurringBills.length > 0 && (
+      {/* Contas Pendentes */}
+      {pendingBills.length > 0 && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="finance-card border-primary/20 bg-primary/5">
           <div className="flex items-center gap-2 text-primary mb-2">
             <ArrowUpRight className="h-4 w-4" />
-            <span className="font-semibold text-sm">Contas Recorrentes Pendentes</span>
+            <span className="font-semibold text-sm">Contas Pendentes</span>
           </div>
           <div className="space-y-1 text-sm">
-            {recurringBills.map(p => (
+            {pendingBills.map(p => (
               <p key={p.id} className="text-muted-foreground">
                 <span className="text-foreground font-medium">{p.description}</span> — {fmt(p.amount)} · Vence {fmtDate(p.dueDate)}
-                <span className="ml-2 text-xs text-primary">({p.recurrenceFrequency === 'monthly' ? 'Mensal' : p.recurrenceFrequency === 'weekly' ? 'Semanal' : 'Anual'})</span>
+                {p.status === 'overdue' && <span className="ml-2 text-xs text-destructive font-medium">(Vencida)</span>}
+                {p.recurring && <span className="ml-2 text-xs text-primary">({p.recurrenceFrequency === 'monthly' ? 'Mensal' : p.recurrenceFrequency === 'weekly' ? 'Semanal' : 'Anual'})</span>}
               </p>
             ))}
           </div>
