@@ -1,12 +1,21 @@
 import { useMemo, useState } from 'react';
 import { useFinance } from '@/lib/finance-context';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, AreaChart, Area } from 'recharts';
-import { fmt } from '@/lib/format';
+import { fmt, fmtDate } from '@/lib/format';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export default function ReportsPage() {
   const { data, getCategoryName, getCategoryColor } = useFinance();
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear().toString());
+
+  // Period filter for payables/receivables
+  const todayStr = now.toISOString().split('T')[0];
+  const [startDate, setStartDate] = useState(() => `${now.getFullYear()}-01-01`);
+  const [endDate, setEndDate] = useState(() => `${now.getFullYear()}-12-31`);
+  const [forecastDate, setForecastDate] = useState(todayStr);
 
   // Monthly summary for year
   const monthlySummary = useMemo(() => {
@@ -62,149 +71,406 @@ export default function ReportsPage() {
     });
   }, [monthlySummary]);
 
+  // Payables by period
+  const payablesByPeriod = useMemo(() => {
+    return data.payables
+      .filter(p => p.dueDate >= startDate && p.dueDate <= endDate)
+      .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+  }, [data.payables, startDate, endDate]);
+
+  const payablesTotals = useMemo(() => {
+    const pending = payablesByPeriod.filter(p => p.status !== 'paid').reduce((s, p) => s + p.amount, 0);
+    const paid = payablesByPeriod.filter(p => p.status === 'paid').reduce((s, p) => s + p.amount, 0);
+    const overdue = payablesByPeriod.filter(p => p.status === 'overdue').reduce((s, p) => s + p.amount, 0);
+    const total = payablesByPeriod.reduce((s, p) => s + p.amount, 0);
+    return { pending, paid, overdue, total };
+  }, [payablesByPeriod]);
+
+  // Receivables by period
+  const receivablesByPeriod = useMemo(() => {
+    return data.receivables
+      .filter(r => r.dueDate >= startDate && r.dueDate <= endDate)
+      .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+  }, [data.receivables, startDate, endDate]);
+
+  const receivablesTotals = useMemo(() => {
+    const pending = receivablesByPeriod.filter(r => r.status !== 'received').reduce((s, r) => s + r.amount, 0);
+    const received = receivablesByPeriod.filter(r => r.status === 'received').reduce((s, r) => s + r.amount, 0);
+    const overdue = receivablesByPeriod.filter(r => r.status === 'overdue').reduce((s, r) => s + r.amount, 0);
+    const total = receivablesByPeriod.reduce((s, r) => s + r.amount, 0);
+    return { pending, received, overdue, total };
+  }, [receivablesByPeriod]);
+
+  // Forecast: what will be the financial position on a specific date
+  const forecast = useMemo(() => {
+    const currentBalance = data.accounts.reduce((s, a) => s + a.balance, 0);
+    const futurePayables = data.payables
+      .filter(p => p.status !== 'paid' && p.dueDate >= todayStr && p.dueDate <= forecastDate)
+      .reduce((s, p) => s + p.amount, 0);
+    const futureReceivables = data.receivables
+      .filter(r => r.status !== 'received' && r.dueDate >= todayStr && r.dueDate <= forecastDate)
+      .reduce((s, r) => s + r.amount, 0);
+    const projected = currentBalance + futureReceivables - futurePayables;
+    return { currentBalance, futurePayables, futureReceivables, projected };
+  }, [data, forecastDate, todayStr]);
+
   const tooltipStyle = {
     backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))',
     borderRadius: '8px', color: 'hsl(var(--foreground))',
   };
 
+  const statusLabel = (s: string) => {
+    if (s === 'paid') return 'Pago';
+    if (s === 'received') return 'Recebido';
+    if (s === 'overdue') return 'Vencida';
+    return 'Pendente';
+  };
+
   return (
     <div className="space-y-6 max-w-7xl">
-      <div className="flex items-center justify-between flex-wrap gap-4">
-        <div>
-          <h1 className="text-2xl font-bold">Relatórios</h1>
-          <p className="text-muted-foreground text-sm">Análise financeira detalhada</p>
-        </div>
-        <select value={year} onChange={e => setYear(e.target.value)}
-          className="rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground">
-          {[...Array(5)].map((_, i) => {
-            const y = now.getFullYear() - i;
-            return <option key={y} value={y}>{y}</option>;
-          })}
-        </select>
+      <div>
+        <h1 className="text-2xl font-bold">Relatórios</h1>
+        <p className="text-muted-foreground text-sm">Análise financeira detalhada</p>
       </div>
 
-      {/* Resumo Anual */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="finance-card">
-          <p className="finance-label">Total de Receitas</p>
-          <p className="finance-stat mono text-success">{fmt(annualTotals.income)}</p>
-        </div>
-        <div className="finance-card">
-          <p className="finance-label">Total de Despesas</p>
-          <p className="finance-stat mono text-destructive">{fmt(annualTotals.expense)}</p>
-        </div>
-        <div className="finance-card">
-          <p className="finance-label">Resultado</p>
-          <p className={`finance-stat mono ${annualTotals.balance >= 0 ? 'text-success' : 'text-destructive'}`}>{fmt(annualTotals.balance)}</p>
-        </div>
-      </div>
+      <Tabs defaultValue="general" className="w-full">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="general">Geral</TabsTrigger>
+          <TabsTrigger value="bills">Contas a Pagar/Receber</TabsTrigger>
+          <TabsTrigger value="forecast">Previsão</TabsTrigger>
+        </TabsList>
 
-      {/* Receitas vs Despesas Mensal */}
-      <div className="finance-card">
-        <h3 className="font-semibold mb-4">Receitas vs Despesas — Mensal</h3>
-        <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={monthlySummary}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-            <XAxis dataKey="name" tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }} />
-            <YAxis tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }} />
-            <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => fmt(value)} />
-            <Bar dataKey="receitas" name="Receitas" fill="hsl(var(--chart-income))" radius={[4, 4, 0, 0]} />
-            <Bar dataKey="despesas" name="Despesas" fill="hsl(var(--chart-expense))" radius={[4, 4, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
+        {/* === ABA GERAL === */}
+        <TabsContent value="general" className="space-y-6 mt-4">
+          <div className="flex justify-end">
+            <select value={year} onChange={e => setYear(e.target.value)}
+              className="rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground">
+              {[...Array(5)].map((_, i) => {
+                const y = now.getFullYear() - i;
+                return <option key={y} value={y}>{y}</option>;
+              })}
+            </select>
+          </div>
 
-      {/* Fluxo de Caixa Acumulado */}
-      <div className="finance-card">
-        <h3 className="font-semibold mb-4">Fluxo de Caixa Acumulado</h3>
-        <ResponsiveContainer width="100%" height={280}>
-          <AreaChart data={cumulativeCashFlow}>
-            <defs>
-              <linearGradient id="gradAcumulado" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="hsl(var(--chart-4))" stopOpacity={0.3} />
-                <stop offset="95%" stopColor="hsl(var(--chart-4))" stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-            <XAxis dataKey="name" tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }} />
-            <YAxis tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }} />
-            <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => fmt(value)} />
-            <Area type="monotone" dataKey="acumulado" name="Acumulado" stroke="hsl(var(--chart-4))" fill="url(#gradAcumulado)" strokeWidth={2.5} />
-          </AreaChart>
-        </ResponsiveContainer>
-      </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="finance-card">
+              <p className="finance-label">Total de Receitas</p>
+              <p className="finance-stat mono text-success">{fmt(annualTotals.income)}</p>
+            </div>
+            <div className="finance-card">
+              <p className="finance-label">Total de Despesas</p>
+              <p className="finance-stat mono text-destructive">{fmt(annualTotals.expense)}</p>
+            </div>
+            <div className="finance-card">
+              <p className="finance-label">Resultado</p>
+              <p className={`finance-stat mono ${annualTotals.balance >= 0 ? 'text-success' : 'text-destructive'}`}>{fmt(annualTotals.balance)}</p>
+            </div>
+          </div>
 
-      {/* Categorias */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="finance-card">
-          <h3 className="font-semibold mb-4">Despesas por Categoria</h3>
-          {expenseByCategory.length > 0 ? (
-            <>
-              <ResponsiveContainer width="100%" height={220}>
-                <PieChart>
-                  <Pie data={expenseByCategory} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={45} outerRadius={80} paddingAngle={3}>
-                    {expenseByCategory.map((e, i) => <Cell key={i} fill={e.color} />)}
-                  </Pie>
-                  <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => fmt(value)} />
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="space-y-1.5 mt-3">
-                {expenseByCategory.map((e, i) => (
-                  <div key={i} className="flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: e.color }} />
-                      <span>{e.name}</span>
-                    </div>
-                    <span className="mono text-muted-foreground">{fmt(e.value)}</span>
+          <div className="finance-card">
+            <h3 className="font-semibold mb-4">Receitas vs Despesas — Mensal</h3>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={monthlySummary}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis dataKey="name" tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }} />
+                <YAxis tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }} />
+                <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => fmt(value)} />
+                <Bar dataKey="receitas" name="Receitas" fill="hsl(var(--chart-income))" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="despesas" name="Despesas" fill="hsl(var(--chart-expense))" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div className="finance-card">
+            <h3 className="font-semibold mb-4">Fluxo de Caixa Acumulado</h3>
+            <ResponsiveContainer width="100%" height={280}>
+              <AreaChart data={cumulativeCashFlow}>
+                <defs>
+                  <linearGradient id="gradAcumulado" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="hsl(var(--chart-4))" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="hsl(var(--chart-4))" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis dataKey="name" tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }} />
+                <YAxis tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }} />
+                <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => fmt(value)} />
+                <Area type="monotone" dataKey="acumulado" name="Acumulado" stroke="hsl(var(--chart-4))" fill="url(#gradAcumulado)" strokeWidth={2.5} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="finance-card">
+              <h3 className="font-semibold mb-4">Despesas por Categoria</h3>
+              {expenseByCategory.length > 0 ? (
+                <>
+                  <ResponsiveContainer width="100%" height={220}>
+                    <PieChart>
+                      <Pie data={expenseByCategory} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={45} outerRadius={80} paddingAngle={3}>
+                        {expenseByCategory.map((e, i) => <Cell key={i} fill={e.color} />)}
+                      </Pie>
+                      <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => fmt(value)} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="space-y-1.5 mt-3">
+                    {expenseByCategory.map((e, i) => (
+                      <div key={i} className="flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: e.color }} />
+                          <span>{e.name}</span>
+                        </div>
+                        <span className="mono text-muted-foreground">{fmt(e.value)}</span>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            </>
-          ) : <p className="text-muted-foreground text-sm text-center py-12">Sem dados</p>}
-        </div>
-        <div className="finance-card">
-          <h3 className="font-semibold mb-4">Receitas por Categoria</h3>
-          {incomeByCategory.length > 0 ? (
-            <>
-              <ResponsiveContainer width="100%" height={220}>
-                <PieChart>
-                  <Pie data={incomeByCategory} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={45} outerRadius={80} paddingAngle={3}>
-                    {incomeByCategory.map((e, i) => <Cell key={i} fill={e.color} />)}
-                  </Pie>
-                  <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => fmt(value)} />
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="space-y-1.5 mt-3">
-                {incomeByCategory.map((e, i) => (
-                  <div key={i} className="flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: e.color }} />
-                      <span>{e.name}</span>
-                    </div>
-                    <span className="mono text-muted-foreground">{fmt(e.value)}</span>
+                </>
+              ) : <p className="text-muted-foreground text-sm text-center py-12">Sem dados</p>}
+            </div>
+            <div className="finance-card">
+              <h3 className="font-semibold mb-4">Receitas por Categoria</h3>
+              {incomeByCategory.length > 0 ? (
+                <>
+                  <ResponsiveContainer width="100%" height={220}>
+                    <PieChart>
+                      <Pie data={incomeByCategory} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={45} outerRadius={80} paddingAngle={3}>
+                        {incomeByCategory.map((e, i) => <Cell key={i} fill={e.color} />)}
+                      </Pie>
+                      <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => fmt(value)} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="space-y-1.5 mt-3">
+                    {incomeByCategory.map((e, i) => (
+                      <div key={i} className="flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: e.color }} />
+                          <span>{e.name}</span>
+                        </div>
+                        <span className="mono text-muted-foreground">{fmt(e.value)}</span>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            </>
-          ) : <p className="text-muted-foreground text-sm text-center py-12">Sem dados</p>}
-        </div>
-      </div>
+                </>
+              ) : <p className="text-muted-foreground text-sm text-center py-12">Sem dados</p>}
+            </div>
+          </div>
 
-      {/* Saldo Mensal */}
-      <div className="finance-card">
-        <h3 className="font-semibold mb-4">Resultado Mensal</h3>
-        <ResponsiveContainer width="100%" height={250}>
-          <LineChart data={monthlySummary}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-            <XAxis dataKey="name" tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }} />
-            <YAxis tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }} />
-            <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => fmt(value)} />
-            <Line type="monotone" dataKey="receitas" name="Receitas" stroke="hsl(var(--chart-income))" strokeWidth={2} dot={{ r: 3 }} />
-            <Line type="monotone" dataKey="despesas" name="Despesas" stroke="hsl(var(--chart-expense))" strokeWidth={2} dot={{ r: 3 }} />
-            <Line type="monotone" dataKey="saldo" name="Saldo" stroke="hsl(var(--chart-4))" strokeWidth={2.5} dot={{ r: 4 }} />
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
+          <div className="finance-card">
+            <h3 className="font-semibold mb-4">Resultado Mensal</h3>
+            <ResponsiveContainer width="100%" height={250}>
+              <LineChart data={monthlySummary}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis dataKey="name" tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }} />
+                <YAxis tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }} />
+                <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => fmt(value)} />
+                <Line type="monotone" dataKey="receitas" name="Receitas" stroke="hsl(var(--chart-income))" strokeWidth={2} dot={{ r: 3 }} />
+                <Line type="monotone" dataKey="despesas" name="Despesas" stroke="hsl(var(--chart-expense))" strokeWidth={2} dot={{ r: 3 }} />
+                <Line type="monotone" dataKey="saldo" name="Saldo" stroke="hsl(var(--chart-4))" strokeWidth={2.5} dot={{ r: 4 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </TabsContent>
+
+        {/* === ABA CONTAS A PAGAR/RECEBER === */}
+        <TabsContent value="bills" className="space-y-6 mt-4">
+          <div className="flex items-end gap-4 flex-wrap">
+            <div>
+              <Label className="text-xs text-muted-foreground">Data Início</Label>
+              <Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-[160px]" />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">Data Fim</Label>
+              <Input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="w-[160px]" />
+            </div>
+          </div>
+
+          {/* Contas a Pagar */}
+          <div className="finance-card">
+            <h3 className="font-semibold mb-4">Contas a Pagar — Período</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+              <div className="text-center p-3 rounded-lg bg-muted/50">
+                <p className="text-xs text-muted-foreground">Total</p>
+                <p className="mono font-semibold text-sm">{fmt(payablesTotals.total)}</p>
+              </div>
+              <div className="text-center p-3 rounded-lg bg-muted/50">
+                <p className="text-xs text-muted-foreground">Pendente</p>
+                <p className="mono font-semibold text-sm text-warning">{fmt(payablesTotals.pending)}</p>
+              </div>
+              <div className="text-center p-3 rounded-lg bg-muted/50">
+                <p className="text-xs text-muted-foreground">Pago</p>
+                <p className="mono font-semibold text-sm text-success">{fmt(payablesTotals.paid)}</p>
+              </div>
+              <div className="text-center p-3 rounded-lg bg-muted/50">
+                <p className="text-xs text-muted-foreground">Vencida</p>
+                <p className="mono font-semibold text-sm text-destructive">{fmt(payablesTotals.overdue)}</p>
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border bg-muted/50">
+                    <th className="text-left py-2 px-3 font-medium text-muted-foreground">Vencimento</th>
+                    <th className="text-left py-2 px-3 font-medium text-muted-foreground">Descrição</th>
+                    <th className="text-left py-2 px-3 font-medium text-muted-foreground">Fornecedor</th>
+                    <th className="text-left py-2 px-3 font-medium text-muted-foreground">Status</th>
+                    <th className="text-right py-2 px-3 font-medium text-muted-foreground">Valor</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {payablesByPeriod.map(p => (
+                    <tr key={p.id} className="border-b border-border last:border-0">
+                      <td className="py-2 px-3 mono text-muted-foreground">{fmtDate(p.dueDate)}</td>
+                      <td className="py-2 px-3 font-medium">{p.description}</td>
+                      <td className="py-2 px-3 text-muted-foreground">{p.supplier}</td>
+                      <td className={`py-2 px-3 font-medium ${p.status === 'overdue' ? 'text-destructive' : p.status === 'paid' ? 'text-success' : 'text-muted-foreground'}`}>
+                        {statusLabel(p.status)}
+                      </td>
+                      <td className="py-2 px-3 text-right mono font-semibold text-destructive">{fmt(p.amount)}</td>
+                    </tr>
+                  ))}
+                  {payablesByPeriod.length === 0 && (
+                    <tr><td colSpan={5} className="text-center py-8 text-muted-foreground">Nenhuma conta no período</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Contas a Receber */}
+          <div className="finance-card">
+            <h3 className="font-semibold mb-4">Contas a Receber — Período</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+              <div className="text-center p-3 rounded-lg bg-muted/50">
+                <p className="text-xs text-muted-foreground">Total</p>
+                <p className="mono font-semibold text-sm">{fmt(receivablesTotals.total)}</p>
+              </div>
+              <div className="text-center p-3 rounded-lg bg-muted/50">
+                <p className="text-xs text-muted-foreground">Pendente</p>
+                <p className="mono font-semibold text-sm text-warning">{fmt(receivablesTotals.pending)}</p>
+              </div>
+              <div className="text-center p-3 rounded-lg bg-muted/50">
+                <p className="text-xs text-muted-foreground">Recebido</p>
+                <p className="mono font-semibold text-sm text-success">{fmt(receivablesTotals.received)}</p>
+              </div>
+              <div className="text-center p-3 rounded-lg bg-muted/50">
+                <p className="text-xs text-muted-foreground">Vencida</p>
+                <p className="mono font-semibold text-sm text-destructive">{fmt(receivablesTotals.overdue)}</p>
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border bg-muted/50">
+                    <th className="text-left py-2 px-3 font-medium text-muted-foreground">Vencimento</th>
+                    <th className="text-left py-2 px-3 font-medium text-muted-foreground">Descrição</th>
+                    <th className="text-left py-2 px-3 font-medium text-muted-foreground">Cliente</th>
+                    <th className="text-left py-2 px-3 font-medium text-muted-foreground">Status</th>
+                    <th className="text-right py-2 px-3 font-medium text-muted-foreground">Valor</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {receivablesByPeriod.map(r => (
+                    <tr key={r.id} className="border-b border-border last:border-0">
+                      <td className="py-2 px-3 mono text-muted-foreground">{fmtDate(r.dueDate)}</td>
+                      <td className="py-2 px-3 font-medium">{r.description}</td>
+                      <td className="py-2 px-3 text-muted-foreground">{r.clientName}</td>
+                      <td className={`py-2 px-3 font-medium ${r.status === 'overdue' ? 'text-destructive' : r.status === 'received' ? 'text-success' : 'text-muted-foreground'}`}>
+                        {statusLabel(r.status)}
+                      </td>
+                      <td className="py-2 px-3 text-right mono font-semibold text-success">{fmt(r.amount)}</td>
+                    </tr>
+                  ))}
+                  {receivablesByPeriod.length === 0 && (
+                    <tr><td colSpan={5} className="text-center py-8 text-muted-foreground">Nenhuma conta no período</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </TabsContent>
+
+        {/* === ABA PREVISÃO === */}
+        <TabsContent value="forecast" className="space-y-6 mt-4">
+          <div className="flex items-end gap-4 flex-wrap">
+            <div>
+              <Label className="text-xs text-muted-foreground">Previsão até</Label>
+              <Input type="date" value={forecastDate} onChange={e => setForecastDate(e.target.value)}
+                min={todayStr} className="w-[180px]" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="finance-card">
+              <p className="finance-label">Saldo Atual</p>
+              <p className="finance-stat mono">{fmt(forecast.currentBalance)}</p>
+            </div>
+            <div className="finance-card">
+              <p className="finance-label">A Receber até {fmtDate(forecastDate)}</p>
+              <p className="finance-stat mono text-success">{fmt(forecast.futureReceivables)}</p>
+            </div>
+            <div className="finance-card">
+              <p className="finance-label">A Pagar até {fmtDate(forecastDate)}</p>
+              <p className="finance-stat mono text-destructive">{fmt(forecast.futurePayables)}</p>
+            </div>
+            <div className="finance-card border-primary/30">
+              <p className="finance-label">Saldo Projetado</p>
+              <p className={`finance-stat mono ${forecast.projected >= 0 ? 'text-success' : 'text-destructive'}`}>
+                {fmt(forecast.projected)}
+              </p>
+            </div>
+          </div>
+
+          <div className="finance-card">
+            <h3 className="font-semibold mb-3">Detalhamento da Previsão</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              Contas pendentes com vencimento entre hoje ({fmtDate(todayStr)}) e {fmtDate(forecastDate)}
+            </p>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div>
+                <h4 className="text-sm font-semibold text-destructive mb-2">Saídas Previstas</h4>
+                <div className="space-y-1">
+                  {data.payables
+                    .filter(p => p.status !== 'paid' && p.dueDate >= todayStr && p.dueDate <= forecastDate)
+                    .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
+                    .map(p => (
+                      <div key={p.id} className="flex items-center justify-between text-sm py-1.5 border-b border-border last:border-0">
+                        <div>
+                          <span className="font-medium">{p.description}</span>
+                          <span className="text-xs text-muted-foreground ml-2">{fmtDate(p.dueDate)}</span>
+                        </div>
+                        <span className="mono text-destructive font-semibold">{fmt(p.amount)}</span>
+                      </div>
+                    ))}
+                  {data.payables.filter(p => p.status !== 'paid' && p.dueDate >= todayStr && p.dueDate <= forecastDate).length === 0 && (
+                    <p className="text-sm text-muted-foreground py-4 text-center">Nenhuma saída prevista</p>
+                  )}
+                </div>
+              </div>
+              <div>
+                <h4 className="text-sm font-semibold text-success mb-2">Entradas Previstas</h4>
+                <div className="space-y-1">
+                  {data.receivables
+                    .filter(r => r.status !== 'received' && r.dueDate >= todayStr && r.dueDate <= forecastDate)
+                    .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
+                    .map(r => (
+                      <div key={r.id} className="flex items-center justify-between text-sm py-1.5 border-b border-border last:border-0">
+                        <div>
+                          <span className="font-medium">{r.description}</span>
+                          <span className="text-xs text-muted-foreground ml-2">{fmtDate(r.dueDate)}</span>
+                        </div>
+                        <span className="mono text-success font-semibold">{fmt(r.amount)}</span>
+                      </div>
+                    ))}
+                  {data.receivables.filter(r => r.status !== 'received' && r.dueDate >= todayStr && r.dueDate <= forecastDate).length === 0 && (
+                    <p className="text-sm text-muted-foreground py-4 text-center">Nenhuma entrada prevista</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
