@@ -25,6 +25,9 @@ interface FinanceContextType {
   addBudget: (b: Omit<Budget, 'id'>) => Promise<void>;
   updateBudget: (b: Budget) => Promise<void>;
   deleteBudget: (id: string) => Promise<void>;
+  addCategory: (c: Omit<Category, 'id'>) => Promise<void>;
+  updateCategory: (c: Category) => Promise<void>;
+  deleteCategory: (id: string) => Promise<void>;
   getCategoryName: (id: string) => string;
   getAccountName: (id: string) => string;
   getCategoryColor: (id: string) => string;
