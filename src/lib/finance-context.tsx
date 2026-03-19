@@ -85,11 +85,14 @@ function mapPayable(row: any): Payable {
 }
 
 function mapReceivable(row: any): Receivable {
+  const today = new Date().toISOString().split('T')[0];
+  let status = row.status;
+  if (status === 'pending' && row.due_date < today) status = 'overdue';
   return {
     id: row.id, clientName: row.client_name, description: row.description,
     categoryId: row.category_id, accountId: row.account_id ?? undefined,
     amount: Number(row.amount), dueDate: row.due_date, paymentDate: row.payment_date ?? undefined,
-    paymentMethod: row.payment_method ?? undefined, status: row.status,
+    paymentMethod: row.payment_method ?? undefined, status,
     notes: row.notes ?? undefined,
   };
 }
