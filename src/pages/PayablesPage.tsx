@@ -11,10 +11,10 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { motion } from 'framer-motion';
 import { fmt, fmtDate } from '@/lib/format';
 
-const statusLabels: Record<PayableStatus, string> = { pending: 'Pendente', paid: 'Pago', overdue: 'Atrasado' };
+const statusLabels: Record<PayableStatus, string> = { pending: 'Pendente', paid: 'Pago', overdue: 'Vencida' };
 
 function StatusBadge({ status }: { status: PayableStatus }) {
-  const cls = status === 'paid' ? 'status-badge-paid' : status === 'overdue' ? 'status-badge-overdue' : 'status-badge-pending';
+  const cls = status === 'paid' ? 'status-badge-paid' : status === 'overdue' ? 'status-badge-overdue text-destructive font-semibold' : 'status-badge-pending';
   return <span className={cls}>{statusLabels[status]}</span>;
 }
 

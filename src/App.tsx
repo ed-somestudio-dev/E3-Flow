@@ -14,6 +14,7 @@ import ReceivablesPage from "@/pages/ReceivablesPage";
 import AccountsPage from "@/pages/AccountsPage";
 import BudgetsPage from "@/pages/BudgetsPage";
 import ReportsPage from "@/pages/ReportsPage";
+import CategoriesPage from "@/pages/CategoriesPage";
 import AuthPage from "@/pages/AuthPage";
 import NotFound from "@/pages/NotFound";
 import logoFluxoPro from '@/assets/Logo_FluxoPro.png';
@@ -47,6 +48,7 @@ function ProtectedRoutes() {
           <Route path="/accounts" element={<AccountsPage />} />
           <Route path="/budgets" element={<BudgetsPage />} />
           <Route path="/reports" element={<ReportsPage />} />
+          <Route path="/categories" element={<CategoriesPage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </AppLayout>

@@ -138,7 +138,7 @@ export default function DashboardPage() {
             <ArrowUpRight className="h-4 w-4" />
             <span className="font-semibold text-sm">Contas Pendentes</span>
           </div>
-          <div className="space-y-1 text-sm">
+          <div className="space-y-1 text-sm max-h-[6.5rem] overflow-y-auto">
             {pendingBills.map(p => (
               <p key={p.id} className="text-muted-foreground">
                 <span className="text-foreground font-medium">{p.description}</span> — {fmt(p.amount)} · Vence {fmtDate(p.dueDate)}

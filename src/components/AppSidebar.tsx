@@ -1,5 +1,5 @@
 import {
-  LayoutDashboard, FileText, FileInput, ArrowUpDown, Wallet, Target, Sun, Moon, BarChart3, LogOut,
+  LayoutDashboard, FileText, FileInput, ArrowUpDown, Wallet, Target, Sun, Moon, BarChart3, LogOut, Tag,
 } from 'lucide-react';
 import logoFluxoPro from '@/assets/Logo_FluxoPro.png';
 import { NavLink } from '@/components/NavLink';
@@ -19,8 +19,9 @@ const mainItems = [
 
 const manageItems = [
   { title: 'Contas', url: '/accounts', icon: Wallet },
-  { title: 'Orçamentos', url: '/budgets', icon: Target },
-  { title: 'Relatórios', url: '/reports', icon: BarChart3 },
+  { title: 'Categorias', url: '/categories', icon: Tag },
+  { title: 'Or\u00E7amentos', url: '/budgets', icon: Target },
+  { title: 'Relat\u00F3rios', url: '/reports', icon: BarChart3 },
 ];
 
 export function AppSidebar() {
