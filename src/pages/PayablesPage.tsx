@@ -111,7 +111,7 @@ export default function PayablesPage() {
                       {p.supplier?.startsWith('cartao:') && <CreditCard className="h-3 w-3 text-primary" />}
                     </div>
                   </td>
-                  <td className="py-3 px-4 text-muted-foreground">{p.supplier}</td>
+                  <td className="py-3 px-4 text-muted-foreground">{p.supplier?.startsWith('cartao:') ? 'Fatura Cartão' : p.supplier}</td>
                   <td className="py-3 px-4 text-muted-foreground">{getCategoryName(p.categoryId)}</td>
                   <td className="py-3 px-4 text-muted-foreground">{p.accountId ? getAccountName(p.accountId) : '—'}</td>
                   <td className="py-3 px-4"><StatusBadge status={p.status} /></td>
