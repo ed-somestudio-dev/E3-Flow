@@ -156,8 +156,8 @@ export default function PayablesPage() {
 
 function PayableForm({ item, categories, accounts, onSave }: {
   item: Payable | null; categories: { id: string; name: string }[];
-  accounts: { id: string; name: string }[];
-  onSave: (p: Omit<Payable, 'id'>) => void;
+  accounts: { id: string; name: string; type?: string }[];
+  onSave: (p: Omit<Payable, 'id'> & { installments?: number }) => void;
 }) {
   const [description, setDescription] = useState(item?.description || '');
   const [supplier, setSupplier] = useState(item?.supplier || '');
@@ -168,6 +168,12 @@ function PayableForm({ item, categories, accounts, onSave }: {
   const [notes, setNotes] = useState(item?.notes || '');
   const [recurring, setRecurring] = useState(item?.recurring || false);
   const [recurrenceFrequency, setRecurrenceFrequency] = useState<RecurrenceFrequency>(item?.recurrenceFrequency || 'monthly');
+  const [installments, setInstallments] = useState(1);
+  const [useInstallments, setUseInstallments] = useState(false);
+
+  const selectedAccount = accounts.find(a => a.id === accountId);
+  const isCreditCard = (selectedAccount as any)?.type === 'credit_card';
+  const installmentAmount = amount ? (parseFloat(amount) / installments) : 0;
 
   return (
     <div className="space-y-4">
@@ -181,32 +187,61 @@ function PayableForm({ item, categories, accounts, onSave }: {
           </Select>
         </div>
         <div><Label>Conta</Label>
-          <Select value={accountId} onValueChange={setAccountId}>
+          <Select value={accountId} onValueChange={(v) => { setAccountId(v); const acc = accounts.find(a => a.id === v); if ((acc as any)?.type !== 'credit_card') { setUseInstallments(false); setInstallments(1); } }}>
             <SelectTrigger><SelectValue placeholder="Selecionar" /></SelectTrigger>
             <SelectContent>{accounts.map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}</SelectContent>
           </Select>
         </div>
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <div><Label>Valor</Label><Input type="number" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} /></div>
+        <div><Label>Valor Total</Label><Input type="number" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} /></div>
         <div><Label>Vencimento</Label><Input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} /></div>
       </div>
 
-      <div className="flex items-center gap-2">
-        <Checkbox id="recurring" checked={recurring} onCheckedChange={(c) => setRecurring(c === true)} />
-        <Label htmlFor="recurring" className="cursor-pointer">Conta recorrente</Label>
-      </div>
-      {recurring && (
-        <div><Label>Frequência</Label>
-          <Select value={recurrenceFrequency} onValueChange={v => setRecurrenceFrequency(v as RecurrenceFrequency)}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="weekly">Semanal</SelectItem>
-              <SelectItem value="monthly">Mensal</SelectItem>
-              <SelectItem value="yearly">Anual</SelectItem>
-            </SelectContent>
-          </Select>
+      {isCreditCard && (
+        <div className="space-y-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
+          <div className="flex items-center gap-2">
+            <Checkbox id="useInstallments" checked={useInstallments} onCheckedChange={(c) => { setUseInstallments(c === true); if (!c) setInstallments(1); }} />
+            <Label htmlFor="useInstallments" className="cursor-pointer flex items-center gap-1.5">
+              <CreditCard className="h-3.5 w-3.5 text-primary" />
+              Parcelar no cartão
+            </Label>
+          </div>
+          {useInstallments && (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Nº de Parcelas</Label>
+                <Input type="number" min="2" max="48" value={installments} onChange={e => setInstallments(Math.max(2, parseInt(e.target.value) || 2))} />
+              </div>
+              <div className="flex items-end">
+                <p className="text-sm text-muted-foreground pb-2">
+                  {installments}x de <span className="font-semibold text-foreground">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(installmentAmount)}</span>
+                </p>
+              </div>
+            </div>
+          )}
         </div>
+      )}
+
+      {!isCreditCard && (
+        <>
+          <div className="flex items-center gap-2">
+            <Checkbox id="recurring" checked={recurring} onCheckedChange={(c) => setRecurring(c === true)} />
+            <Label htmlFor="recurring" className="cursor-pointer">Conta recorrente</Label>
+          </div>
+          {recurring && (
+            <div><Label>Frequência</Label>
+              <Select value={recurrenceFrequency} onValueChange={v => setRecurrenceFrequency(v as RecurrenceFrequency)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="weekly">Semanal</SelectItem>
+                  <SelectItem value="monthly">Mensal</SelectItem>
+                  <SelectItem value="yearly">Anual</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+        </>
       )}
 
       <div><Label>Notas (opcional)</Label><Input value={notes} onChange={e => setNotes(e.target.value)} /></div>
@@ -214,8 +249,9 @@ function PayableForm({ item, categories, accounts, onSave }: {
         onClick={() => onSave({
           description, supplier, categoryId, accountId: accountId || undefined, amount: parseFloat(amount), dueDate,
           status: item?.status || 'pending', notes: notes || undefined,
-          recurring: recurring || undefined,
-          recurrenceFrequency: recurring ? recurrenceFrequency : undefined,
+          recurring: (!isCreditCard && recurring) || undefined,
+          recurrenceFrequency: (!isCreditCard && recurring) ? recurrenceFrequency : undefined,
+          installments: (isCreditCard && useInstallments && installments > 1) ? installments : undefined,
         })}>
         {item ? 'Atualizar' : 'Criar'} Conta
       </Button>
