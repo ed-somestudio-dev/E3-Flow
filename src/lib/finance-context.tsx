@@ -66,6 +66,7 @@ function mapTransaction(row: any): Transaction {
     id: row.id, type: row.type, description: row.description,
     categoryId: row.category_id, amount: Number(row.amount),
     date: row.date, accountId: row.account_id, notes: row.notes ?? undefined,
+    isCredit: row.is_credit ?? false,
   };
 }
 
@@ -157,14 +158,67 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       user_id: user.id, type: tx.type, description: tx.description,
       category_id: tx.categoryId, amount: tx.amount, date: tx.date,
       account_id: tx.accountId, notes: tx.notes || null,
-    });
+      is_credit: tx.isCredit || false,
+    } as any);
     if (error) { toast.error('Erro ao criar transação'); return; }
-    // Update account balance
-    const delta = tx.type === 'income' ? tx.amount : -tx.amount;
+
     const acc = data.accounts.find(a => a.id === tx.accountId);
-    if (acc) await supabase.from('financial_accounts').update({ balance: acc.balance + delta }).eq('id', tx.accountId);
+    if (tx.isCredit && acc?.type === 'credit_card') {
+      // Credit card purchase: reduce available balance (balance = available limit)
+      await supabase.from('financial_accounts').update({ balance: acc.balance - tx.amount }).eq('id', tx.accountId);
+      // Auto-create/update fatura payable
+      await upsertCreditCardInvoice(acc, tx.amount, tx.date);
+    } else {
+      // Regular transaction: update account balance
+      const delta = tx.type === 'income' ? tx.amount : -tx.amount;
+      if (acc) await supabase.from('financial_accounts').update({ balance: acc.balance + delta }).eq('id', tx.accountId);
+    }
     await fetchAll();
   }, [user, data, fetchAll]);
+
+  const upsertCreditCardInvoice = useCallback(async (acc: FinancialAccount, amount: number, txDate: string) => {
+    if (!user) return;
+    const closeDay = acc.billingCloseDay || 1;
+    const dueDay = acc.dueDay || 10;
+    const d = new Date(txDate + 'T12:00:00');
+    // Determine billing cycle: if day > closeDay, invoice is for next month
+    let invoiceMonth: number, invoiceYear: number;
+    if (d.getDate() > closeDay) {
+      invoiceMonth = d.getMonth() + 2; // next month (1-indexed)
+      invoiceYear = d.getFullYear();
+    } else {
+      invoiceMonth = d.getMonth() + 1;
+      invoiceYear = d.getFullYear();
+    }
+    if (invoiceMonth > 12) { invoiceMonth = 1; invoiceYear++; }
+    const invoiceKey = `${invoiceYear}-${String(invoiceMonth).padStart(2, '0')}`;
+    const dueDate = `${invoiceYear}-${String(invoiceMonth).padStart(2, '0')}-${String(dueDay).padStart(2, '0')}`;
+    const description = `Fatura ${acc.name} - ${String(invoiceMonth).padStart(2, '0')}/${invoiceYear}`;
+
+    // Check if payable already exists for this card + cycle
+    const { data: existing } = await supabase.from('payables')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('supplier', `cartao:${acc.id}`)
+      .eq('due_date', dueDate)
+      .maybeSingle();
+
+    if (existing) {
+      await supabase.from('payables').update({
+        amount: Number(existing.amount) + amount,
+        description,
+      }).eq('id', existing.id);
+    } else {
+      // Find an expense category for the invoice
+      const cat = data.categories.find(c => c.type === 'expense');
+      if (!cat) return;
+      await supabase.from('payables').insert({
+        user_id: user.id, description, supplier: `cartao:${acc.id}`,
+        category_id: cat.id, account_id: acc.id,
+        amount, due_date: dueDate, status: 'pending',
+      });
+    }
+  }, [user, data.categories]);
 
   const updateTransaction = useCallback(async (tx: Transaction) => {
     if (!user) return;

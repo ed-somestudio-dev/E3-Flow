@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useFinance } from '@/lib/finance-context';
 import { Payable, PayableStatus, RecurrenceFrequency } from '@/lib/types';
-import { Plus, Trash2, Edit2, CheckCircle, Search, RefreshCw } from 'lucide-react';
+import { Plus, Trash2, Edit2, CheckCircle, Search, RefreshCw, CreditCard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -108,9 +108,10 @@ export default function PayablesPage() {
                     <div className="flex items-center gap-1.5">
                       {p.description}
                       {p.recurring && <RefreshCw className="h-3 w-3 text-primary" />}
+                      {p.supplier?.startsWith('cartao:') && <CreditCard className="h-3 w-3 text-primary" />}
                     </div>
                   </td>
-                  <td className="py-3 px-4 text-muted-foreground">{p.supplier}</td>
+                  <td className="py-3 px-4 text-muted-foreground">{p.supplier?.startsWith('cartao:') ? 'Fatura Cartão' : p.supplier}</td>
                   <td className="py-3 px-4 text-muted-foreground">{getCategoryName(p.categoryId)}</td>
                   <td className="py-3 px-4 text-muted-foreground">{p.accountId ? getAccountName(p.accountId) : '—'}</td>
                   <td className="py-3 px-4"><StatusBadge status={p.status} /></td>

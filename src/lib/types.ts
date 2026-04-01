@@ -32,6 +32,7 @@ export interface Transaction {
   date: string;
   accountId: string;
   notes?: string;
+  isCredit?: boolean;
 }
 
 export interface Payable {
