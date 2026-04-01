@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useFinance } from '@/lib/finance-context';
 import { Payable, PayableStatus, RecurrenceFrequency } from '@/lib/types';
-import { Plus, Trash2, Edit2, CheckCircle, Search, RefreshCw } from 'lucide-react';
+import { Plus, Trash2, Edit2, CheckCircle, Search, RefreshCw, CreditCard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
