@@ -10,7 +10,7 @@ interface FinanceContextType {
   addTransaction: (tx: Omit<Transaction, 'id'>) => Promise<void>;
   updateTransaction: (tx: Transaction) => Promise<void>;
   deleteTransaction: (id: string) => Promise<void>;
-  addPayable: (p: Omit<Payable, 'id'>) => Promise<void>;
+  addPayable: (p: Omit<Payable, 'id'>, installments?: number) => Promise<void>;
   updatePayable: (p: Payable) => Promise<void>;
   deletePayable: (id: string) => Promise<void>;
   markPayablePaid: (id: string, accountId?: string) => Promise<void>;
@@ -255,8 +255,41 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   }, [user, data, fetchAll]);
 
   // --- Payables ---
-  const addPayable = useCallback(async (p: Omit<Payable, 'id'>) => {
+  const addPayable = useCallback(async (p: Omit<Payable, 'id'>, installments?: number) => {
     if (!user) return;
+
+    if (installments && installments > 1) {
+      // Credit card installments: create one payable per month
+      const installmentAmount = Math.round((p.amount / installments) * 100) / 100;
+      const baseDate = new Date(p.dueDate + 'T12:00:00');
+      const acc = p.accountId ? data.accounts.find(a => a.id === p.accountId) : undefined;
+
+      for (let i = 0; i < installments; i++) {
+        const d = new Date(baseDate);
+        d.setMonth(d.getMonth() + i);
+        const dueStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        const desc = `${p.description} (${i + 1}/${installments})`;
+
+        // If it's a credit card, upsert into the card's invoice
+        if (acc?.type === 'credit_card') {
+          await upsertCreditCardInvoice(acc, installmentAmount, dueStr);
+        } else {
+          await supabase.from('payables').insert({
+            user_id: user.id, description: desc, supplier: p.supplier,
+            category_id: p.categoryId, account_id: p.accountId || null,
+            amount: installmentAmount, due_date: dueStr, status: 'pending',
+            notes: p.notes || null,
+          });
+        }
+      }
+      // Also reduce credit card available limit by total amount
+      if (acc?.type === 'credit_card') {
+        await supabase.from('financial_accounts').update({ balance: acc.balance - p.amount }).eq('id', acc.id);
+      }
+      await fetchAll();
+      return;
+    }
+
     const { error } = await supabase.from('payables').insert({
       user_id: user.id, description: p.description, supplier: p.supplier,
       category_id: p.categoryId, account_id: p.accountId || null,
@@ -267,7 +300,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     });
     if (error) { console.error('addPayable error:', error); toast.error('Erro ao criar conta a pagar'); return; }
     await fetchAll();
-  }, [user, fetchAll]);
+  }, [user, data, fetchAll, upsertCreditCardInvoice]);
 
   const updatePayable = useCallback(async (p: Payable) => {
     if (!user) return;
