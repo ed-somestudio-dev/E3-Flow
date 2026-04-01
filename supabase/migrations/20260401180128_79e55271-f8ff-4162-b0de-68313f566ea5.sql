@@ -1,0 +1,1 @@
+ALTER TABLE public.transactions ADD COLUMN is_credit boolean DEFAULT false;

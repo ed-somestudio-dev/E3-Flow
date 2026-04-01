@@ -277,6 +277,7 @@ export type Database = {
           date: string
           description: string
           id: string
+          is_credit: boolean | null
           notes: string | null
           type: string
           updated_at: string
@@ -290,6 +291,7 @@ export type Database = {
           date: string
           description: string
           id?: string
+          is_credit?: boolean | null
           notes?: string | null
           type: string
           updated_at?: string
@@ -303,6 +305,7 @@ export type Database = {
           date?: string
           description?: string
           id?: string
+          is_credit?: boolean | null
           notes?: string | null
           type?: string
           updated_at?: string
