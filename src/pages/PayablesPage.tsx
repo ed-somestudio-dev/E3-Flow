@@ -108,6 +108,7 @@ export default function PayablesPage() {
                     <div className="flex items-center gap-1.5">
                       {p.description}
                       {p.recurring && <RefreshCw className="h-3 w-3 text-primary" />}
+                      {p.supplier?.startsWith('cartao:') && <CreditCard className="h-3 w-3 text-primary" />}
                     </div>
                   </td>
                   <td className="py-3 px-4 text-muted-foreground">{p.supplier}</td>
