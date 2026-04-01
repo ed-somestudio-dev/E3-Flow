@@ -66,6 +66,7 @@ function mapTransaction(row: any): Transaction {
     id: row.id, type: row.type, description: row.description,
     categoryId: row.category_id, amount: Number(row.amount),
     date: row.date, accountId: row.account_id, notes: row.notes ?? undefined,
+    isCredit: row.is_credit ?? false,
   };
 }
 
