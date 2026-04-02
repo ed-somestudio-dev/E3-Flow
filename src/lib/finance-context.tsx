@@ -336,6 +336,17 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     if (payable && targetAccountId) {
       const acc = data.accounts.find(a => a.id === targetAccountId);
       if (acc) await supabase.from('financial_accounts').update({ balance: acc.balance - payable.amount }).eq('id', targetAccountId);
+      // Criar transação de despesa automaticamente
+      await supabase.from('transactions').insert({
+        user_id: user.id,
+        type: 'expense',
+        description: payable.description,
+        category_id: payable.categoryId,
+        amount: payable.amount,
+        date: today,
+        account_id: targetAccountId,
+        notes: `Pagamento: ${payable.supplier || ''}`.trim(),
+      });
     }
     await fetchAll();
   }, [user, data, fetchAll]);
