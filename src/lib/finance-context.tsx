@@ -14,7 +14,7 @@ interface FinanceContextType {
   updatePayable: (p: Payable) => Promise<void>;
   deletePayable: (id: string) => Promise<void>;
   markPayablePaid: (id: string, accountId?: string) => Promise<void>;
-  addReceivable: (r: Omit<Receivable, 'id'>) => Promise<void>;
+  addReceivable: (r: Omit<Receivable, 'id'>, installments?: number) => Promise<void>;
   updateReceivable: (r: Receivable) => Promise<void>;
   deleteReceivable: (id: string) => Promise<void>;
   markReceivableReceived: (id: string, accountId?: string) => Promise<void>;
