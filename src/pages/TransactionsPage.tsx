@@ -137,7 +137,7 @@ function TransactionForm({ tx, categories, accounts, onSave }: {
           </Select>
         </div>
         <div><Label>Conta</Label>
-          <Select value={accountId} onValueChange={(v) => { setAccountId(v); const acc = accounts.find(a => a.id === v); if ((acc as any)?.type !== 'credit_card') setIsCredit(false); }}>
+          <Select value={accountId} onValueChange={(v) => { setAccountId(v); const acc = accounts.find(a => a.id === v); if (!acc?.type?.includes('credit_card')) setIsCredit(false); }}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>{accounts.map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}</SelectContent>
           </Select>
