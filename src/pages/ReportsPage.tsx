@@ -136,7 +136,7 @@ export default function ReportsPage() {
       <Tabs defaultValue="general" className="w-full">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="general">Geral</TabsTrigger>
-          <TabsTrigger value="bills">Contas a Pagar/Receber</TabsTrigger>
+          <TabsTrigger value="bills">{'Contas a\u00A0Pagar/Receber'}</TabsTrigger>
           <TabsTrigger value="forecast">Previsão</TabsTrigger>
         </TabsList>
 
