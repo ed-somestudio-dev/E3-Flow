@@ -272,7 +272,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
         const desc = `${p.description} (${i + 1}/${installments})`;
 
         // If it's a credit card, upsert into the card's invoice
-        if (acc?.type === 'credit_card') {
+        if (acc?.type?.includes('credit_card')) {
           await upsertCreditCardInvoice(acc, installmentAmount, dueStr);
         } else {
           await supabase.from('payables').insert({
