@@ -353,8 +353,30 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   }, [user, data, fetchAll]);
 
   // --- Receivables ---
-  const addReceivable = useCallback(async (r: Omit<Receivable, 'id'>) => {
+  const addReceivable = useCallback(async (r: Omit<Receivable, 'id'>, installments?: number) => {
     if (!user) return;
+
+    if (installments && installments > 1) {
+      const installmentAmount = Math.round((r.amount / installments) * 100) / 100;
+      const baseDate = new Date(r.dueDate + 'T12:00:00');
+
+      for (let i = 0; i < installments; i++) {
+        const d = new Date(baseDate);
+        d.setMonth(d.getMonth() + i);
+        const dueStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        const desc = `${r.description} (${i + 1}/${installments})`;
+
+        await supabase.from('receivables').insert({
+          user_id: user.id, client_name: r.clientName, description: desc,
+          category_id: r.categoryId, account_id: r.accountId || null,
+          amount: installmentAmount, due_date: dueStr, status: 'pending',
+          notes: r.notes || null,
+        });
+      }
+      await fetchAll();
+      return;
+    }
+
     const { error } = await supabase.from('receivables').insert({
       user_id: user.id, client_name: r.clientName, description: r.description,
       category_id: r.categoryId, account_id: r.accountId || null,

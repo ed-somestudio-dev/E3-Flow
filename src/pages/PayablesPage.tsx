@@ -281,7 +281,7 @@ function PayableForm({ item, categories, accounts, onSave }: {
           status: item?.status || 'pending', notes: notes || undefined,
           recurring: (!isCreditCard && recurring) || undefined,
           recurrenceFrequency: (!isCreditCard && recurring) ? recurrenceFrequency : undefined,
-          installments: (isCreditCard && useInstallments && installments > 1) ? installments : undefined,
+          installments: (useInstallments && installments > 1) ? installments : undefined,
         })}>
         {item ? 'Atualizar' : 'Criar'} Conta
       </Button>
