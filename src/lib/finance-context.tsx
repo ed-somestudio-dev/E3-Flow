@@ -31,6 +31,7 @@ interface FinanceContextType {
   getCategoryName: (id: string) => string;
   getAccountName: (id: string) => string;
   getCategoryColor: (id: string) => string;
+  resetAllData: () => Promise<void>;
 }
 
 const FinanceContext = createContext<FinanceContextType | null>(null);
@@ -508,6 +509,19 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   const getAccountName = useCallback((id: string) => data.accounts.find(a => a.id === id)?.name || 'Desconhecido', [data.accounts]);
   const getCategoryColor = useCallback((id: string) => data.categories.find(c => c.id === id)?.color || '#888', [data.categories]);
 
+  const resetAllData = useCallback(async () => {
+    if (!user) return;
+    // Delete in order to respect foreign keys: transactions first, then payables/receivables/budgets, then accounts/categories
+    await supabase.from('transactions').delete().eq('user_id', user.id);
+    await supabase.from('payables').delete().eq('user_id', user.id);
+    await supabase.from('receivables').delete().eq('user_id', user.id);
+    await supabase.from('budgets').delete().eq('user_id', user.id);
+    await supabase.from('financial_accounts').delete().eq('user_id', user.id);
+    await supabase.from('categories').delete().eq('user_id', user.id);
+    toast.success('Todos os dados foram reiniciados');
+    await fetchAll();
+  }, [user, fetchAll]);
+
   return (
     <FinanceContext.Provider value={{
       data, loading,
@@ -518,6 +532,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       addBudget, updateBudget, deleteBudget,
       addCategory, updateCategory, deleteCategory,
       getCategoryName, getAccountName, getCategoryColor,
+      resetAllData,
     }}>
       {children}
     </FinanceContext.Provider>
