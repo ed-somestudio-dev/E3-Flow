@@ -95,6 +95,7 @@ export type Database = {
           due_day: number | null
           id: string
           name: string
+          savings_balance: number
           type: string
           updated_at: string
           user_id: string
@@ -108,6 +109,7 @@ export type Database = {
           due_day?: number | null
           id?: string
           name: string
+          savings_balance?: number
           type: string
           updated_at?: string
           user_id: string
@@ -121,6 +123,7 @@ export type Database = {
           due_day?: number | null
           id?: string
           name?: string
+          savings_balance?: number
           type?: string
           updated_at?: string
           user_id?: string
