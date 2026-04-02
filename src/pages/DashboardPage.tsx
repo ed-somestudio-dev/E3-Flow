@@ -121,8 +121,7 @@ export default function DashboardPage() {
           <div className="space-y-1 text-sm">
             {overduePayables.map(p => (
               <p key={p.id} className="text-muted-foreground">
-                A Pagar: <span className="text-foreground font-medium">{p.description}</span> — {fmt(p.amount)} venceu em {fmtDate(p.dueDate)}
-                {''}
+                {SAFE_LABELS.shortPayable}: <span className="text-foreground font-medium">{p.description}</span> — {fmt(p.amount)} venceu em {fmtDate(p.dueDate)}
               </p>
             ))}
             {overdueReceivables.map(r => (
