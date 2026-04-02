@@ -1,0 +1,1 @@
+ALTER TABLE public.financial_accounts ADD COLUMN savings_balance numeric NOT NULL DEFAULT 0;

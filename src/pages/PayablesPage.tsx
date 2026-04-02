@@ -172,7 +172,7 @@ function PayableForm({ item, categories, accounts, onSave }: {
   const [useInstallments, setUseInstallments] = useState(false);
 
   const selectedAccount = accounts.find(a => a.id === accountId);
-  const isCreditCard = (selectedAccount as any)?.type === 'credit_card';
+  const isCreditCard = selectedAccount?.type?.includes('credit_card') ?? false;
   const installmentAmount = amount ? (parseFloat(amount) / installments) : 0;
 
   return (
@@ -187,7 +187,7 @@ function PayableForm({ item, categories, accounts, onSave }: {
           </Select>
         </div>
         <div><Label>Conta</Label>
-          <Select value={accountId} onValueChange={(v) => { setAccountId(v); const acc = accounts.find(a => a.id === v); if ((acc as any)?.type !== 'credit_card') { setUseInstallments(false); setInstallments(1); } }}>
+          <Select value={accountId} onValueChange={(v) => { setAccountId(v); const acc = accounts.find(a => a.id === v); if (!acc?.type?.includes('credit_card')) { setUseInstallments(false); setInstallments(1); } }}>
             <SelectTrigger><SelectValue placeholder="Selecionar" /></SelectTrigger>
             <SelectContent>{accounts.map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}</SelectContent>
           </Select>

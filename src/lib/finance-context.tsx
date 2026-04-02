@@ -56,6 +56,7 @@ const defaultCategories: Omit<Category, 'id'>[] = [
 function mapAccount(row: any): FinancialAccount {
   return {
     id: row.id, name: row.name, type: row.type, balance: Number(row.balance),
+    savingsBalance: Number(row.savings_balance || 0),
     color: row.color, creditLimit: row.credit_limit ? Number(row.credit_limit) : undefined,
     billingCloseDay: row.billing_close_day ?? undefined, dueDay: row.due_day ?? undefined,
   };
@@ -163,7 +164,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     if (error) { toast.error('Erro ao criar transação'); return; }
 
     const acc = data.accounts.find(a => a.id === tx.accountId);
-    if (tx.isCredit && acc?.type === 'credit_card') {
+    if (tx.isCredit && acc?.type?.includes('credit_card')) {
       // Credit card purchase: reduce available balance (balance = available limit)
       await supabase.from('financial_accounts').update({ balance: acc.balance - tx.amount }).eq('id', tx.accountId);
       // Auto-create/update fatura payable
@@ -271,7 +272,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
         const desc = `${p.description} (${i + 1}/${installments})`;
 
         // If it's a credit card, upsert into the card's invoice
-        if (acc?.type === 'credit_card') {
+        if (acc?.type?.includes('credit_card')) {
           await upsertCreditCardInvoice(acc, installmentAmount, dueStr);
         } else {
           await supabase.from('payables').insert({
@@ -283,7 +284,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
         }
       }
       // Also reduce credit card available limit by total amount
-      if (acc?.type === 'credit_card') {
+      if (acc?.type?.includes('credit_card')) {
         await supabase.from('financial_accounts').update({ balance: acc.balance - p.amount }).eq('id', acc.id);
       }
       await fetchAll();
@@ -392,6 +393,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     if (!user) return;
     const { error } = await supabase.from('financial_accounts').insert({
       user_id: user.id, name: a.name, type: a.type, balance: a.balance,
+      savings_balance: a.savingsBalance || 0,
       color: a.color, credit_limit: a.creditLimit || null,
       billing_close_day: a.billingCloseDay || null, due_day: a.dueDay || null,
     });
@@ -402,8 +404,9 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   const updateAccount = useCallback(async (a: FinancialAccount) => {
     if (!user) return;
     const { error } = await supabase.from('financial_accounts').update({
-      name: a.name, type: a.type, balance: a.balance, color: a.color,
-      credit_limit: a.creditLimit || null,
+      name: a.name, type: a.type, balance: a.balance,
+      savings_balance: a.savingsBalance || 0,
+      color: a.color, credit_limit: a.creditLimit || null,
       billing_close_day: a.billingCloseDay || null, due_day: a.dueDay || null,
     }).eq('id', a.id).eq('user_id', user.id);
     if (error) { console.error('updateAccount error:', error); toast.error('Erro ao atualizar conta'); return; }
