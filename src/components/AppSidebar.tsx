@@ -7,6 +7,7 @@ import { NavLink } from '@/components/NavLink';
 import { useTheme } from '@/lib/theme-context';
 import { useAuth } from '@/lib/auth-context';
 import { useFinance } from '@/lib/finance-context';
+import { SAFE_LABELS } from '@/lib/safe-labels';
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarFooter, useSidebar,
@@ -19,8 +20,8 @@ import {
 const mainItems = [
   { title: 'Painel', url: '/', icon: LayoutDashboard },
   { title: 'Transações', url: '/transactions', icon: ArrowUpDown },
-  { title: 'Contas a\u00A0Pagar', url: '/payables', icon: FileText },
-  { title: 'Contas a\u00A0Receber', url: '/receivables', icon: FileInput },
+  { title: SAFE_LABELS.payables, url: '/payables', icon: FileText },
+  { title: SAFE_LABELS.receivables, url: '/receivables', icon: FileInput },
 ];
 
 const manageItems = [
@@ -107,7 +108,7 @@ export function AppSidebar() {
           <AlertDialogHeader>
             <AlertDialogTitle>Reiniciar todos os dados?</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta ação irá apagar permanentemente todas as suas transações, contas a pagar, contas a receber, contas financeiras, orçamentos e categorias. Esta ação não pode ser desfeita.
+              Esta ação irá apagar permanentemente todas as suas transações, {SAFE_LABELS.lowerPayables}, {SAFE_LABELS.lowerReceivables}, contas financeiras, orçamentos e categorias. Esta ação não pode ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

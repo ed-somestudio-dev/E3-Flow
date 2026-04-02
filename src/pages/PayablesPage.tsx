@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { motion } from 'framer-motion';
 import { fmt, fmtDate } from '@/lib/format';
+import { SAFE_LABELS } from '@/lib/safe-labels';
 
 const statusLabels: Record<PayableStatus, string> = { pending: 'Pendente', paid: 'Pago', overdue: 'Vencida' };
 
@@ -56,7 +57,7 @@ export default function PayablesPage() {
     <div className="space-y-6 max-w-5xl">
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <h1 className="text-2xl font-bold">{'Contas a\u00A0Pagar'}</h1>
+          <h1 className="text-2xl font-bold">{SAFE_LABELS.payables}</h1>
           <p className="text-muted-foreground text-sm">Gerencie suas despesas e contas</p>
         </div>
         <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) setEditingItem(null); }}>
@@ -64,7 +65,7 @@ export default function PayablesPage() {
             <Button onClick={() => setEditingItem(null)}><Plus className="h-4 w-4 mr-2" />Nova Conta</Button>
           </DialogTrigger>
           <DialogContent className="max-h-[90vh] overflow-y-auto">
-            <DialogHeader><DialogTitle>{editingItem ? 'Editar' : 'Nova'} Conta a Pagar</DialogTitle></DialogHeader>
+            <DialogHeader><DialogTitle>{editingItem ? 'Editar' : 'Nova'} {SAFE_LABELS.payable}</DialogTitle></DialogHeader>
             <PayableForm item={editingItem} categories={data.categories.filter(c => c.type === 'expense')} accounts={data.accounts}
               onSave={(p) => { const { installments, ...payable } = p; if (editingItem) updatePayable({ ...payable, id: editingItem.id } as Payable); else addPayable(payable, installments); setDialogOpen(false); setEditingItem(null); }} />
           </DialogContent>

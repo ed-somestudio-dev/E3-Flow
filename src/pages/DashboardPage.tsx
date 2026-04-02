@@ -4,6 +4,7 @@ import { Wallet, TrendingUp, TrendingDown, AlertTriangle, ArrowDownRight, ArrowU
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area, LineChart, Line } from 'recharts';
 import { motion } from 'framer-motion';
 import { fmt, fmtDate } from '@/lib/format';
+import { SAFE_LABELS } from '@/lib/safe-labels';
 
 function StatCard({ label, value, icon: Icon, trend, color }: {
   label: string; value: string; icon: React.ElementType; trend?: 'up' | 'down'; color?: string;
@@ -120,12 +121,12 @@ export default function DashboardPage() {
           <div className="space-y-1 text-sm">
             {overduePayables.map(p => (
               <p key={p.id} className="text-muted-foreground">
-                A Pagar: <span className="text-foreground font-medium">{p.description}</span> — {fmt(p.amount)} venceu em {fmtDate(p.dueDate)}
+                {SAFE_LABELS.shortPayable}: <span className="text-foreground font-medium">{p.description}</span> — {fmt(p.amount)} venceu em {fmtDate(p.dueDate)}
               </p>
             ))}
             {overdueReceivables.map(r => (
               <p key={r.id} className="text-muted-foreground">
-                A Receber: <span className="text-foreground font-medium">{r.description}</span> de {r.clientName} — {fmt(r.amount)} venceu em {fmtDate(r.dueDate)}
+                {SAFE_LABELS.shortReceivable}: <span className="text-foreground font-medium">{r.description}</span> de {r.clientName} — {fmt(r.amount)} venceu em {fmtDate(r.dueDate)}
               </p>
             ))}
           </div>
@@ -137,7 +138,7 @@ export default function DashboardPage() {
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="finance-card border-destructive/20 bg-destructive/5">
           <div className="flex items-center gap-2 text-destructive mb-2">
             <ArrowDownRight className="h-4 w-4" />
-            <span className="font-semibold text-sm">{'Contas a\u00A0Pagar Pendentes'}</span>
+            <span className="font-semibold text-sm">{`${SAFE_LABELS.payables} Pendentes`}</span>
           </div>
           <div className="space-y-1 text-sm max-h-[6.5rem] overflow-y-auto">
             {pendingPayables.map(p => (
@@ -157,7 +158,7 @@ export default function DashboardPage() {
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="finance-card border-success/20 bg-success/5">
           <div className="flex items-center gap-2 text-success mb-2">
             <ArrowUpRight className="h-4 w-4" />
-            <span className="font-semibold text-sm">{'Contas a\u00A0Receber Pendentes'}</span>
+            <span className="font-semibold text-sm">{`${SAFE_LABELS.receivables} Pendentes`}</span>
           </div>
           <div className="space-y-1 text-sm max-h-[6.5rem] overflow-y-auto">
             {pendingReceivables.map(r => (
@@ -174,8 +175,8 @@ export default function DashboardPage() {
       {/* Estatísticas */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <StatCard label="Saldo Total" value={fmt(stats.totalBalance)} icon={Wallet} />
-        <StatCard label={'Contas a\u00A0Pagar'} value={fmt(stats.totalPayable)} icon={TrendingDown} color="hsl(var(--destructive))" />
-        <StatCard label={'Contas a\u00A0Receber'} value={fmt(stats.totalReceivable)} icon={TrendingUp} color="hsl(var(--success))" />
+        <StatCard label={SAFE_LABELS.payables} value={fmt(stats.totalPayable)} icon={TrendingDown} color="hsl(var(--destructive))" />
+        <StatCard label={SAFE_LABELS.receivables} value={fmt(stats.totalReceivable)} icon={TrendingUp} color="hsl(var(--success))" />
         <StatCard label="Receitas do Mês" value={fmt(stats.monthIncome)} icon={ArrowUpRight} trend="up" />
         <StatCard label="Despesas do Mês" value={fmt(stats.monthExpense)} icon={ArrowDownRight} trend="down" />
       </div>

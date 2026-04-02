@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { motion } from 'framer-motion';
 import { fmt, fmtDate } from '@/lib/format';
+import { SAFE_LABELS } from '@/lib/safe-labels';
 
 const statusLabels: Record<ReceivableStatus, string> = { pending: 'Pendente', received: 'Recebido', overdue: 'Atrasado' };
 
@@ -56,7 +57,7 @@ export default function ReceivablesPage() {
     <div className="space-y-6 max-w-5xl">
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <h1 className="text-2xl font-bold">{'Contas a\u00A0Receber'}</h1>
+          <h1 className="text-2xl font-bold">{SAFE_LABELS.receivables}</h1>
           <p className="text-muted-foreground text-sm">Gerencie seus recebimentos</p>
         </div>
         <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) setEditingItem(null); }}>

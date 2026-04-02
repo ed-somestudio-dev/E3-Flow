@@ -5,6 +5,7 @@ import { fmt, fmtDate } from '@/lib/format';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { SAFE_LABELS } from '@/lib/safe-labels';
 
 export default function ReportsPage() {
   const { data, getCategoryName, getCategoryColor } = useFinance();
@@ -136,7 +137,7 @@ export default function ReportsPage() {
       <Tabs defaultValue="general" className="w-full">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="general">Geral</TabsTrigger>
-          <TabsTrigger value="bills">{'Contas a\u00A0Pagar/Receber'}</TabsTrigger>
+          <TabsTrigger value="bills">{SAFE_LABELS.payablesAndReceivables}</TabsTrigger>
           <TabsTrigger value="forecast">Previsão</TabsTrigger>
         </TabsList>
 
@@ -286,7 +287,7 @@ export default function ReportsPage() {
 
           {/* Contas a Pagar */}
           <div className="finance-card">
-            <h3 className="font-semibold mb-4">{'Contas a\u00A0Pagar — Período'}</h3>
+            <h3 className="font-semibold mb-4">{`${SAFE_LABELS.payables} — Período`}</h3>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
               <div className="text-center p-3 rounded-lg bg-muted/50">
                 <p className="text-xs text-muted-foreground">Total</p>
@@ -338,7 +339,7 @@ export default function ReportsPage() {
 
           {/* Contas a Receber */}
           <div className="finance-card">
-            <h3 className="font-semibold mb-4">{'Contas a\u00A0Receber — Período'}</h3>
+            <h3 className="font-semibold mb-4">{`${SAFE_LABELS.receivables} — Período`}</h3>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
               <div className="text-center p-3 rounded-lg bg-muted/50">
                 <p className="text-xs text-muted-foreground">Total</p>
@@ -405,11 +406,11 @@ export default function ReportsPage() {
               <p className="finance-stat mono">{fmt(forecast.currentBalance)}</p>
             </div>
             <div className="finance-card">
-              <p className="finance-label">A Receber até {fmtDate(forecastDate)}</p>
+              <p className="finance-label">{SAFE_LABELS.shortReceivable} até {fmtDate(forecastDate)}</p>
               <p className="finance-stat mono text-success">{fmt(forecast.futureReceivables)}</p>
             </div>
             <div className="finance-card">
-              <p className="finance-label">A Pagar até {fmtDate(forecastDate)}</p>
+              <p className="finance-label">{SAFE_LABELS.shortPayable} até {fmtDate(forecastDate)}</p>
               <p className="finance-stat mono text-destructive">{fmt(forecast.futurePayables)}</p>
             </div>
             <div className="finance-card border-primary/30">
