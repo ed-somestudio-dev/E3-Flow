@@ -56,6 +56,7 @@ const defaultCategories: Omit<Category, 'id'>[] = [
 function mapAccount(row: any): FinancialAccount {
   return {
     id: row.id, name: row.name, type: row.type, balance: Number(row.balance),
+    savingsBalance: Number(row.savings_balance || 0),
     color: row.color, creditLimit: row.credit_limit ? Number(row.credit_limit) : undefined,
     billingCloseDay: row.billing_close_day ?? undefined, dueDay: row.due_day ?? undefined,
   };

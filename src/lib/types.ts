@@ -7,12 +7,21 @@ export type RecurrenceFrequency = 'monthly' | 'weekly' | 'yearly';
 export interface FinancialAccount {
   id: string;
   name: string;
-  type: AccountType;
+  type: string; // comma-separated: 'checking', 'savings', 'credit_card', 'cash'
   balance: number;
+  savingsBalance: number;
   creditLimit?: number;
   billingCloseDay?: number;
   dueDay?: number;
   color: string;
+}
+
+export function getAccountTypes(account: FinancialAccount): AccountType[] {
+  return account.type.split(',').filter(Boolean) as AccountType[];
+}
+
+export function hasAccountType(account: FinancialAccount, type: AccountType): boolean {
+  return getAccountTypes(account).includes(type);
 }
 
 export interface Category {
