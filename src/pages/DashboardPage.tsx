@@ -174,8 +174,8 @@ export default function DashboardPage() {
       {/* Estatísticas */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <StatCard label="Saldo Total" value={fmt(stats.totalBalance)} icon={Wallet} />
-        <StatCard label="Contas a\u00A0Pagar" value={fmt(stats.totalPayable)} icon={TrendingDown} color="hsl(var(--destructive))" />
-        <StatCard label="Contas a\u00A0Receber" value={fmt(stats.totalReceivable)} icon={TrendingUp} color="hsl(var(--success))" />
+        <StatCard label="Contas a Pagar" value={fmt(stats.totalPayable)} icon={TrendingDown} color="hsl(var(--destructive))" />
+        <StatCard label="Contas a Receber" value={fmt(stats.totalReceivable)} icon={TrendingUp} color="hsl(var(--success))" />
         <StatCard label="Receitas do Mês" value={fmt(stats.monthIncome)} icon={ArrowUpRight} trend="up" />
         <StatCard label="Despesas do Mês" value={fmt(stats.monthExpense)} icon={ArrowDownRight} trend="down" />
       </div>
