@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useFinance } from '@/lib/finance-context';
 import { FinancialAccount, AccountType } from '@/lib/types';
-import { Plus, Trash2, Edit2, Wallet, PiggyBank, CreditCard, ArrowRightLeft, Receipt } from 'lucide-react';
+import { Plus, Trash2, Edit2, Wallet, PiggyBank, Banknote, CreditCard, ArrowRightLeft, Receipt } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -11,10 +11,10 @@ import { motion } from 'framer-motion';
 import { fmt, fmtDate } from '@/lib/format';
 
 const typeIcons: Record<AccountType, React.ElementType> = {
-  checking: Wallet, savings: PiggyBank, credit_card: CreditCard,
+  checking: Wallet, savings: PiggyBank, cash: Banknote, credit_card: CreditCard,
 };
 const typeLabels: Record<AccountType, string> = {
-  checking: 'Conta Corrente', savings: 'Poupança', credit_card: 'Cartão de Crédito',
+  checking: 'Conta Corrente', savings: 'Poupança', cash: 'Dinheiro', credit_card: 'Cartão de Crédito',
 };
 
 export default function AccountsPage() {
