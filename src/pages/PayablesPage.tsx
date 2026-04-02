@@ -200,62 +200,60 @@ function PayableForm({ item, categories, accounts, onSave }: {
         <div><Label>Vencimento</Label><Input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} /></div>
       </div>
 
-      {isCreditCard && (
-        <div className="space-y-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
-          <div className="flex items-center gap-2">
-            <Checkbox id="useInstallments" checked={useInstallments} onCheckedChange={(c) => { setUseInstallments(c === true); if (!c) setInstallments(1); }} />
-            <Label htmlFor="useInstallments" className="cursor-pointer flex items-center gap-1.5">
-              <CreditCard className="h-3.5 w-3.5 text-primary" />
-              Parcelar no cartão
-            </Label>
-          </div>
-          {useInstallments && (
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <Label className="text-xs text-muted-foreground">Informar por:</Label>
-                <Button type="button" variant={inputMode === 'total' ? 'default' : 'outline'} size="sm" className="h-7 text-xs"
-                  onClick={() => { setInputMode('total'); setInstallmentValue(''); }}>Valor Total</Button>
-                <Button type="button" variant={inputMode === 'installment' ? 'default' : 'outline'} size="sm" className="h-7 text-xs"
-                  onClick={() => { setInputMode('installment'); setInstallmentValue(amount ? (parseFloat(amount) / installments).toFixed(2) : ''); }}>Valor da Parcela</Button>
+      <div className="space-y-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
+        <div className="flex items-center gap-2">
+          <Checkbox id="useInstallments" checked={useInstallments} onCheckedChange={(c) => { setUseInstallments(c === true); if (!c) setInstallments(1); }} />
+          <Label htmlFor="useInstallments" className="cursor-pointer flex items-center gap-1.5">
+            <CreditCard className="h-3.5 w-3.5 text-primary" />
+            Parcelar
+          </Label>
+        </div>
+        {useInstallments && (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Label className="text-xs text-muted-foreground">Informar por:</Label>
+              <Button type="button" variant={inputMode === 'total' ? 'default' : 'outline'} size="sm" className="h-7 text-xs"
+                onClick={() => { setInputMode('total'); setInstallmentValue(''); }}>Valor Total</Button>
+              <Button type="button" variant={inputMode === 'installment' ? 'default' : 'outline'} size="sm" className="h-7 text-xs"
+                onClick={() => { setInputMode('installment'); setInstallmentValue(amount ? (parseFloat(amount) / installments).toFixed(2) : ''); }}>Valor da Parcela</Button>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Nº de Parcelas</Label>
+                <Input type="number" min="2" max="48" value={installments} onChange={e => {
+                  const n = Math.max(2, parseInt(e.target.value) || 2);
+                  setInstallments(n);
+                  if (inputMode === 'installment' && installmentValue) {
+                    setAmount((parseFloat(installmentValue) * n).toFixed(2));
+                  }
+                }} />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              {inputMode === 'installment' ? (
                 <div>
-                  <Label>Nº de Parcelas</Label>
-                  <Input type="number" min="2" max="48" value={installments} onChange={e => {
-                    const n = Math.max(2, parseInt(e.target.value) || 2);
-                    setInstallments(n);
-                    if (inputMode === 'installment' && installmentValue) {
-                      setAmount((parseFloat(installmentValue) * n).toFixed(2));
-                    }
+                  <Label>Valor da Parcela</Label>
+                  <Input type="number" step="0.01" value={installmentValue} onChange={e => {
+                    setInstallmentValue(e.target.value);
+                    if (e.target.value) setAmount((parseFloat(e.target.value) * installments).toFixed(2));
                   }} />
                 </div>
-                {inputMode === 'installment' ? (
-                  <div>
-                    <Label>Valor da Parcela</Label>
-                    <Input type="number" step="0.01" value={installmentValue} onChange={e => {
-                      setInstallmentValue(e.target.value);
-                      if (e.target.value) setAmount((parseFloat(e.target.value) * installments).toFixed(2));
-                    }} />
-                  </div>
-                ) : (
-                  <div className="flex items-end">
-                    <p className="text-sm text-muted-foreground pb-2">
-                      {installments}x de <span className="font-semibold text-foreground">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(installmentAmount)}</span>
-                    </p>
-                  </div>
-                )}
-              </div>
-              {inputMode === 'installment' && installmentValue && (
-                <p className="text-sm text-muted-foreground">
-                  Total: <span className="font-semibold text-foreground">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(parseFloat(amount) || 0)}</span>
-                </p>
+              ) : (
+                <div className="flex items-end">
+                  <p className="text-sm text-muted-foreground pb-2">
+                    {installments}x de <span className="font-semibold text-foreground">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(installmentAmount)}</span>
+                  </p>
+                </div>
               )}
             </div>
-          )}
-        </div>
-      )}
+            {inputMode === 'installment' && installmentValue && (
+              <p className="text-sm text-muted-foreground">
+                Total: <span className="font-semibold text-foreground">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(parseFloat(amount) || 0)}</span>
+              </p>
+            )}
+          </div>
+        )}
+      </div>
 
-      {!isCreditCard && (
+      {!useInstallments && (
         <>
           <div className="flex items-center gap-2">
             <Checkbox id="recurring" checked={recurring} onCheckedChange={(c) => setRecurring(c === true)} />
@@ -283,7 +281,7 @@ function PayableForm({ item, categories, accounts, onSave }: {
           status: item?.status || 'pending', notes: notes || undefined,
           recurring: (!isCreditCard && recurring) || undefined,
           recurrenceFrequency: (!isCreditCard && recurring) ? recurrenceFrequency : undefined,
-          installments: (isCreditCard && useInstallments && installments > 1) ? installments : undefined,
+          installments: (useInstallments && installments > 1) ? installments : undefined,
         })}>
         {item ? 'Atualizar' : 'Criar'} Conta
       </Button>
