@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { useFinance } from '@/lib/finance-context';
 import { Receivable, ReceivableStatus } from '@/lib/types';
-import { Plus, Trash2, Edit2, CheckCircle, Search } from 'lucide-react';
+import { Plus, Trash2, Edit2, CheckCircle, Search, CreditCard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { motion } from 'framer-motion';
 import { fmt, fmtDate } from '@/lib/format';
 
@@ -55,17 +56,17 @@ export default function ReceivablesPage() {
     <div className="space-y-6 max-w-5xl">
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <h1 className="text-2xl font-bold">{'Contas a\u00A0Receber'}</h1>
+          <h1 className="text-2xl font-bold">Contas a Receber</h1>
           <p className="text-muted-foreground text-sm">Gerencie seus recebimentos</p>
         </div>
         <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) setEditingItem(null); }}>
           <DialogTrigger asChild>
             <Button onClick={() => setEditingItem(null)}><Plus className="h-4 w-4 mr-2" />Novo Recebível</Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-h-[90vh] overflow-y-auto">
             <DialogHeader><DialogTitle>{editingItem ? 'Editar' : 'Novo'} Recebível</DialogTitle></DialogHeader>
             <ReceivableForm item={editingItem} categories={data.categories.filter(c => c.type === 'income')} accounts={data.accounts}
-              onSave={(r) => { if (editingItem) updateReceivable({ ...r, id: editingItem.id } as Receivable); else addReceivable(r); setDialogOpen(false); setEditingItem(null); }} />
+              onSave={(r) => { const { installments, ...receivable } = r; if (editingItem) updateReceivable({ ...receivable, id: editingItem.id } as Receivable); else addReceivable(receivable, installments); setDialogOpen(false); setEditingItem(null); }} />
           </DialogContent>
         </Dialog>
       </div>
@@ -150,7 +151,7 @@ export default function ReceivablesPage() {
 function ReceivableForm({ item, categories, accounts, onSave }: {
   item: Receivable | null; categories: { id: string; name: string }[];
   accounts: { id: string; name: string }[];
-  onSave: (r: Omit<Receivable, 'id'>) => void;
+  onSave: (r: Omit<Receivable, 'id'> & { installments?: number }) => void;
 }) {
   const [clientName, setClientName] = useState(item?.clientName || '');
   const [description, setDescription] = useState(item?.description || '');
@@ -159,6 +160,12 @@ function ReceivableForm({ item, categories, accounts, onSave }: {
   const [amount, setAmount] = useState(item?.amount?.toString() || '');
   const [dueDate, setDueDate] = useState(item?.dueDate || '');
   const [notes, setNotes] = useState(item?.notes || '');
+  const [useInstallments, setUseInstallments] = useState(false);
+  const [installments, setInstallments] = useState(2);
+  const [inputMode, setInputMode] = useState<'total' | 'installment'>('total');
+  const [installmentValue, setInstallmentValue] = useState('');
+
+  const installmentAmount = amount ? (parseFloat(amount) / installments) : 0;
 
   return (
     <div className="space-y-4">
@@ -179,12 +186,71 @@ function ReceivableForm({ item, categories, accounts, onSave }: {
         </div>
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <div><Label>Valor</Label><Input type="number" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} /></div>
+        <div><Label>Valor Total</Label><Input type="number" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} /></div>
         <div><Label>Vencimento</Label><Input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} /></div>
       </div>
+
+      <div className="space-y-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
+        <div className="flex items-center gap-2">
+          <Checkbox id="useInstallmentsRec" checked={useInstallments} onCheckedChange={(c) => { setUseInstallments(c === true); if (!c) setInstallments(2); }} />
+          <Label htmlFor="useInstallmentsRec" className="cursor-pointer flex items-center gap-1.5">
+            <CreditCard className="h-3.5 w-3.5 text-primary" />
+            Parcelar
+          </Label>
+        </div>
+        {useInstallments && (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Label className="text-xs text-muted-foreground">Informar por:</Label>
+              <Button type="button" variant={inputMode === 'total' ? 'default' : 'outline'} size="sm" className="h-7 text-xs"
+                onClick={() => { setInputMode('total'); setInstallmentValue(''); }}>Valor Total</Button>
+              <Button type="button" variant={inputMode === 'installment' ? 'default' : 'outline'} size="sm" className="h-7 text-xs"
+                onClick={() => { setInputMode('installment'); setInstallmentValue(amount ? (parseFloat(amount) / installments).toFixed(2) : ''); }}>Valor da Parcela</Button>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Nº de Parcelas</Label>
+                <Input type="number" min="2" max="48" value={installments} onChange={e => {
+                  const n = Math.max(2, parseInt(e.target.value) || 2);
+                  setInstallments(n);
+                  if (inputMode === 'installment' && installmentValue) {
+                    setAmount((parseFloat(installmentValue) * n).toFixed(2));
+                  }
+                }} />
+              </div>
+              {inputMode === 'installment' ? (
+                <div>
+                  <Label>Valor da Parcela</Label>
+                  <Input type="number" step="0.01" value={installmentValue} onChange={e => {
+                    setInstallmentValue(e.target.value);
+                    if (e.target.value) setAmount((parseFloat(e.target.value) * installments).toFixed(2));
+                  }} />
+                </div>
+              ) : (
+                <div className="flex items-end">
+                  <p className="text-sm text-muted-foreground pb-2">
+                    {installments}x de <span className="font-semibold text-foreground">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(installmentAmount)}</span>
+                  </p>
+                </div>
+              )}
+            </div>
+            {inputMode === 'installment' && installmentValue && (
+              <p className="text-sm text-muted-foreground">
+                Total: <span className="font-semibold text-foreground">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(parseFloat(amount) || 0)}</span>
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+
       <div><Label>Notas (opcional)</Label><Input value={notes} onChange={e => setNotes(e.target.value)} /></div>
       <Button className="w-full" disabled={!clientName || !description || !categoryId || !amount || !dueDate}
-        onClick={() => onSave({ clientName, description, categoryId, accountId: accountId || undefined, amount: parseFloat(amount), dueDate, status: item?.status || 'pending', notes: notes || undefined })}>
+        onClick={() => onSave({
+          clientName, description, categoryId, accountId: accountId || undefined,
+          amount: parseFloat(amount), dueDate, status: item?.status || 'pending',
+          notes: notes || undefined,
+          installments: (useInstallments && installments > 1) ? installments : undefined,
+        })}>
         {item ? 'Atualizar' : 'Criar'} Recebível
       </Button>
     </div>
