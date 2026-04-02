@@ -190,7 +190,7 @@ function PayableForm({ item, categories, accounts, onSave }: {
           </Select>
         </div>
         <div><Label>Conta</Label>
-          <Select value={accountId} onValueChange={(v) => { setAccountId(v); const acc = accounts.find(a => a.id === v); if (!acc?.type?.includes('credit_card')) { setUseInstallments(false); setInstallments(1); } }}>
+          <Select value={accountId || undefined} onValueChange={(v) => { setAccountId(v); const acc = accounts.find(a => a.id === v); if (!acc?.type?.includes('credit_card')) { setUseInstallments(false); setInstallments(1); } }}>
             <SelectTrigger><SelectValue placeholder="Selecionar" /></SelectTrigger>
             <SelectContent>{accounts.map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}</SelectContent>
           </Select>
