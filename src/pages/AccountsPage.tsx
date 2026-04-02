@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useFinance } from '@/lib/finance-context';
 import { FinancialAccount, AccountType } from '@/lib/types';
-import { Plus, Trash2, Edit2, Wallet, PiggyBank, CreditCard, ArrowRightLeft, Receipt } from 'lucide-react';
+import { Plus, Trash2, Edit2, Wallet, PiggyBank, Banknote, CreditCard, ArrowRightLeft, Receipt } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
