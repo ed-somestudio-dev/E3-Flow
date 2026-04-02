@@ -157,7 +157,7 @@ export default function DashboardPage() {
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="finance-card border-success/20 bg-success/5">
           <div className="flex items-center gap-2 text-success mb-2">
             <ArrowUpRight className="h-4 w-4" />
-            <span className="font-semibold text-sm">Contas a Receber Pendentes</span>
+            <span className="font-semibold text-sm">{'Contas a\u00A0Receber Pendentes'}</span>
           </div>
           <div className="space-y-1 text-sm max-h-[6.5rem] overflow-y-auto">
             {pendingReceivables.map(r => (
