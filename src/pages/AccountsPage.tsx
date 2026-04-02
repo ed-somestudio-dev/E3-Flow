@@ -74,7 +74,7 @@ export default function AccountsPage() {
       {nonCreditCards.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {nonCreditCards.map(acc => {
-            const Icon = typeIcons[acc.type];
+            const Icon = typeIcons[acc.type] || Wallet;
             return (
               <motion.div key={acc.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="finance-card relative group">
                 <div className="flex items-center justify-between mb-3">
