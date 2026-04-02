@@ -164,7 +164,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     if (error) { toast.error('Erro ao criar transação'); return; }
 
     const acc = data.accounts.find(a => a.id === tx.accountId);
-    if (tx.isCredit && acc?.type === 'credit_card') {
+    if (tx.isCredit && acc?.type?.includes('credit_card')) {
       // Credit card purchase: reduce available balance (balance = available limit)
       await supabase.from('financial_accounts').update({ balance: acc.balance - tx.amount }).eq('id', tx.accountId);
       // Auto-create/update fatura payable
