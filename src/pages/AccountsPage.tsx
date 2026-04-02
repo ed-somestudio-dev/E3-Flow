@@ -26,6 +26,8 @@ export default function AccountsPage() {
   const nonCreditCards = data.accounts.filter(a => a.type !== 'credit_card');
   const creditCards = data.accounts.filter(a => a.type === 'credit_card');
   const totalBalance = nonCreditCards.reduce((s, a) => s + a.balance, 0);
+  const totalCreditLimit = creditCards.reduce((s, a) => s + (a.creditLimit || 0), 0);
+  const totalCreditUsed = creditCards.reduce((s, a) => s + ((a.creditLimit || 0) - a.balance), 0);
 
   // Get invoices (faturas) for credit cards from payables
   const cardInvoices = useMemo(() => {
