@@ -170,6 +170,8 @@ function PayableForm({ item, categories, accounts, onSave }: {
   const [recurrenceFrequency, setRecurrenceFrequency] = useState<RecurrenceFrequency>(item?.recurrenceFrequency || 'monthly');
   const [installments, setInstallments] = useState(1);
   const [useInstallments, setUseInstallments] = useState(false);
+  const [inputMode, setInputMode] = useState<'total' | 'installment'>('total');
+  const [installmentValue, setInstallmentValue] = useState('');
 
   const selectedAccount = accounts.find(a => a.id === accountId);
   const isCreditCard = selectedAccount?.type?.includes('credit_card') ?? false;
@@ -208,16 +210,46 @@ function PayableForm({ item, categories, accounts, onSave }: {
             </Label>
           </div>
           {useInstallments && (
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>Nº de Parcelas</Label>
-                <Input type="number" min="2" max="48" value={installments} onChange={e => setInstallments(Math.max(2, parseInt(e.target.value) || 2))} />
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Label className="text-xs text-muted-foreground">Informar por:</Label>
+                <Button type="button" variant={inputMode === 'total' ? 'default' : 'outline'} size="sm" className="h-7 text-xs"
+                  onClick={() => { setInputMode('total'); setInstallmentValue(''); }}>Valor Total</Button>
+                <Button type="button" variant={inputMode === 'installment' ? 'default' : 'outline'} size="sm" className="h-7 text-xs"
+                  onClick={() => { setInputMode('installment'); setInstallmentValue(amount ? (parseFloat(amount) / installments).toFixed(2) : ''); }}>Valor da Parcela</Button>
               </div>
-              <div className="flex items-end">
-                <p className="text-sm text-muted-foreground pb-2">
-                  {installments}x de <span className="font-semibold text-foreground">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(installmentAmount)}</span>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Nº de Parcelas</Label>
+                  <Input type="number" min="2" max="48" value={installments} onChange={e => {
+                    const n = Math.max(2, parseInt(e.target.value) || 2);
+                    setInstallments(n);
+                    if (inputMode === 'installment' && installmentValue) {
+                      setAmount((parseFloat(installmentValue) * n).toFixed(2));
+                    }
+                  }} />
+                </div>
+                {inputMode === 'installment' ? (
+                  <div>
+                    <Label>Valor da Parcela</Label>
+                    <Input type="number" step="0.01" value={installmentValue} onChange={e => {
+                      setInstallmentValue(e.target.value);
+                      if (e.target.value) setAmount((parseFloat(e.target.value) * installments).toFixed(2));
+                    }} />
+                  </div>
+                ) : (
+                  <div className="flex items-end">
+                    <p className="text-sm text-muted-foreground pb-2">
+                      {installments}x de <span className="font-semibold text-foreground">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(installmentAmount)}</span>
+                    </p>
+                  </div>
+                )}
+              </div>
+              {inputMode === 'installment' && installmentValue && (
+                <p className="text-sm text-muted-foreground">
+                  Total: <span className="font-semibold text-foreground">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(parseFloat(amount) || 0)}</span>
                 </p>
-              </div>
+              )}
             </div>
           )}
         </div>
