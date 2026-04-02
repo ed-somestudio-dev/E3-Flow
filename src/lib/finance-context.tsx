@@ -336,7 +336,15 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     if (error) { console.error('markPayablePaid error:', error); toast.error('Erro ao marcar como pago'); return; }
     if (payable && targetAccountId) {
       const acc = data.accounts.find(a => a.id === targetAccountId);
-      if (acc) await supabase.from('financial_accounts').update({ balance: acc.balance - payable.amount }).eq('id', targetAccountId);
+      if (acc) {
+        const isCreditCard = acc.type.includes('credit_card');
+        if (isCreditCard && acc.creditLimit != null) {
+          // Diminui do limite disponível do cartão
+          await supabase.from('financial_accounts').update({ credit_limit: acc.creditLimit - payable.amount }).eq('id', targetAccountId);
+        } else {
+          await supabase.from('financial_accounts').update({ balance: acc.balance - payable.amount }).eq('id', targetAccountId);
+        }
+      }
       // Criar transação de despesa automaticamente
       await supabase.from('transactions').insert({
         user_id: user.id,
