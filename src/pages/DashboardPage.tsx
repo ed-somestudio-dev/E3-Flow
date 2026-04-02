@@ -100,7 +100,8 @@ export default function DashboardPage() {
     }));
   }, [data.transactions, getCategoryName, getCategoryColor]);
 
-  const pendingBills = data.payables.filter(p => p.status !== 'paid');
+  const pendingPayables = data.payables.filter(p => p.status !== 'paid');
+  const pendingReceivables = data.receivables.filter(r => r.status !== 'received');
 
   return (
     <div className="space-y-6 max-w-7xl">
@@ -119,32 +120,51 @@ export default function DashboardPage() {
           <div className="space-y-1 text-sm">
             {overduePayables.map(p => (
               <p key={p.id} className="text-muted-foreground">
-                Conta: <span className="text-foreground font-medium">{p.description}</span> — {fmt(p.amount)} venceu em {fmtDate(p.dueDate)}
+                A Pagar: <span className="text-foreground font-medium">{p.description}</span> — {fmt(p.amount)} venceu em {fmtDate(p.dueDate)}
               </p>
             ))}
             {overdueReceivables.map(r => (
               <p key={r.id} className="text-muted-foreground">
-                Recebível: <span className="text-foreground font-medium">{r.description}</span> de {r.clientName} — {fmt(r.amount)} venceu em {fmtDate(r.dueDate)}
+                A Receber: <span className="text-foreground font-medium">{r.description}</span> de {r.clientName} — {fmt(r.amount)} venceu em {fmtDate(r.dueDate)}
               </p>
             ))}
           </div>
         </motion.div>
       )}
 
-      {/* Contas Pendentes */}
-      {pendingBills.length > 0 && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="finance-card border-primary/20 bg-primary/5">
-          <div className="flex items-center gap-2 text-primary mb-2">
-            <ArrowUpRight className="h-4 w-4" />
-            <span className="font-semibold text-sm">Contas Pendentes</span>
+      {/* Contas a Pagar Pendentes */}
+      {pendingPayables.length > 0 && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="finance-card border-destructive/20 bg-destructive/5">
+          <div className="flex items-center gap-2 text-destructive mb-2">
+            <ArrowDownRight className="h-4 w-4" />
+            <span className="font-semibold text-sm">Contas a Pagar Pendentes</span>
           </div>
           <div className="space-y-1 text-sm max-h-[6.5rem] overflow-y-auto">
-            {pendingBills.map(p => (
+            {pendingPayables.map(p => (
               <p key={p.id} className="text-muted-foreground">
                 <span className="text-foreground font-medium">{p.description}</span>
                 {p.status === 'overdue' && <span className="ml-1 text-xs text-destructive font-semibold">(Vencida)</span>}
                 {' — '}{fmt(p.amount)} · {p.status === 'overdue' ? 'Venceu' : 'Vence'} {fmtDate(p.dueDate)}
                 {p.recurring && <span className="ml-2 text-xs text-primary">({p.recurrenceFrequency === 'monthly' ? 'Mensal' : p.recurrenceFrequency === 'weekly' ? 'Semanal' : 'Anual'})</span>}
+              </p>
+            ))}
+          </div>
+        </motion.div>
+      )}
+
+      {/* Contas a Receber Pendentes */}
+      {pendingReceivables.length > 0 && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="finance-card border-success/20 bg-success/5">
+          <div className="flex items-center gap-2 text-success mb-2">
+            <ArrowUpRight className="h-4 w-4" />
+            <span className="font-semibold text-sm">Contas a Receber Pendentes</span>
+          </div>
+          <div className="space-y-1 text-sm max-h-[6.5rem] overflow-y-auto">
+            {pendingReceivables.map(r => (
+              <p key={r.id} className="text-muted-foreground">
+                <span className="text-foreground font-medium">{r.description}</span>
+                {r.status === 'overdue' && <span className="ml-1 text-xs text-destructive font-semibold">(Vencida)</span>}
+                {' — '}{fmt(r.amount)} · de {r.clientName} · {r.status === 'overdue' ? 'Venceu' : 'Vence'} {fmtDate(r.dueDate)}
               </p>
             ))}
           </div>
