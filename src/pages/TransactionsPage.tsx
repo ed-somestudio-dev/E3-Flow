@@ -115,7 +115,7 @@ function TransactionForm({ tx, categories, accounts, onSave }: {
   const filteredCats = categories.filter(c => c.type === type);
 
   const selectedAccount = accounts.find(a => a.id === accountId);
-  const isCreditCard = (selectedAccount as any)?.type === 'credit_card';
+  const isCreditCard = selectedAccount?.type?.includes('credit_card') ?? false;
 
   return (
     <div className="space-y-4">

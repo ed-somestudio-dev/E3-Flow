@@ -172,7 +172,7 @@ function PayableForm({ item, categories, accounts, onSave }: {
   const [useInstallments, setUseInstallments] = useState(false);
 
   const selectedAccount = accounts.find(a => a.id === accountId);
-  const isCreditCard = (selectedAccount as any)?.type === 'credit_card';
+  const isCreditCard = selectedAccount?.type?.includes('credit_card') ?? false;
   const installmentAmount = amount ? (parseFloat(amount) / installments) : 0;
 
   return (
