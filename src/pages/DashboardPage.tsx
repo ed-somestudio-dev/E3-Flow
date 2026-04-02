@@ -137,7 +137,7 @@ export default function DashboardPage() {
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="finance-card border-destructive/20 bg-destructive/5">
           <div className="flex items-center gap-2 text-destructive mb-2">
             <ArrowDownRight className="h-4 w-4" />
-            <span className="font-semibold text-sm">Contas a Pagar Pendentes</span>
+            <span className="font-semibold text-sm">{'Contas a\u00A0Pagar Pendentes'}</span>
           </div>
           <div className="space-y-1 text-sm max-h-[6.5rem] overflow-y-auto">
             {pendingPayables.map(p => (
