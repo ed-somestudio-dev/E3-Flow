@@ -19,6 +19,7 @@ const defaultCategories: Category[] = [
 const defaultAccounts: FinancialAccount[] = [
   { id: 'acc-1', name: 'Conta Corrente', type: 'checking', balance: 5420.50, color: '#0ea5e9' },
   { id: 'acc-2', name: 'Poupança', type: 'savings', balance: 12000, color: '#10b981' },
+  { id: 'acc-3', name: 'Dinheiro', type: 'cash', balance: 350, color: '#eab308' },
 ];
 
 const today = new Date();
