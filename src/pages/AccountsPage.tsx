@@ -1,11 +1,12 @@
 import { useState, useMemo } from 'react';
 import { useFinance } from '@/lib/finance-context';
-import { FinancialAccount, AccountType } from '@/lib/types';
+import { FinancialAccount, AccountType, getAccountTypes, hasAccountType } from '@/lib/types';
 import { Plus, Trash2, Edit2, Wallet, PiggyBank, Banknote, CreditCard, ArrowRightLeft, Receipt } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { motion } from 'framer-motion';
 import { fmt, fmtDate } from '@/lib/format';
@@ -23,13 +24,13 @@ export default function AccountsPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
 
-  const nonCreditCards = data.accounts.filter(a => a.type !== 'credit_card');
-  const creditCards = data.accounts.filter(a => a.type === 'credit_card');
-  const totalBalance = nonCreditCards.reduce((s, a) => s + a.balance, 0);
-  const totalCreditLimit = creditCards.reduce((s, a) => s + (a.creditLimit || 0), 0);
-  const totalCreditUsed = creditCards.reduce((s, a) => s + ((a.creditLimit || 0) - a.balance), 0);
+  const totalBalance = data.accounts.reduce((s, a) => s + a.balance + a.savingsBalance, 0);
+  const totalCreditLimit = data.accounts.reduce((s, a) => s + (hasAccountType(a, 'credit_card') ? (a.creditLimit || 0) : 0), 0);
+  const totalCreditUsed = data.accounts.reduce((s, a) => {
+    if (!hasAccountType(a, 'credit_card') || !a.creditLimit) return s;
+    return s + (a.creditLimit - (hasAccountType(a, 'checking') || hasAccountType(a, 'savings') ? 0 : a.balance));
+  }, 0);
 
-  // Get invoices (faturas) for credit cards from payables
   const cardInvoices = useMemo(() => {
     const map: Record<string, { pending: typeof data.payables; paid: typeof data.payables }> = {};
     data.payables.forEach(p => {
@@ -48,9 +49,13 @@ export default function AccountsPage() {
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-2xl font-bold">Contas Financeiras</h1>
-          <p className="text-muted-foreground text-sm">Saldo total: <span className="mono font-semibold text-foreground">{fmt(totalBalance)}</span></p>
-          {creditCards.length > 0 && (
-            <p className="text-muted-foreground text-xs">Limite total: {fmt(totalCreditLimit)} · Utilizado: {fmt(totalCreditUsed)}</p>
+          <p className="text-muted-foreground text-sm">
+            Saldo total: <span className="mono font-semibold text-foreground">{fmt(totalBalance)}</span>
+          </p>
+          {totalCreditLimit > 0 && (
+            <p className="text-muted-foreground text-xs">
+              Limite de crédito total: {fmt(totalCreditLimit)}
+            </p>
           )}
         </div>
         <div className="flex gap-2">
@@ -64,81 +69,77 @@ export default function AccountsPage() {
             <DialogContent className="max-h-[90vh] overflow-y-auto">
               <DialogHeader><DialogTitle>{editingItem ? 'Editar' : 'Nova'} Conta</DialogTitle></DialogHeader>
               <AccountForm item={editingItem}
-                onSave={(a) => { if (editingItem) updateAccount({ ...a, id: editingItem.id } as FinancialAccount); else addAccount(a); setDialogOpen(false); setEditingItem(null); }} />
+                onSave={(a) => {
+                  if (editingItem) updateAccount({ ...a, id: editingItem.id } as FinancialAccount);
+                  else addAccount(a);
+                  setDialogOpen(false); setEditingItem(null);
+                }} />
             </DialogContent>
           </Dialog>
         </div>
       </div>
 
-      {/* Regular accounts */}
-      {nonCreditCards.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {nonCreditCards.map(acc => {
-            const Icon = typeIcons[acc.type] || Wallet;
-            return (
-              <motion.div key={acc.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="finance-card relative group">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <div className="p-2 rounded-lg" style={{ backgroundColor: acc.color + '20' }}>
-                      <Icon className="h-4 w-4" style={{ color: acc.color }} />
-                    </div>
-                    <div>
-                      <p className="font-medium text-sm">{acc.name}</p>
-                      <p className="text-xs text-muted-foreground">{typeLabels[acc.type]}</p>
-                    </div>
+      {/* All accounts */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {data.accounts.map(acc => {
+          const types = getAccountTypes(acc);
+          const hasCreditCard = types.includes('credit_card');
+          const hasChecking = types.includes('checking');
+          const hasSavings = types.includes('savings');
+          const hasCash = types.includes('cash');
+          const invoices = cardInvoices[acc.id] || { pending: [], paid: [] };
+          const usedAmount = hasCreditCard && acc.creditLimit ? acc.creditLimit - (hasChecking || hasSavings ? 0 : acc.balance) : 0;
+          const usedPercent = acc.creditLimit ? Math.min(100, (usedAmount / acc.creditLimit) * 100) : 0;
+
+          return (
+            <motion.div key={acc.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+              className="finance-card relative group col-span-1">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 rounded-lg" style={{ backgroundColor: acc.color + '20' }}>
+                    {hasCreditCard ? <CreditCard className="h-4 w-4" style={{ color: acc.color }} /> :
+                     hasChecking ? <Wallet className="h-4 w-4" style={{ color: acc.color }} /> :
+                     hasSavings ? <PiggyBank className="h-4 w-4" style={{ color: acc.color }} /> :
+                     <Banknote className="h-4 w-4" style={{ color: acc.color }} />}
                   </div>
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setEditingItem(acc); setDialogOpen(true); }}><Edit2 className="h-3 w-3" /></Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deleteAccount(acc.id)}><Trash2 className="h-3 w-3" /></Button>
+                  <div>
+                    <p className="font-medium text-sm">{acc.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {types.map(t => typeLabels[t]).join(' · ')}
+                    </p>
                   </div>
                 </div>
-                <p className="finance-stat mono">{fmt(acc.balance)}</p>
-              </motion.div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Credit Cards Section */}
-      {creditCards.length > 0 && (
-        <div className="space-y-4">
-          <h2 className="text-lg font-semibold flex items-center gap-2">
-            <CreditCard className="h-5 w-5 text-primary" />
-            Cartões de Crédito
-          </h2>
-          {creditCards.map(acc => {
-            const invoices = cardInvoices[acc.id] || { pending: [], paid: [] };
-            const usedAmount = acc.creditLimit ? acc.creditLimit - acc.balance : 0;
-            const usedPercent = acc.creditLimit ? Math.min(100, (usedAmount / acc.creditLimit) * 100) : 0;
-
-            return (
-              <motion.div key={acc.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="finance-card relative group">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <div className="p-2 rounded-lg" style={{ backgroundColor: acc.color + '20' }}>
-                      <CreditCard className="h-4 w-4" style={{ color: acc.color }} />
-                    </div>
-                    <div>
-                      <p className="font-medium">{acc.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {acc.billingCloseDay && acc.dueDay
-                          ? `Fecha dia ${acc.billingCloseDay} · Vence dia ${acc.dueDay}`
-                          : 'Cartão de Crédito'}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setEditingItem(acc); setDialogOpen(true); }}><Edit2 className="h-3 w-3" /></Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deleteAccount(acc.id)}><Trash2 className="h-3 w-3" /></Button>
-                  </div>
+                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setEditingItem(acc); setDialogOpen(true); }}><Edit2 className="h-3 w-3" /></Button>
+                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deleteAccount(acc.id)}><Trash2 className="h-3 w-3" /></Button>
                 </div>
+              </div>
 
-                {/* Limit bar */}
-                {acc.creditLimit && (
-                  <div className="mb-4">
-                    <div className="flex justify-between text-sm mb-1">
-                      <span className="text-muted-foreground">Limite Disponível</span>
-                      <span className="mono font-semibold">{fmt(acc.balance)}</span>
+              {/* Sub-balances */}
+              <div className="space-y-2">
+                {(hasChecking || hasCash) && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Wallet className="h-3 w-3" /> {hasChecking ? 'Conta Corrente' : 'Dinheiro'}
+                    </span>
+                    <span className="mono font-semibold text-sm">{fmt(acc.balance)}</span>
+                  </div>
+                )}
+                {hasSavings && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-muted-foreground flex items-center gap-1">
+                      <PiggyBank className="h-3 w-3" /> Poupança
+                    </span>
+                    <span className="mono font-semibold text-sm">{fmt(acc.savingsBalance)}</span>
+                  </div>
+                )}
+                {hasCreditCard && acc.creditLimit && (
+                  <div className="mt-2">
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-xs text-muted-foreground flex items-center gap-1">
+                        <CreditCard className="h-3 w-3" /> Limite de Crédito
+                      </span>
+                      <span className="mono font-semibold text-sm">{fmt(acc.creditLimit)}</span>
                     </div>
                     <div className="h-2 bg-muted rounded-full overflow-hidden">
                       <div className={`h-full rounded-full transition-all ${usedPercent > 80 ? 'bg-destructive' : usedPercent > 50 ? 'bg-warning' : 'bg-primary'}`}
@@ -146,58 +147,66 @@ export default function AccountsPage() {
                     </div>
                     <div className="flex justify-between text-xs text-muted-foreground mt-1">
                       <span>Utilizado: {fmt(usedAmount)}</span>
-                      <span>Limite: {fmt(acc.creditLimit)}</span>
+                      <span>Disponível: {fmt(acc.creditLimit - usedAmount)}</span>
                     </div>
+                    {acc.billingCloseDay && acc.dueDay && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Fecha dia {acc.billingCloseDay} · Vence dia {acc.dueDay}
+                      </p>
+                    )}
                   </div>
                 )}
+                {!hasChecking && !hasCash && !hasSavings && !hasCreditCard && (
+                  <p className="finance-stat mono">{fmt(acc.balance)}</p>
+                )}
+              </div>
 
-                {/* Pending invoices */}
-                {invoices.pending.length > 0 && (
-                  <div className="space-y-2">
-                    <h4 className="text-sm font-medium flex items-center gap-1.5">
-                      <Receipt className="h-3.5 w-3.5 text-primary" />
-                      Faturas Pendentes
-                    </h4>
-                    <div className="space-y-1.5 max-h-32 overflow-y-auto">
-                      {invoices.pending.sort((a, b) => a.dueDate.localeCompare(b.dueDate)).map(inv => (
-                        <div key={inv.id} className="flex items-center justify-between text-sm p-2 rounded-lg bg-muted/50">
-                          <div>
-                            <span className="font-medium">{inv.description}</span>
-                            {inv.status === 'overdue' && <span className="ml-1 text-xs text-destructive font-semibold">(Vencida)</span>}
-                          </div>
-                          <div className="text-right">
-                            <span className="mono font-semibold text-destructive">{fmt(inv.amount)}</span>
-                            <p className="text-xs text-muted-foreground">{inv.status === 'overdue' ? 'Venceu' : 'Vence'} {fmtDate(inv.dueDate)}</p>
-                          </div>
+              {/* Pending invoices */}
+              {hasCreditCard && invoices.pending.length > 0 && (
+                <div className="space-y-2 mt-3">
+                  <h4 className="text-sm font-medium flex items-center gap-1.5">
+                    <Receipt className="h-3.5 w-3.5 text-primary" />
+                    Faturas Pendentes
+                  </h4>
+                  <div className="space-y-1.5 max-h-32 overflow-y-auto">
+                    {invoices.pending.sort((a, b) => a.dueDate.localeCompare(b.dueDate)).map(inv => (
+                      <div key={inv.id} className="flex items-center justify-between text-sm p-2 rounded-lg bg-muted/50">
+                        <div>
+                          <span className="font-medium">{inv.description}</span>
+                          {inv.status === 'overdue' && <span className="ml-1 text-xs text-destructive font-semibold">(Vencida)</span>}
+                        </div>
+                        <div className="text-right">
+                          <span className="mono font-semibold text-destructive">{fmt(inv.amount)}</span>
+                          <p className="text-xs text-muted-foreground">{inv.status === 'overdue' ? 'Venceu' : 'Vence'} {fmtDate(inv.dueDate)}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Paid invoices */}
+              {hasCreditCard && invoices.paid.length > 0 && (
+                <div className="mt-3">
+                  <details className="text-sm">
+                    <summary className="cursor-pointer text-muted-foreground hover:text-foreground transition-colors">
+                      {invoices.paid.length} fatura(s) paga(s)
+                    </summary>
+                    <div className="space-y-1 mt-2">
+                      {invoices.paid.sort((a, b) => b.dueDate.localeCompare(a.dueDate)).map(inv => (
+                        <div key={inv.id} className="flex items-center justify-between text-xs p-1.5 text-muted-foreground">
+                          <span>{inv.description}</span>
+                          <span className="mono">{fmt(inv.amount)}</span>
                         </div>
                       ))}
                     </div>
-                  </div>
-                )}
-
-                {/* Paid invoices */}
-                {invoices.paid.length > 0 && (
-                  <div className="mt-3">
-                    <details className="text-sm">
-                      <summary className="cursor-pointer text-muted-foreground hover:text-foreground transition-colors">
-                        {invoices.paid.length} fatura(s) paga(s)
-                      </summary>
-                      <div className="space-y-1 mt-2">
-                        {invoices.paid.sort((a, b) => b.dueDate.localeCompare(a.dueDate)).map(inv => (
-                          <div key={inv.id} className="flex items-center justify-between text-xs p-1.5 text-muted-foreground">
-                            <span>{inv.description}</span>
-                            <span className="mono">{fmt(inv.amount)}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </details>
-                  </div>
-                )}
-              </motion.div>
-            );
-          })}
-        </div>
-      )}
+                  </details>
+                </div>
+              )}
+            </motion.div>
+          );
+        })}
+      </div>
 
       {/* Transfer Dialog */}
       <Dialog open={transferOpen} onOpenChange={setTransferOpen}>
@@ -250,28 +259,60 @@ function TransferForm({ accounts, onTransfer }: {
   );
 }
 
+const allTypes: { key: AccountType; label: string }[] = [
+  { key: 'checking', label: 'Conta Corrente' },
+  { key: 'savings', label: 'Poupança' },
+  { key: 'credit_card', label: 'Cartão de Crédito' },
+  { key: 'cash', label: 'Dinheiro' },
+];
+
 function AccountForm({ item, onSave }: {
   item: FinancialAccount | null; onSave: (a: Omit<FinancialAccount, 'id'>) => void;
 }) {
+  const existingTypes = item ? getAccountTypes(item) : ['checking' as AccountType];
   const [name, setName] = useState(item?.name || '');
-  const [type, setType] = useState<AccountType>(item?.type || 'checking');
+  const [selectedTypes, setSelectedTypes] = useState<AccountType[]>(existingTypes);
   const [balance, setBalance] = useState(item?.balance?.toString() || '0');
+  const [savingsBalance, setSavingsBalance] = useState(item?.savingsBalance?.toString() || '0');
   const [creditLimit, setCreditLimit] = useState(item?.creditLimit?.toString() || '');
   const [billingCloseDay, setBillingCloseDay] = useState(item?.billingCloseDay?.toString() || '');
   const [dueDay, setDueDay] = useState(item?.dueDay?.toString() || '');
   const colors = ['#0ea5e9', '#10b981', '#eab308', '#ef4444', '#8b5cf6', '#f97316'];
   const [color, setColor] = useState(item?.color || colors[0]);
 
+  const toggleType = (t: AccountType) => {
+    setSelectedTypes(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]);
+  };
+
+  const hasCreditCard = selectedTypes.includes('credit_card');
+  const hasChecking = selectedTypes.includes('checking') || selectedTypes.includes('cash');
+  const hasSavings = selectedTypes.includes('savings');
+
   return (
     <div className="space-y-4">
-      <div><Label>Nome da Conta</Label><Input value={name} onChange={e => setName(e.target.value)} placeholder="Nome da conta" /></div>
-      <div><Label>Tipo</Label>
-        <Select value={type} onValueChange={v => setType(v as AccountType)}>
-          <SelectTrigger><SelectValue /></SelectTrigger>
-          <SelectContent>{Object.entries(typeLabels).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent>
-        </Select>
+      <div><Label>Nome da Conta</Label><Input value={name} onChange={e => setName(e.target.value)} placeholder="Ex: Banco Itaú" /></div>
+      <div>
+        <Label>Tipos (selecione um ou mais)</Label>
+        <div className="grid grid-cols-2 gap-2 mt-2">
+          {allTypes.map(t => (
+            <label key={t.key} className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-colors ${selectedTypes.includes(t.key) ? 'border-primary bg-primary/10' : 'border-muted'}`}>
+              <Checkbox checked={selectedTypes.includes(t.key)} onCheckedChange={() => toggleType(t.key)} />
+              <span className="text-sm">{t.label}</span>
+            </label>
+          ))}
+        </div>
       </div>
-      {type === 'credit_card' ? (
+      {hasChecking && (
+        <div><Label>Saldo {selectedTypes.includes('checking') ? 'Conta Corrente' : 'Dinheiro'}</Label>
+          <Input type="number" step="0.01" value={balance} onChange={e => setBalance(e.target.value)} />
+        </div>
+      )}
+      {hasSavings && (
+        <div><Label>Saldo Poupança</Label>
+          <Input type="number" step="0.01" value={savingsBalance} onChange={e => setSavingsBalance(e.target.value)} />
+        </div>
+      )}
+      {hasCreditCard && (
         <>
           <div><Label>Limite de Crédito</Label><Input type="number" step="0.01" value={creditLimit} onChange={e => setCreditLimit(e.target.value)} placeholder="Ex: 5000" /></div>
           <div className="grid grid-cols-2 gap-3">
@@ -279,8 +320,6 @@ function AccountForm({ item, onSave }: {
             <div><Label>Dia Vencimento</Label><Input type="number" min="1" max="31" value={dueDay} onChange={e => setDueDay(e.target.value)} placeholder="Ex: 10" /></div>
           </div>
         </>
-      ) : (
-        <div><Label>Saldo</Label><Input type="number" step="0.01" value={balance} onChange={e => setBalance(e.target.value)} /></div>
       )}
       <div><Label>Cor</Label>
         <div className="flex gap-2 mt-1">
@@ -290,13 +329,16 @@ function AccountForm({ item, onSave }: {
           ))}
         </div>
       </div>
-      <Button className="w-full" disabled={!name || (type === 'credit_card' && !creditLimit)}
+      <Button className="w-full" disabled={!name || selectedTypes.length === 0 || (hasCreditCard && !creditLimit)}
         onClick={() => onSave({
-          name, type, color,
-          balance: type === 'credit_card' ? parseFloat(creditLimit || '0') : parseFloat(balance),
-          creditLimit: type === 'credit_card' ? parseFloat(creditLimit) : undefined,
-          billingCloseDay: type === 'credit_card' && billingCloseDay ? parseInt(billingCloseDay) : undefined,
-          dueDay: type === 'credit_card' && dueDay ? parseInt(dueDay) : undefined,
+          name,
+          type: selectedTypes.join(','),
+          color,
+          balance: hasChecking ? parseFloat(balance) : (hasCreditCard && !hasSavings ? parseFloat(creditLimit || '0') : 0),
+          savingsBalance: hasSavings ? parseFloat(savingsBalance) : 0,
+          creditLimit: hasCreditCard ? parseFloat(creditLimit) : undefined,
+          billingCloseDay: hasCreditCard && billingCloseDay ? parseInt(billingCloseDay) : undefined,
+          dueDay: hasCreditCard && dueDay ? parseInt(dueDay) : undefined,
         })}>
         {item ? 'Atualizar' : 'Criar'} Conta
       </Button>
