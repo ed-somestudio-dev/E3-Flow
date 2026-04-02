@@ -31,6 +31,7 @@ interface FinanceContextType {
   getCategoryName: (id: string) => string;
   getAccountName: (id: string) => string;
   getCategoryColor: (id: string) => string;
+  resetAllData: () => Promise<void>;
 }
 
 const FinanceContext = createContext<FinanceContextType | null>(null);
