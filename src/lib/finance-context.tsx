@@ -393,6 +393,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     if (!user) return;
     const { error } = await supabase.from('financial_accounts').insert({
       user_id: user.id, name: a.name, type: a.type, balance: a.balance,
+      savings_balance: a.savingsBalance || 0,
       color: a.color, credit_limit: a.creditLimit || null,
       billing_close_day: a.billingCloseDay || null, due_day: a.dueDay || null,
     });
@@ -403,8 +404,9 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   const updateAccount = useCallback(async (a: FinancialAccount) => {
     if (!user) return;
     const { error } = await supabase.from('financial_accounts').update({
-      name: a.name, type: a.type, balance: a.balance, color: a.color,
-      credit_limit: a.creditLimit || null,
+      name: a.name, type: a.type, balance: a.balance,
+      savings_balance: a.savingsBalance || 0,
+      color: a.color, credit_limit: a.creditLimit || null,
       billing_close_day: a.billingCloseDay || null, due_day: a.dueDay || null,
     }).eq('id', a.id).eq('user_id', user.id);
     if (error) { console.error('updateAccount error:', error); toast.error('Erro ao atualizar conta'); return; }
