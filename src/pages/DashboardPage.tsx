@@ -137,7 +137,7 @@ export default function DashboardPage() {
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="finance-card border-destructive/20 bg-destructive/5">
           <div className="flex items-center gap-2 text-destructive mb-2">
             <ArrowDownRight className="h-4 w-4" />
-            <span className="font-semibold text-sm">Contas a Pagar Pendentes</span>
+            <span className="font-semibold text-sm">{'Contas a\u00A0Pagar Pendentes'}</span>
           </div>
           <div className="space-y-1 text-sm max-h-[6.5rem] overflow-y-auto">
             {pendingPayables.map(p => (
@@ -157,7 +157,7 @@ export default function DashboardPage() {
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="finance-card border-success/20 bg-success/5">
           <div className="flex items-center gap-2 text-success mb-2">
             <ArrowUpRight className="h-4 w-4" />
-            <span className="font-semibold text-sm">Contas a Receber Pendentes</span>
+            <span className="font-semibold text-sm">{'Contas a\u00A0Receber Pendentes'}</span>
           </div>
           <div className="space-y-1 text-sm max-h-[6.5rem] overflow-y-auto">
             {pendingReceivables.map(r => (
@@ -174,8 +174,8 @@ export default function DashboardPage() {
       {/* Estatísticas */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <StatCard label="Saldo Total" value={fmt(stats.totalBalance)} icon={Wallet} />
-        <StatCard label="Contas a Pagar" value={fmt(stats.totalPayable)} icon={TrendingDown} color="hsl(var(--destructive))" />
-        <StatCard label="Contas a Receber" value={fmt(stats.totalReceivable)} icon={TrendingUp} color="hsl(var(--success))" />
+        <StatCard label={'Contas a\u00A0Pagar'} value={fmt(stats.totalPayable)} icon={TrendingDown} color="hsl(var(--destructive))" />
+        <StatCard label={'Contas a\u00A0Receber'} value={fmt(stats.totalReceivable)} icon={TrendingUp} color="hsl(var(--success))" />
         <StatCard label="Receitas do Mês" value={fmt(stats.monthIncome)} icon={ArrowUpRight} trend="up" />
         <StatCard label="Despesas do Mês" value={fmt(stats.monthExpense)} icon={ArrowDownRight} trend="down" />
       </div>
