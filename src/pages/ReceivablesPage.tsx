@@ -174,13 +174,13 @@ function ReceivableForm({ item, categories, accounts, onSave }: {
       <div><Label>Descrição</Label><Input value={description} onChange={e => setDescription(e.target.value)} placeholder="Descrição" /></div>
       <div className="grid grid-cols-2 gap-3">
         <div><Label>Categoria</Label>
-          <Select value={categoryId} onValueChange={setCategoryId}>
+          <Select value={categoryId || undefined} onValueChange={setCategoryId}>
             <SelectTrigger><SelectValue placeholder="Selecionar" /></SelectTrigger>
             <SelectContent>{categories.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
           </Select>
         </div>
         <div><Label>Conta</Label>
-          <Select value={accountId} onValueChange={setAccountId}>
+          <Select value={accountId || undefined} onValueChange={setAccountId}>
             <SelectTrigger><SelectValue placeholder="Selecionar" /></SelectTrigger>
             <SelectContent>{accounts.map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}</SelectContent>
           </Select>
