@@ -56,7 +56,7 @@ export default function ReceivablesPage() {
     <div className="space-y-6 max-w-5xl">
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Contas a Receber</h1>
+          <h1 className="text-2xl font-bold">{'Contas a\u00A0Receber'}</h1>
           <p className="text-muted-foreground text-sm">Gerencie seus recebimentos</p>
         </div>
         <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) setEditingItem(null); }}>

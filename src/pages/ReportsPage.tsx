@@ -338,7 +338,7 @@ export default function ReportsPage() {
 
           {/* Contas a Receber */}
           <div className="finance-card">
-            <h3 className="font-semibold mb-4">Contas a Receber — Período</h3>
+            <h3 className="font-semibold mb-4">{'Contas a\u00A0Receber — Período'}</h3>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
               <div className="text-center p-3 rounded-lg bg-muted/50">
                 <p className="text-xs text-muted-foreground">Total</p>

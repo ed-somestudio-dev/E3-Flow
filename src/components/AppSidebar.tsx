@@ -19,8 +19,8 @@ import {
 const mainItems = [
   { title: 'Painel', url: '/', icon: LayoutDashboard },
   { title: 'Transações', url: '/transactions', icon: ArrowUpDown },
-  { title: 'Contas a Pagar', url: '/payables', icon: FileText },
-  { title: 'Contas a Receber', url: '/receivables', icon: FileInput },
+  { title: 'Contas a\u00A0Pagar', url: '/payables', icon: FileText },
+  { title: 'Contas a\u00A0Receber', url: '/receivables', icon: FileInput },
 ];
 
 const manageItems = [
