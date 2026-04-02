@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useFinance } from '@/lib/finance-context';
 import { FinancialAccount, AccountType } from '@/lib/types';
-import { Plus, Trash2, Edit2, Wallet, PiggyBank, Banknote, CreditCard, ArrowRightLeft, Receipt } from 'lucide-react';
+import { Plus, Trash2, Edit2, Wallet, PiggyBank, CreditCard, ArrowRightLeft, Receipt } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -11,10 +11,10 @@ import { motion } from 'framer-motion';
 import { fmt, fmtDate } from '@/lib/format';
 
 const typeIcons: Record<AccountType, React.ElementType> = {
-  checking: Wallet, savings: PiggyBank, cash: Banknote, credit_card: CreditCard,
+  checking: Wallet, savings: PiggyBank, credit_card: CreditCard,
 };
 const typeLabels: Record<AccountType, string> = {
-  checking: 'Conta Corrente', savings: 'Poupança', cash: 'Dinheiro', credit_card: 'Cartão de Crédito',
+  checking: 'Conta Corrente', savings: 'Poupança', credit_card: 'Cartão de Crédito',
 };
 
 export default function AccountsPage() {
@@ -26,6 +26,8 @@ export default function AccountsPage() {
   const nonCreditCards = data.accounts.filter(a => a.type !== 'credit_card');
   const creditCards = data.accounts.filter(a => a.type === 'credit_card');
   const totalBalance = nonCreditCards.reduce((s, a) => s + a.balance, 0);
+  const totalCreditLimit = creditCards.reduce((s, a) => s + (a.creditLimit || 0), 0);
+  const totalCreditUsed = creditCards.reduce((s, a) => s + ((a.creditLimit || 0) - a.balance), 0);
 
   // Get invoices (faturas) for credit cards from payables
   const cardInvoices = useMemo(() => {
@@ -47,6 +49,9 @@ export default function AccountsPage() {
         <div>
           <h1 className="text-2xl font-bold">Contas Financeiras</h1>
           <p className="text-muted-foreground text-sm">Saldo total: <span className="mono font-semibold text-foreground">{fmt(totalBalance)}</span></p>
+          {creditCards.length > 0 && (
+            <p className="text-muted-foreground text-xs">Limite total: {fmt(totalCreditLimit)} · Utilizado: {fmt(totalCreditUsed)}</p>
+          )}
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => setTransferOpen(true)}>
