@@ -49,6 +49,9 @@ export default function AccountsPage() {
         <div>
           <h1 className="text-2xl font-bold">Contas Financeiras</h1>
           <p className="text-muted-foreground text-sm">Saldo total: <span className="mono font-semibold text-foreground">{fmt(totalBalance)}</span></p>
+          {creditCards.length > 0 && (
+            <p className="text-muted-foreground text-xs">Limite total: {fmt(totalCreditLimit)} · Utilizado: {fmt(totalCreditUsed)}</p>
+          )}
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => setTransferOpen(true)}>

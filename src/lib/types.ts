@@ -1,7 +1,7 @@
 export type TransactionType = 'income' | 'expense';
 export type PayableStatus = 'pending' | 'paid' | 'overdue';
 export type ReceivableStatus = 'pending' | 'received' | 'overdue';
-export type AccountType = 'checking' | 'savings' | 'cash' | 'credit_card';
+export type AccountType = 'checking' | 'savings' | 'credit_card';
 export type RecurrenceFrequency = 'monthly' | 'weekly' | 'yearly';
 
 export interface FinancialAccount {
