@@ -285,8 +285,8 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
         }
       }
       // Also reduce credit card available limit by total amount
-      if (acc?.type?.includes('credit_card')) {
-        await supabase.from('financial_accounts').update({ balance: acc.balance - p.amount }).eq('id', acc.id);
+      if (acc?.type?.includes('credit_card') && acc.creditLimit != null) {
+        await supabase.from('financial_accounts').update({ credit_limit: acc.creditLimit - p.amount }).eq('id', acc.id);
       }
       await fetchAll();
       return;
