@@ -334,7 +334,7 @@ function AccountForm({ item, onSave }: {
           name,
           type: selectedTypes.join(','),
           color,
-          balance: hasChecking ? parseFloat(balance) : (hasCreditCard && !hasSavings ? parseFloat(creditLimit || '0') : 0),
+          balance: hasChecking ? parseFloat(balance || '0') : 0,
           savingsBalance: hasSavings ? parseFloat(savingsBalance) : 0,
           creditLimit: hasCreditCard ? parseFloat(creditLimit) : undefined,
           billingCloseDay: hasCreditCard && billingCloseDay ? parseInt(billingCloseDay) : undefined,
