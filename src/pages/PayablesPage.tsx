@@ -170,6 +170,8 @@ function PayableForm({ item, categories, accounts, onSave }: {
   const [recurrenceFrequency, setRecurrenceFrequency] = useState<RecurrenceFrequency>(item?.recurrenceFrequency || 'monthly');
   const [installments, setInstallments] = useState(1);
   const [useInstallments, setUseInstallments] = useState(false);
+  const [inputMode, setInputMode] = useState<'total' | 'installment'>('total');
+  const [installmentValue, setInstallmentValue] = useState('');
 
   const selectedAccount = accounts.find(a => a.id === accountId);
   const isCreditCard = selectedAccount?.type?.includes('credit_card') ?? false;
