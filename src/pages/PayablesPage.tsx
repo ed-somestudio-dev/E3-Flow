@@ -158,7 +158,7 @@ export default function PayablesPage() {
 function PayableForm({ item, categories, accounts, onSave }: {
   item: Payable | null; categories: { id: string; name: string }[];
   accounts: { id: string; name: string; type?: string }[];
-  onSave: (p: Omit<Payable, 'id'> & { installments?: number }) => void;
+  onSave: (p: Omit<Payable, 'id'> & { installments?: number; isCredit?: boolean }) => void;
 }) {
   const [description, setDescription] = useState(item?.description || '');
   const [supplier, setSupplier] = useState(item?.supplier || '');
