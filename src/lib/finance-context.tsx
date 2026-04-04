@@ -257,7 +257,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   }, [user, data, fetchAll]);
 
   // --- Payables ---
-  const addPayable = useCallback(async (p: Omit<Payable, 'id'>, installments?: number) => {
+  const addPayable = useCallback(async (p: Omit<Payable, 'id'>, installments?: number, isCredit?: boolean) => {
     if (!user) return;
 
     if (installments && installments > 1) {
