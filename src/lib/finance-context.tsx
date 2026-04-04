@@ -10,7 +10,7 @@ interface FinanceContextType {
   addTransaction: (tx: Omit<Transaction, 'id'>) => Promise<void>;
   updateTransaction: (tx: Transaction) => Promise<void>;
   deleteTransaction: (id: string) => Promise<void>;
-  addPayable: (p: Omit<Payable, 'id'>, installments?: number) => Promise<void>;
+  addPayable: (p: Omit<Payable, 'id'>, installments?: number, isCredit?: boolean) => Promise<void>;
   updatePayable: (p: Payable) => Promise<void>;
   deletePayable: (id: string) => Promise<void>;
   markPayablePaid: (id: string, accountId?: string) => Promise<void>;
@@ -257,7 +257,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   }, [user, data, fetchAll]);
 
   // --- Payables ---
-  const addPayable = useCallback(async (p: Omit<Payable, 'id'>, installments?: number) => {
+  const addPayable = useCallback(async (p: Omit<Payable, 'id'>, installments?: number, isCredit?: boolean) => {
     if (!user) return;
 
     if (installments && installments > 1) {
@@ -301,6 +301,15 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       recurrence_end_date: p.recurrenceEndDate || null,
     });
     if (error) { console.error('addPayable error:', error); toast.error('Erro ao criar conta a pagar'); return; }
+
+    // À vista no crédito: deduct from credit limit immediately
+    if (isCredit && p.accountId) {
+      const acc = data.accounts.find(a => a.id === p.accountId);
+      if (acc?.type?.includes('credit_card') && acc.creditLimit != null) {
+        await supabase.from('financial_accounts').update({ credit_limit: acc.creditLimit - p.amount }).eq('id', acc.id);
+      }
+    }
+
     await fetchAll();
   }, [user, data, fetchAll, upsertCreditCardInvoice]);
 
