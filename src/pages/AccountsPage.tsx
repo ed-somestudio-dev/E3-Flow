@@ -146,8 +146,8 @@ export default function AccountsPage() {
                         style={{ width: `${usedPercent}%` }} />
                     </div>
                     <div className="flex justify-between text-xs text-muted-foreground mt-1">
-                      <span>Utilizado: {fmt(usedAmount)}</span>
-                      <span>Disponível: {fmt(acc.creditLimit - usedAmount)}</span>
+                      <span>Disponível: {fmt(usedAmount)}</span>
+                      <span>Utilizado: {fmt(acc.creditLimit - usedAmount)}</span>
                     </div>
                     {acc.billingCloseDay && acc.dueDay && (
                       <p className="text-xs text-muted-foreground mt-1">
