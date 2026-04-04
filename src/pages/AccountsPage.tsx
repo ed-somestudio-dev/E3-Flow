@@ -142,7 +142,7 @@ export default function AccountsPage() {
                       <span className="mono font-semibold text-sm">{fmt(acc.creditLimit)}</span>
                     </div>
                     <div className="h-2 bg-muted rounded-full overflow-hidden">
-                      <div className={`h-full rounded-full transition-all ${usedPercent > 80 ? 'bg-destructive' : usedPercent > 50 ? 'bg-warning' : 'bg-primary'}`}
+                      <div className="h-full rounded-full transition-all bg-primary"
                         style={{ width: `${usedPercent}%` }} />
                     </div>
                     <div className="flex justify-between text-xs text-muted-foreground mt-1">
