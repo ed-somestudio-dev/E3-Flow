@@ -301,6 +301,15 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       recurrence_end_date: p.recurrenceEndDate || null,
     });
     if (error) { console.error('addPayable error:', error); toast.error('Erro ao criar conta a pagar'); return; }
+
+    // À vista no crédito: deduct from credit limit immediately
+    if (isCredit && p.accountId) {
+      const acc = data.accounts.find(a => a.id === p.accountId);
+      if (acc?.type?.includes('credit_card') && acc.creditLimit != null) {
+        await supabase.from('financial_accounts').update({ credit_limit: acc.creditLimit - p.amount }).eq('id', acc.id);
+      }
+    }
+
     await fetchAll();
   }, [user, data, fetchAll, upsertCreditCardInvoice]);
 
