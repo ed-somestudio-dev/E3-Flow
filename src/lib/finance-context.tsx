@@ -10,7 +10,7 @@ interface FinanceContextType {
   addTransaction: (tx: Omit<Transaction, 'id'>) => Promise<void>;
   updateTransaction: (tx: Transaction) => Promise<void>;
   deleteTransaction: (id: string) => Promise<void>;
-  addPayable: (p: Omit<Payable, 'id'>, installments?: number) => Promise<void>;
+  addPayable: (p: Omit<Payable, 'id'>, installments?: number, isCredit?: boolean) => Promise<void>;
   updatePayable: (p: Payable) => Promise<void>;
   deletePayable: (id: string) => Promise<void>;
   markPayablePaid: (id: string, accountId?: string) => Promise<void>;
