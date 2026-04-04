@@ -67,7 +67,7 @@ export default function PayablesPage() {
           <DialogContent className="max-h-[90vh] overflow-y-auto">
             <DialogHeader><DialogTitle>{editingItem ? 'Editar' : 'Nova'} {SAFE_LABELS.payable}</DialogTitle></DialogHeader>
             <PayableForm item={editingItem} categories={data.categories.filter(c => c.type === 'expense')} accounts={data.accounts}
-              onSave={(p) => { const { installments, ...payable } = p; if (editingItem) updatePayable({ ...payable, id: editingItem.id } as Payable); else addPayable(payable, installments); setDialogOpen(false); setEditingItem(null); }} />
+              onSave={(p) => { const { installments, isCredit, ...payable } = p; if (editingItem) updatePayable({ ...payable, id: editingItem.id } as Payable); else addPayable(payable, installments, isCredit); setDialogOpen(false); setEditingItem(null); }} />
           </DialogContent>
         </Dialog>
       </div>
