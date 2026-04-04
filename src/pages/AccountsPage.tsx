@@ -88,8 +88,10 @@ export default function AccountsPage() {
           const hasSavings = types.includes('savings');
           const hasCash = types.includes('cash');
           const invoices = cardInvoices[acc.id] || { pending: [], paid: [] };
-          const usedAmount = hasCreditCard && acc.creditLimit ? acc.creditLimit - (hasChecking || hasSavings ? 0 : acc.balance) : 0;
-          const usedPercent = acc.creditLimit ? Math.min(100, (usedAmount / acc.creditLimit) * 100) : 0;
+          const usedAmount = hasCreditCard ? invoices.pending.reduce((s, p) => s + p.amount, 0) : 0;
+          const totalLimit = hasCreditCard && acc.creditLimit ? acc.creditLimit + usedAmount : 0;
+          const availableAmount = hasCreditCard && acc.creditLimit ? acc.creditLimit : 0;
+          const usedPercent = totalLimit > 0 ? Math.min(100, (availableAmount / totalLimit) * 100) : 0;
 
           return (
             <motion.div key={acc.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
@@ -137,17 +139,17 @@ export default function AccountsPage() {
                   <div className="mt-2">
                     <div className="flex justify-between items-center mb-1">
                       <span className="text-xs text-muted-foreground flex items-center gap-1">
-                        <CreditCard className="h-3 w-3" /> Limite de Crédito
+                        <CreditCard className="h-3 w-3" /> Limite Total
                       </span>
-                      <span className="mono font-semibold text-sm">{fmt(acc.creditLimit)}</span>
+                      <span className="mono font-semibold text-sm">{fmt(totalLimit)}</span>
                     </div>
                     <div className="h-2 bg-muted rounded-full overflow-hidden">
                       <div className="h-full rounded-full transition-all bg-primary"
                         style={{ width: `${usedPercent}%` }} />
                     </div>
                     <div className="flex justify-between text-xs text-muted-foreground mt-1">
-                      <span>Disponível: {fmt(usedAmount)}</span>
-                      <span>Utilizado: {fmt(acc.creditLimit - usedAmount)}</span>
+                      <span>Disponível: {fmt(availableAmount)}</span>
+                      <span>Utilizado: {fmt(usedAmount)}</span>
                     </div>
                     {acc.billingCloseDay && acc.dueDay && (
                       <p className="text-xs text-muted-foreground mt-1">
