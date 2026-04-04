@@ -139,17 +139,17 @@ export default function AccountsPage() {
                   <div className="mt-2">
                     <div className="flex justify-between items-center mb-1">
                       <span className="text-xs text-muted-foreground flex items-center gap-1">
-                        <CreditCard className="h-3 w-3" /> Limite de Crédito
+                        <CreditCard className="h-3 w-3" /> Limite Total
                       </span>
-                      <span className="mono font-semibold text-sm">{fmt(acc.creditLimit)}</span>
+                      <span className="mono font-semibold text-sm">{fmt(totalLimit)}</span>
                     </div>
                     <div className="h-2 bg-muted rounded-full overflow-hidden">
                       <div className="h-full rounded-full transition-all bg-primary"
                         style={{ width: `${usedPercent}%` }} />
                     </div>
                     <div className="flex justify-between text-xs text-muted-foreground mt-1">
-                      <span>Disponível: {fmt(usedAmount)}</span>
-                      <span>Utilizado: {fmt(acc.creditLimit - usedAmount)}</span>
+                      <span>Disponível: {fmt(availableAmount)}</span>
+                      <span>Utilizado: {fmt(usedAmount)}</span>
                     </div>
                     {acc.billingCloseDay && acc.dueDay && (
                       <p className="text-xs text-muted-foreground mt-1">
