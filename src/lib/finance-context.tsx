@@ -344,7 +344,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
         // If it's a credit card, upsert into the card's invoice
         if (acc?.type?.includes('credit_card')) {
-          await upsertCreditCardInvoice(acc, installmentAmount, dueStr);
+          await adjustCreditCardInvoice(acc, installmentAmount, dueStr);
         } else {
           await supabase.from('payables').insert({
             user_id: user.id, description: desc, supplier: p.supplier,
