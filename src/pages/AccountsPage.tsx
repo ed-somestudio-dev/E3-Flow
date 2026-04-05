@@ -89,9 +89,9 @@ export default function AccountsPage() {
           const hasCash = types.includes('cash');
           const invoices = cardInvoices[acc.id] || { pending: [], paid: [] };
           const usedAmount = hasCreditCard ? invoices.pending.reduce((s, p) => s + p.amount, 0) : 0;
-          const totalLimit = hasCreditCard && acc.creditLimit ? acc.creditLimit + usedAmount : 0;
-          const availableAmount = hasCreditCard && acc.creditLimit ? acc.creditLimit : 0;
-          const usedPercent = totalLimit > 0 ? Math.min(100, (availableAmount / totalLimit) * 100) : 0;
+          const totalLimit = hasCreditCard && acc.creditLimit ? acc.creditLimit : 0;
+          const availableAmount = totalLimit - usedAmount;
+          const usedPercent = totalLimit > 0 ? Math.min(100, (usedAmount / totalLimit) * 100) : 0;
 
           return (
             <motion.div key={acc.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
