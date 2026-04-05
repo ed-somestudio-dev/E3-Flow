@@ -113,6 +113,11 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   const [data, setData] = useState<FinanceData>(emptyData);
   const [loading, setLoading] = useState(true);
 
+  type AccountAdjustment = {
+    balanceDelta: number;
+    creditLimitDelta: number;
+  };
+
   const fetchAll = useCallback(async () => {
     if (!user) { setData(emptyData); setLoading(false); return; }
     setLoading(true);
@@ -153,6 +158,44 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
+  const queueTransactionAccountAdjustment = useCallback((
+    adjustments: Record<string, AccountAdjustment>,
+    transaction: Pick<Transaction, 'accountId' | 'type' | 'amount' | 'isCredit'>,
+    direction: 1 | -1,
+  ) => {
+    const account = data.accounts.find(a => a.id === transaction.accountId);
+    if (!account) return;
+
+    const current = adjustments[account.id] || { balanceDelta: 0, creditLimitDelta: 0 };
+
+    if (transaction.isCredit && account.type.includes('credit_card')) {
+      current.creditLimitDelta += direction === 1 ? -transaction.amount : transaction.amount;
+    } else {
+      const signedAmount = transaction.type === 'income' ? transaction.amount : -transaction.amount;
+      current.balanceDelta += signedAmount * direction;
+    }
+
+    adjustments[account.id] = current;
+  }, [data.accounts]);
+
+  const persistAccountAdjustments = useCallback(async (adjustments: Record<string, AccountAdjustment>) => {
+    const updates = Object.entries(adjustments).flatMap(([accountId, adjustment]) => {
+      const account = data.accounts.find(a => a.id === accountId);
+      if (!account) return [];
+
+      const payload: any = {};
+      if (adjustment.balanceDelta !== 0) payload.balance = account.balance + adjustment.balanceDelta;
+      if (adjustment.creditLimitDelta !== 0) payload.credit_limit = (account.creditLimit ?? 0) + adjustment.creditLimitDelta;
+      if (Object.keys(payload).length === 0) return [];
+
+      return [supabase.from('financial_accounts').update(payload).eq('id', accountId)];
+    });
+
+    if (updates.length > 0) {
+      await Promise.all(updates);
+    }
+  }, [data.accounts]);
+
   // --- Transactions ---
   const addTransaction = useCallback(async (tx: Omit<Transaction, 'id'>) => {
     if (!user) return;
@@ -165,28 +208,27 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     if (error) { toast.error('Erro ao criar transação'); return; }
 
     const acc = data.accounts.find(a => a.id === tx.accountId);
-    if (tx.isCredit && acc?.type?.includes('credit_card')) {
-      // Credit card purchase: reduce available balance (balance = available limit)
-      await supabase.from('financial_accounts').update({ balance: acc.balance - tx.amount }).eq('id', tx.accountId);
-      // Auto-create/update fatura payable
-      await upsertCreditCardInvoice(acc, tx.amount, tx.date);
-    } else {
-      // Regular transaction: update account balance
-      const delta = tx.type === 'income' ? tx.amount : -tx.amount;
-      if (acc) await supabase.from('financial_accounts').update({ balance: acc.balance + delta }).eq('id', tx.accountId);
-    }
-    await fetchAll();
-  }, [user, data, fetchAll]);
+    const adjustments: Record<string, AccountAdjustment> = {};
+    queueTransactionAccountAdjustment(adjustments, tx, 1);
 
-  const upsertCreditCardInvoice = useCallback(async (acc: FinancialAccount, amount: number, txDate: string) => {
+    await Promise.all([
+      persistAccountAdjustments(adjustments),
+      tx.isCredit && acc?.type?.includes('credit_card')
+        ? adjustCreditCardInvoice(acc, tx.amount, tx.date)
+        : Promise.resolve(),
+    ]);
+
+    await fetchAll();
+  }, [user, data.accounts, fetchAll, persistAccountAdjustments, queueTransactionAccountAdjustment]);
+
+  const adjustCreditCardInvoice = useCallback(async (acc: FinancialAccount, amountDelta: number, txDate: string) => {
     if (!user) return;
     const closeDay = acc.billingCloseDay || 1;
     const dueDay = acc.dueDay || 10;
     const d = new Date(txDate + 'T12:00:00');
-    // Determine billing cycle: if day > closeDay, invoice is for next month
     let invoiceMonth: number, invoiceYear: number;
     if (d.getDate() > closeDay) {
-      invoiceMonth = d.getMonth() + 2; // next month (1-indexed)
+      invoiceMonth = d.getMonth() + 2;
       invoiceYear = d.getFullYear();
     } else {
       invoiceMonth = d.getMonth() + 1;
@@ -197,7 +239,6 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     const dueDate = `${invoiceYear}-${String(invoiceMonth).padStart(2, '0')}-${String(dueDay).padStart(2, '0')}`;
     const description = `Fatura ${acc.name} - ${String(invoiceMonth).padStart(2, '0')}/${invoiceYear}`;
 
-    // Check if payable already exists for this card + cycle
     const { data: existing } = await supabase.from('payables')
       .select('*')
       .eq('user_id', user.id)
@@ -206,55 +247,84 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       .maybeSingle();
 
     if (existing) {
+      const nextAmount = Number(existing.amount) + amountDelta;
+
+      if (nextAmount <= 0.009) {
+        await supabase.from('payables').delete().eq('id', existing.id);
+        return;
+      }
+
       await supabase.from('payables').update({
-        amount: Number(existing.amount) + amount,
+        amount: nextAmount,
         description,
       }).eq('id', existing.id);
-    } else {
-      // Find an expense category for the invoice
+      return;
+    }
+
+    if (amountDelta > 0) {
       const cat = data.categories.find(c => c.type === 'expense');
       if (!cat) return;
       await supabase.from('payables').insert({
         user_id: user.id, description, supplier: `cartao:${acc.id}`,
         category_id: cat.id, account_id: acc.id,
-        amount, due_date: dueDate, status: 'pending',
+        amount: amountDelta, due_date: dueDate, status: 'pending',
       });
     }
   }, [user, data.categories]);
 
   const updateTransaction = useCallback(async (tx: Transaction) => {
     if (!user) return;
-    // Get old transaction to reverse balance
     const old = data.transactions.find(t => t.id === tx.id);
-    if (old) {
-      const oldDelta = old.type === 'income' ? -old.amount : old.amount;
-      await supabase.from('financial_accounts').update({ balance: data.accounts.find(a => a.id === old.accountId)!.balance + oldDelta }).eq('id', old.accountId);
-    }
-    await supabase.from('transactions').update({
+    const { error } = await supabase.from('transactions').update({
       type: tx.type, description: tx.description, category_id: tx.categoryId,
       amount: tx.amount, date: tx.date, account_id: tx.accountId, notes: tx.notes || null,
+      is_credit: tx.isCredit || false,
     }).eq('id', tx.id);
-    if (old) {
-      const newDelta = tx.type === 'income' ? tx.amount : -tx.amount;
-      const acc = data.accounts.find(a => a.id === tx.accountId);
-      const oldDelta = old.type === 'income' ? -old.amount : old.amount;
-      const currentBalance = acc ? (acc.id === old.accountId ? acc.balance + oldDelta : acc.balance) : 0;
-      await supabase.from('financial_accounts').update({ balance: currentBalance + newDelta }).eq('id', tx.accountId);
-    }
+    if (error) { toast.error('Erro ao atualizar transação'); return; }
+
+    const adjustments: Record<string, AccountAdjustment> = {};
+    if (old) queueTransactionAccountAdjustment(adjustments, old, -1);
+    queueTransactionAccountAdjustment(adjustments, tx, 1);
+
+    const oldAccount = old ? data.accounts.find(a => a.id === old.accountId) : undefined;
+    const newAccount = data.accounts.find(a => a.id === tx.accountId);
+
+    await Promise.all([
+      persistAccountAdjustments(adjustments),
+      (async () => {
+        if (old?.isCredit && oldAccount?.type?.includes('credit_card')) {
+          await adjustCreditCardInvoice(oldAccount, -old.amount, old.date);
+        }
+        if (tx.isCredit && newAccount?.type?.includes('credit_card')) {
+          await adjustCreditCardInvoice(newAccount, tx.amount, tx.date);
+        }
+      })(),
+    ]);
+
     await fetchAll();
-  }, [user, data, fetchAll]);
+  }, [user, data.transactions, data.accounts, fetchAll, persistAccountAdjustments, queueTransactionAccountAdjustment, adjustCreditCardInvoice]);
 
   const deleteTransaction = useCallback(async (id: string) => {
     if (!user) return;
     const tx = data.transactions.find(t => t.id === id);
-    await supabase.from('transactions').delete().eq('id', id);
+    const { error } = await supabase.from('transactions').delete().eq('id', id);
+    if (error) { toast.error('Erro ao excluir transação'); return; }
+
     if (tx) {
-      const delta = tx.type === 'income' ? -tx.amount : tx.amount;
+      const adjustments: Record<string, AccountAdjustment> = {};
+      queueTransactionAccountAdjustment(adjustments, tx, -1);
+
       const acc = data.accounts.find(a => a.id === tx.accountId);
-      if (acc) await supabase.from('financial_accounts').update({ balance: acc.balance + delta }).eq('id', tx.accountId);
+      await Promise.all([
+        persistAccountAdjustments(adjustments),
+        tx.isCredit && acc?.type?.includes('credit_card')
+          ? adjustCreditCardInvoice(acc, -tx.amount, tx.date)
+          : Promise.resolve(),
+      ]);
     }
+
     await fetchAll();
-  }, [user, data, fetchAll]);
+  }, [user, data.transactions, data.accounts, fetchAll, persistAccountAdjustments, queueTransactionAccountAdjustment, adjustCreditCardInvoice]);
 
   // --- Payables ---
   const addPayable = useCallback(async (p: Omit<Payable, 'id'>, installments?: number, isCredit?: boolean) => {
@@ -274,7 +344,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
         // If it's a credit card, upsert into the card's invoice
         if (acc?.type?.includes('credit_card')) {
-          await upsertCreditCardInvoice(acc, installmentAmount, dueStr);
+          await adjustCreditCardInvoice(acc, installmentAmount, dueStr);
         } else {
           await supabase.from('payables').insert({
             user_id: user.id, description: desc, supplier: p.supplier,
@@ -311,7 +381,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     }
 
     await fetchAll();
-  }, [user, data, fetchAll, upsertCreditCardInvoice]);
+  }, [user, data, fetchAll, adjustCreditCardInvoice]);
 
   const updatePayable = useCallback(async (p: Payable) => {
     if (!user) return;
