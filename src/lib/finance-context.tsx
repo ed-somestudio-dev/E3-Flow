@@ -168,8 +168,9 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
     const current = adjustments[account.id] || { balanceDelta: 0, creditLimitDelta: 0 };
 
+    // Credit purchases don't affect balance — usage is tracked via invoices (payables)
     if (transaction.isCredit && account.type.includes('credit_card')) {
-      current.creditLimitDelta += direction === 1 ? -transaction.amount : transaction.amount;
+      // No balance or credit_limit change; invoice handles tracking
     } else {
       const signedAmount = transaction.type === 'income' ? transaction.amount : -transaction.amount;
       current.balanceDelta += signedAmount * direction;
@@ -185,7 +186,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
       const payload: any = {};
       if (adjustment.balanceDelta !== 0) payload.balance = account.balance + adjustment.balanceDelta;
-      if (adjustment.creditLimitDelta !== 0) payload.credit_limit = (account.creditLimit ?? 0) + adjustment.creditLimitDelta;
+      // credit_limit is never modified — it always stores the original total limit
       if (Object.keys(payload).length === 0) return [];
 
       return [supabase.from('financial_accounts').update(payload).eq('id', accountId)];
@@ -354,10 +355,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
           });
         }
       }
-      // Also reduce credit card available limit by total amount
-      if (acc?.type?.includes('credit_card') && acc.creditLimit != null) {
-        await supabase.from('financial_accounts').update({ credit_limit: acc.creditLimit - p.amount }).eq('id', acc.id);
-      }
+      // credit_limit is NOT modified — pending invoices track usage
       await fetchAll();
       return;
     }
@@ -372,13 +370,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     });
     if (error) { console.error('addPayable error:', error); toast.error('Erro ao criar conta a pagar'); return; }
 
-    // À vista no crédito: deduct from credit limit immediately
-    if (isCredit && p.accountId) {
-      const acc = data.accounts.find(a => a.id === p.accountId);
-      if (acc?.type?.includes('credit_card') && acc.creditLimit != null) {
-        await supabase.from('financial_accounts').update({ credit_limit: acc.creditLimit - p.amount }).eq('id', acc.id);
-      }
-    }
+    // credit_limit is NOT modified — the payable itself tracks usage as a pending invoice
 
     await fetchAll();
   }, [user, data, fetchAll, adjustCreditCardInvoice]);
@@ -417,12 +409,12 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       const acc = data.accounts.find(a => a.id === targetAccountId);
       if (acc) {
         const isCreditCard = acc.type.includes('credit_card');
-        if (isCreditCard && acc.creditLimit != null) {
-          // Diminui do limite disponível do cartão
-          await supabase.from('financial_accounts').update({ credit_limit: acc.creditLimit - payable.amount }).eq('id', targetAccountId);
-        } else {
+        if (!isCreditCard) {
+          // Only deduct balance for non-credit-card accounts
           await supabase.from('financial_accounts').update({ balance: acc.balance - payable.amount }).eq('id', targetAccountId);
         }
+        // For credit cards: marking as paid moves it out of pending invoices,
+        // which automatically restores the available limit
       }
       // Criar transação de despesa automaticamente
       await supabase.from('transactions').insert({
