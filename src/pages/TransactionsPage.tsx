@@ -73,10 +73,7 @@ export default function TransactionsPage() {
                 <motion.tr key={tx.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
                   <td className="py-3 px-4 mono text-muted-foreground">{fmtDate(tx.date)}</td>
                   <td className="py-3 px-4 font-medium">
-                    <div className="flex items-center gap-1.5">
-                      {tx.description}
-                      {tx.isCredit && <CreditCard className="h-3 w-3 text-primary" />}
-                    </div>
+                    {tx.description}
                   </td>
                   <td className="py-3 px-4 text-muted-foreground">{getCategoryName(tx.categoryId)}</td>
                   <td className="py-3 px-4 text-muted-foreground">{getAccountName(tx.accountId)}</td>
