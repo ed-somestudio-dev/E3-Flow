@@ -135,7 +135,7 @@ export default function AccountsPage() {
                     <span className="mono font-semibold text-sm">{fmt(acc.savingsBalance)}</span>
                   </div>
                 )}
-                {hasCreditCard && acc.creditLimit && (
+                {hasCreditCard && acc.creditLimit != null && acc.creditLimit > 0 && (
                   <div className="mt-2">
                     <div className="flex justify-between items-center mb-1">
                       <span className="text-xs text-muted-foreground flex items-center gap-1">
