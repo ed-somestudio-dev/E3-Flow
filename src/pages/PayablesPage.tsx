@@ -113,17 +113,16 @@ export default function PayablesPage() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map(p => (
+              {regularPayables.map(p => (
                 <motion.tr key={p.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
                   <td className="py-3 px-4 mono text-muted-foreground">{fmtDate(p.dueDate)}</td>
                   <td className="py-3 px-4 font-medium">
                     <div className="flex items-center gap-1.5">
                       {p.description}
                       {p.recurring && <RefreshCw className="h-3 w-3 text-primary" />}
-                      {p.supplier?.startsWith('cartao:') && <CreditCard className="h-3 w-3 text-primary" />}
                     </div>
                   </td>
-                  <td className="py-3 px-4 text-muted-foreground">{p.supplier?.startsWith('cartao:') ? 'Fatura Cartão' : p.supplier}</td>
+                  <td className="py-3 px-4 text-muted-foreground">{p.supplier}</td>
                   <td className="py-3 px-4 text-muted-foreground">{getCategoryName(p.categoryId)}</td>
                   <td className="py-3 px-4 text-muted-foreground">{p.accountId ? getAccountName(p.accountId) : '—'}</td>
                   <td className="py-3 px-4"><StatusBadge status={p.status} /></td>
@@ -141,11 +140,71 @@ export default function PayablesPage() {
                   </td>
                 </motion.tr>
               ))}
-              {filtered.length === 0 && <tr><td colSpan={8} className="text-center py-12 text-muted-foreground">Nenhuma conta encontrada</td></tr>}
+              {regularPayables.length === 0 && <tr><td colSpan={8} className="text-center py-12 text-muted-foreground">Nenhuma conta encontrada</td></tr>}
             </tbody>
           </table>
         </div>
       </div>
+
+      {/* Credit Card Invoices Section */}
+      {Object.keys(creditByAccount).length > 0 && (
+        <div className="space-y-4">
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <CreditCard className="h-5 w-5 text-primary" />
+            Faturas de Cartão de Crédito
+          </h2>
+          {Object.entries(creditByAccount).map(([accountId, invoices]) => {
+            const accName = getAccountName(accountId);
+            const totalPending = invoices.filter(i => i.status !== 'paid').reduce((s, i) => s + i.amount, 0);
+            return (
+              <div key={accountId} className="finance-card p-0 overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-3 bg-primary/5 border-b border-border">
+                  <div className="flex items-center gap-2">
+                    <CreditCard className="h-4 w-4 text-primary" />
+                    <span className="font-semibold">{accName}</span>
+                  </div>
+                  <span className="text-sm mono font-semibold text-destructive">
+                    Pendente: {fmt(totalPending)}
+                  </span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border bg-muted/30">
+                        <th className="text-left py-2 px-4 font-medium text-muted-foreground text-xs">Vencimento</th>
+                        <th className="text-left py-2 px-4 font-medium text-muted-foreground text-xs">Descrição</th>
+                        <th className="text-left py-2 px-4 font-medium text-muted-foreground text-xs">Status</th>
+                        <th className="text-right py-2 px-4 font-medium text-muted-foreground text-xs">Valor</th>
+                        <th className="text-right py-2 px-4 font-medium text-muted-foreground text-xs">Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {invoices.map(p => (
+                        <motion.tr key={p.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
+                          <td className="py-2 px-4 mono text-muted-foreground">{fmtDate(p.dueDate)}</td>
+                          <td className="py-2 px-4 font-medium">{p.description}</td>
+                          <td className="py-2 px-4"><StatusBadge status={p.status} /></td>
+                          <td className="py-2 px-4 text-right mono font-semibold text-destructive">{fmt(p.amount)}</td>
+                          <td className="py-2 px-4 text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              {p.status !== 'paid' && (
+                                <Button variant="ghost" size="icon" className="h-7 w-7 text-success hover:text-success" onClick={() => handleMarkPaid(p.id)}>
+                                  <CheckCircle className="h-3.5 w-3.5" />
+                                </Button>
+                              )}
+                              <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => deletePayable(p.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                            </div>
+                          </td>
+                        </motion.tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Pay dialog - select account */}
       <Dialog open={payDialogOpen} onOpenChange={setPayDialogOpen}>
