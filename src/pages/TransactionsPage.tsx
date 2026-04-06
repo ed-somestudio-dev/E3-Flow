@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { useFinance } from '@/lib/finance-context';
 import { Transaction, TransactionType } from '@/lib/types';
-import { Plus, Trash2, Edit2, Search, CreditCard } from 'lucide-react';
+import { Plus, Trash2, Edit2, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { Checkbox } from '@/components/ui/checkbox';
+
 import { motion } from 'framer-motion';
 import { fmt, fmtDate } from '@/lib/format';
 
@@ -108,11 +108,7 @@ function TransactionForm({ tx, categories, accounts, onSave }: {
   const [date, setDate] = useState(tx?.date || new Date().toISOString().split('T')[0]);
   const [accountId, setAccountId] = useState(tx?.accountId || accounts[0]?.id || '');
   const [notes, setNotes] = useState(tx?.notes || '');
-  const [isCredit, setIsCredit] = useState(tx?.isCredit || false);
   const filteredCats = categories.filter(c => c.type === type);
-
-  const selectedAccount = accounts.find(a => a.id === accountId);
-  const isCreditCard = selectedAccount?.type?.includes('credit_card') ?? false;
 
   return (
     <div className="space-y-4">
@@ -134,26 +130,16 @@ function TransactionForm({ tx, categories, accounts, onSave }: {
           </Select>
         </div>
         <div><Label>Conta</Label>
-          <Select value={accountId} onValueChange={(v) => { setAccountId(v); const acc = accounts.find(a => a.id === v); if (!acc?.type?.includes('credit_card')) setIsCredit(false); }}>
+          <Select value={accountId} onValueChange={setAccountId}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>{accounts.map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}</SelectContent>
           </Select>
         </div>
       </div>
-      {isCreditCard && type === 'expense' && (
-        <div className="flex items-center gap-2 p-3 rounded-lg bg-primary/5 border border-primary/20">
-          <Checkbox id="isCredit" checked={isCredit} onCheckedChange={(c) => setIsCredit(c === true)} />
-          <Label htmlFor="isCredit" className="cursor-pointer flex items-center gap-1.5">
-            <CreditCard className="h-3.5 w-3.5 text-primary" />
-            Compra no Crédito
-          </Label>
-          <span className="text-xs text-muted-foreground ml-auto">Será lançado na fatura do cartão</span>
-        </div>
-      )}
       <div><Label>Valor</Label><Input type="number" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0,00" /></div>
       <div><Label>Notas (opcional)</Label><Input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Observações" /></div>
       <Button className="w-full" disabled={!description || !categoryId || !amount || !accountId}
-        onClick={() => onSave({ type, description, categoryId, amount: parseFloat(amount), date, accountId, notes: notes || undefined, isCredit: isCreditCard && type === 'expense' ? isCredit : undefined })}>
+        onClick={() => onSave({ type, description, categoryId, amount: parseFloat(amount), date, accountId, notes: notes || undefined })}>
         {tx ? 'Atualizar' : 'Criar'} Transação
       </Button>
     </div>
