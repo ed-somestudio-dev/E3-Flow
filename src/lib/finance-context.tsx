@@ -360,6 +360,16 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    // If it's a credit purchase (single, no installments), consolidate into card invoice
+    if (isCredit && p.accountId) {
+      const acc = data.accounts.find(a => a.id === p.accountId);
+      if (acc?.type?.includes('credit_card')) {
+        await adjustCreditCardInvoice(acc, p.amount, p.dueDate);
+        await fetchAll();
+        return;
+      }
+    }
+
     const { error } = await supabase.from('payables').insert({
       user_id: user.id, description: p.description, supplier: p.supplier,
       category_id: p.categoryId, account_id: p.accountId || null,
@@ -369,8 +379,6 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       recurrence_end_date: p.recurrenceEndDate || null,
     });
     if (error) { console.error('addPayable error:', error); toast.error('Erro ao criar conta a pagar'); return; }
-
-    // credit_limit is NOT modified — the payable itself tracks usage as a pending invoice
 
     await fetchAll();
   }, [user, data, fetchAll, adjustCreditCardInvoice]);
