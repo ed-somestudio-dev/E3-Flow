@@ -29,10 +29,21 @@ export default function PayablesPage() {
   const [payingId, setPayingId] = useState<string | null>(null);
   const [payAccountId, setPayAccountId] = useState('');
 
-  const filtered = data.payables
+  const allFiltered = data.payables
     .filter(p => statusFilter === 'all' || p.status === statusFilter)
     .filter(p => p.description.toLowerCase().includes(search.toLowerCase()) || p.supplier.toLowerCase().includes(search.toLowerCase()))
     .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+
+  const regularPayables = allFiltered.filter(p => !p.supplier?.startsWith('cartao:'));
+  const creditPayables = allFiltered.filter(p => p.supplier?.startsWith('cartao:'));
+
+  // Group credit payables by account
+  const creditByAccount = creditPayables.reduce<Record<string, Payable[]>>((acc, p) => {
+    const accId = p.supplier.replace('cartao:', '');
+    if (!acc[accId]) acc[accId] = [];
+    acc[accId].push(p);
+    return acc;
+  }, {});
 
   const handleMarkPaid = (id: string) => {
     const payable = data.payables.find(p => p.id === id);
