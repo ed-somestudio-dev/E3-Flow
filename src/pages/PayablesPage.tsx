@@ -240,6 +240,7 @@ export default function PayablesPage() {
                 totalPending={totalPending}
                 pendingCount={pendingCount}
                 onMarkPaid={handleMarkPaid}
+                onPayAll={(ids) => ids.forEach(id => handleMarkPaid(id))}
                 onDelete={deletePayable}
               />
             );
