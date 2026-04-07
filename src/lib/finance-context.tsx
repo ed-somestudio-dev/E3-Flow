@@ -343,9 +343,14 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
         const dueStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
         const desc = `${p.description} (${i + 1}/${installments})`;
 
-        // If it's a credit card, upsert into the card's invoice
         if (acc?.type?.includes('credit_card')) {
-          await adjustCreditCardInvoice(acc, installmentAmount, dueStr);
+          // Store as individual purchase linked to card
+          await supabase.from('payables').insert({
+            user_id: user.id, description: desc, supplier: `cartao:${acc.id}`,
+            category_id: p.categoryId, account_id: p.accountId || null,
+            amount: installmentAmount, due_date: dueStr, status: 'pending',
+            notes: p.notes || null,
+          });
         } else {
           await supabase.from('payables').insert({
             user_id: user.id, description: desc, supplier: p.supplier,
