@@ -19,6 +19,71 @@ function StatusBadge({ status }: { status: PayableStatus }) {
   return <span className={cls}>{statusLabels[status]}</span>;
 }
 
+function CreditCardInvoiceCard({ accName, invoices, totalPending, pendingCount, onMarkPaid, onDelete }: {
+  accName: string;
+  invoices: Payable[];
+  totalPending: number;
+  pendingCount: number;
+  onMarkPaid: (id: string) => void;
+  onDelete: (id: string) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div className="finance-card p-0 overflow-hidden">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center justify-between px-4 py-3 bg-primary/5 border-b border-border hover:bg-primary/10 transition-colors cursor-pointer"
+      >
+        <div className="flex items-center gap-2">
+          {expanded ? <ChevronDown className="h-4 w-4 text-primary" /> : <ChevronRight className="h-4 w-4 text-primary" />}
+          <CreditCard className="h-4 w-4 text-primary" />
+          <span className="font-semibold">{accName}</span>
+          <span className="text-xs text-muted-foreground">({pendingCount} compra{pendingCount !== 1 ? 's' : ''})</span>
+        </div>
+        <span className="text-sm mono font-semibold text-destructive">
+          Pendente: {fmt(totalPending)}
+        </span>
+      </button>
+      {expanded && (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border bg-muted/30">
+                <th className="text-left py-2 px-4 font-medium text-muted-foreground text-xs">Vencimento</th>
+                <th className="text-left py-2 px-4 font-medium text-muted-foreground text-xs">Descrição</th>
+                <th className="text-left py-2 px-4 font-medium text-muted-foreground text-xs">Status</th>
+                <th className="text-right py-2 px-4 font-medium text-muted-foreground text-xs">Valor</th>
+                <th className="text-right py-2 px-4 font-medium text-muted-foreground text-xs">Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              {invoices.map(p => (
+                <motion.tr key={p.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
+                  <td className="py-2 px-4 mono text-muted-foreground">{fmtDate(p.dueDate)}</td>
+                  <td className="py-2 px-4 font-medium">{p.description}</td>
+                  <td className="py-2 px-4"><StatusBadge status={p.status} /></td>
+                  <td className="py-2 px-4 text-right mono font-semibold text-destructive">{fmt(p.amount)}</td>
+                  <td className="py-2 px-4 text-right">
+                    <div className="flex items-center justify-end gap-1">
+                      {p.status !== 'paid' && (
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-success hover:text-success" onClick={(e) => { e.stopPropagation(); onMarkPaid(p.id); }}>
+                          <CheckCircle className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); onDelete(p.id); }}><Trash2 className="h-3.5 w-3.5" /></Button>
+                    </div>
+                  </td>
+                </motion.tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function PayablesPage() {
   const { data, addPayable, updatePayable, deletePayable, markPayablePaid, getCategoryName, getAccountName } = useFinance();
   const [search, setSearch] = useState('');
