@@ -156,51 +156,17 @@ export default function PayablesPage() {
           {Object.entries(creditByAccount).map(([accountId, invoices]) => {
             const accName = getAccountName(accountId);
             const totalPending = invoices.filter(i => i.status !== 'paid').reduce((s, i) => s + i.amount, 0);
+            const pendingCount = invoices.filter(i => i.status !== 'paid').length;
             return (
-              <div key={accountId} className="finance-card p-0 overflow-hidden">
-                <div className="flex items-center justify-between px-4 py-3 bg-primary/5 border-b border-border">
-                  <div className="flex items-center gap-2">
-                    <CreditCard className="h-4 w-4 text-primary" />
-                    <span className="font-semibold">{accName}</span>
-                  </div>
-                  <span className="text-sm mono font-semibold text-destructive">
-                    Pendente: {fmt(totalPending)}
-                  </span>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-border bg-muted/30">
-                        <th className="text-left py-2 px-4 font-medium text-muted-foreground text-xs">Vencimento</th>
-                        <th className="text-left py-2 px-4 font-medium text-muted-foreground text-xs">Descrição</th>
-                        <th className="text-left py-2 px-4 font-medium text-muted-foreground text-xs">Status</th>
-                        <th className="text-right py-2 px-4 font-medium text-muted-foreground text-xs">Valor</th>
-                        <th className="text-right py-2 px-4 font-medium text-muted-foreground text-xs">Ações</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {invoices.map(p => (
-                        <motion.tr key={p.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
-                          <td className="py-2 px-4 mono text-muted-foreground">{fmtDate(p.dueDate)}</td>
-                          <td className="py-2 px-4 font-medium">{p.description}</td>
-                          <td className="py-2 px-4"><StatusBadge status={p.status} /></td>
-                          <td className="py-2 px-4 text-right mono font-semibold text-destructive">{fmt(p.amount)}</td>
-                          <td className="py-2 px-4 text-right">
-                            <div className="flex items-center justify-end gap-1">
-                              {p.status !== 'paid' && (
-                                <Button variant="ghost" size="icon" className="h-7 w-7 text-success hover:text-success" onClick={() => handleMarkPaid(p.id)}>
-                                  <CheckCircle className="h-3.5 w-3.5" />
-                                </Button>
-                              )}
-                              <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => deletePayable(p.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
-                            </div>
-                          </td>
-                        </motion.tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+              <CreditCardInvoiceCard
+                key={accountId}
+                accName={accName}
+                invoices={invoices}
+                totalPending={totalPending}
+                pendingCount={pendingCount}
+                onMarkPaid={handleMarkPaid}
+                onDelete={deletePayable}
+              />
             );
           })}
         </div>
