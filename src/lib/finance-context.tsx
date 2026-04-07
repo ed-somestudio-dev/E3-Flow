@@ -343,9 +343,14 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
         const dueStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
         const desc = `${p.description} (${i + 1}/${installments})`;
 
-        // If it's a credit card, upsert into the card's invoice
         if (acc?.type?.includes('credit_card')) {
-          await adjustCreditCardInvoice(acc, installmentAmount, dueStr);
+          // Store as individual purchase linked to card
+          await supabase.from('payables').insert({
+            user_id: user.id, description: desc, supplier: `cartao:${acc.id}`,
+            category_id: p.categoryId, account_id: p.accountId || null,
+            amount: installmentAmount, due_date: dueStr, status: 'pending',
+            notes: p.notes || null,
+          });
         } else {
           await supabase.from('payables').insert({
             user_id: user.id, description: desc, supplier: p.supplier,
@@ -360,11 +365,16 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    // If it's a credit purchase (single, no installments), consolidate into card invoice
+    // If it's a credit purchase (single, no installments), store as individual purchase
     if (isCredit && p.accountId) {
       const acc = data.accounts.find(a => a.id === p.accountId);
       if (acc?.type?.includes('credit_card')) {
-        await adjustCreditCardInvoice(acc, p.amount, p.dueDate);
+        await supabase.from('payables').insert({
+          user_id: user.id, description: p.description, supplier: `cartao:${acc.id}`,
+          category_id: p.categoryId, account_id: p.accountId || null,
+          amount: p.amount, due_date: p.dueDate, status: 'pending',
+          notes: p.notes || null,
+        });
         await fetchAll();
         return;
       }
