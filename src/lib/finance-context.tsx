@@ -365,11 +365,16 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    // If it's a credit purchase (single, no installments), consolidate into card invoice
+    // If it's a credit purchase (single, no installments), store as individual purchase
     if (isCredit && p.accountId) {
       const acc = data.accounts.find(a => a.id === p.accountId);
       if (acc?.type?.includes('credit_card')) {
-        await adjustCreditCardInvoice(acc, p.amount, p.dueDate);
+        await supabase.from('payables').insert({
+          user_id: user.id, description: p.description, supplier: `cartao:${acc.id}`,
+          category_id: p.categoryId, account_id: p.accountId || null,
+          amount: p.amount, due_date: p.dueDate, status: 'pending',
+          notes: p.notes || null,
+        });
         await fetchAll();
         return;
       }
