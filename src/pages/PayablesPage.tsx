@@ -287,6 +287,7 @@ function PayableForm({ item, categories, accounts, onSave }: {
   const [accountId, setAccountId] = useState(item?.accountId || '');
   const [amount, setAmount] = useState(item?.amount?.toString() || '');
   const [dueDate, setDueDate] = useState(item?.dueDate || '');
+  const [purchaseDate, setPurchaseDate] = useState(item?.purchaseDate || new Date().toISOString().split('T')[0]);
   const [notes, setNotes] = useState(item?.notes || '');
   const [recurring, setRecurring] = useState(item?.recurring || false);
   const [recurrenceFrequency, setRecurrenceFrequency] = useState<RecurrenceFrequency>(item?.recurrenceFrequency || 'monthly');
@@ -299,6 +300,29 @@ function PayableForm({ item, categories, accounts, onSave }: {
   const selectedAccount = accounts.find(a => a.id === accountId);
   const isCreditCard = selectedAccount?.type?.includes('credit_card') ?? false;
   const hasDebitOption = isCreditCard && (selectedAccount?.type?.includes('checking') || selectedAccount?.type?.includes('cash'));
+  const installmentAmount = amount ? (parseFloat(amount) / installments) : 0;
+
+  // Auto-calculate due date from card billing cycle when in credit mode
+  const calcDueDate = useCallback((pDate: string, acc: typeof selectedAccount) => {
+    if (!pDate || !acc?.type?.includes('credit_card') || !acc.billingCloseDay || !acc.dueDay) return '';
+    const purchase = new Date(pDate + 'T12:00:00');
+    const closeDay = acc.billingCloseDay;
+    const dDay = acc.dueDay;
+    // If purchase is after close day, it goes to next month's invoice
+    let invoiceMonth = purchase.getMonth();
+    let invoiceYear = purchase.getFullYear();
+    if (purchase.getDate() > closeDay) {
+      invoiceMonth += 1;
+      if (invoiceMonth > 11) { invoiceMonth = 0; invoiceYear += 1; }
+    }
+    // Due date is dueDay of the month after the invoice month
+    let dueMonth = invoiceMonth + 1;
+    let dueYear = invoiceYear;
+    if (dueMonth > 11) { dueMonth = 0; dueYear += 1; }
+    const lastDay = new Date(dueYear, dueMonth + 1, 0).getDate();
+    const finalDay = Math.min(dDay, lastDay);
+    return `${dueYear}-${String(dueMonth + 1).padStart(2, '0')}-${String(finalDay).padStart(2, '0')}`;
+  }, []);
   const installmentAmount = amount ? (parseFloat(amount) / installments) : 0;
 
   // Reset payment mode when account changes
