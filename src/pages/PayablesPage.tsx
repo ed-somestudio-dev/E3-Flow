@@ -335,6 +335,18 @@ function PayableForm({ item, categories, accounts, onSave }: {
       setPaymentMode('debit');
     } else {
       setPaymentMode('credit');
+      // Auto-calc due date from purchase date
+      const calculated = calcDueDate(purchaseDate, acc);
+      if (calculated) setDueDate(calculated);
+    }
+  };
+
+  // When purchase date changes, recalculate due date for credit
+  const handlePurchaseDateChange = (val: string) => {
+    setPurchaseDate(val);
+    if (isCreditCard && paymentMode === 'credit') {
+      const calculated = calcDueDate(val, selectedAccount);
+      if (calculated) setDueDate(calculated);
     }
   };
 
