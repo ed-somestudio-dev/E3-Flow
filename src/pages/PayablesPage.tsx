@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useFinance } from '@/lib/finance-context';
 import { Payable, PayableStatus, RecurrenceFrequency } from '@/lib/types';
 import { Plus, Trash2, Edit2, CheckCircle, Search, RefreshCw, CreditCard, Wallet, ChevronDown, ChevronRight } from 'lucide-react';
@@ -278,7 +278,7 @@ export default function PayablesPage() {
 
 function PayableForm({ item, categories, accounts, onSave }: {
   item: Payable | null; categories: { id: string; name: string }[];
-  accounts: { id: string; name: string; type?: string }[];
+  accounts: { id: string; name: string; type?: string; billingCloseDay?: number; dueDay?: number }[];
   onSave: (p: Omit<Payable, 'id'> & { installments?: number; isCredit?: boolean }) => void;
 }) {
   const [description, setDescription] = useState(item?.description || '');
