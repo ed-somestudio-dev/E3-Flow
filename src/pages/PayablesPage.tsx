@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useFinance } from '@/lib/finance-context';
 import { Payable, PayableStatus, RecurrenceFrequency } from '@/lib/types';
 import { Plus, Trash2, Edit2, CheckCircle, Search, RefreshCw, CreditCard, Wallet, ChevronDown, ChevronRight } from 'lucide-react';
@@ -77,7 +77,7 @@ function CreditCardInvoiceCard({ accName, invoices, totalPending, pendingCount, 
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border bg-muted/30">
-                  <th className="text-left py-2 px-4 font-medium text-muted-foreground text-xs">Data</th>
+                  <th className="text-left py-2 px-4 font-medium text-muted-foreground text-xs">Data da Compra</th>
                   <th className="text-left py-2 px-4 font-medium text-muted-foreground text-xs">Descrição</th>
                   <th className="text-right py-2 px-4 font-medium text-muted-foreground text-xs">Valor</th>
                   <th className="text-right py-2 px-4 font-medium text-muted-foreground text-xs"></th>
@@ -86,7 +86,7 @@ function CreditCardInvoiceCard({ accName, invoices, totalPending, pendingCount, 
               <tbody>
                 {invoices.map(p => (
                   <motion.tr key={p.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
-                    <td className="py-2 px-4 mono text-muted-foreground">{fmtDate(p.dueDate)}</td>
+                    <td className="py-2 px-4 mono text-muted-foreground">{fmtDate(p.purchaseDate || p.dueDate)}</td>
                     <td className="py-2 px-4 font-medium">{p.description}</td>
                     <td className="py-2 px-4 text-right mono font-semibold text-destructive">{fmt(p.amount)}</td>
                     <td className="py-2 px-4 text-right">
@@ -278,7 +278,7 @@ export default function PayablesPage() {
 
 function PayableForm({ item, categories, accounts, onSave }: {
   item: Payable | null; categories: { id: string; name: string }[];
-  accounts: { id: string; name: string; type?: string }[];
+  accounts: { id: string; name: string; type?: string; billingCloseDay?: number; dueDay?: number }[];
   onSave: (p: Omit<Payable, 'id'> & { installments?: number; isCredit?: boolean }) => void;
 }) {
   const [description, setDescription] = useState(item?.description || '');
@@ -287,6 +287,7 @@ function PayableForm({ item, categories, accounts, onSave }: {
   const [accountId, setAccountId] = useState(item?.accountId || '');
   const [amount, setAmount] = useState(item?.amount?.toString() || '');
   const [dueDate, setDueDate] = useState(item?.dueDate || '');
+  const [purchaseDate, setPurchaseDate] = useState(item?.purchaseDate || new Date().toISOString().split('T')[0]);
   const [notes, setNotes] = useState(item?.notes || '');
   const [recurring, setRecurring] = useState(item?.recurring || false);
   const [recurrenceFrequency, setRecurrenceFrequency] = useState<RecurrenceFrequency>(item?.recurrenceFrequency || 'monthly');
@@ -301,6 +302,28 @@ function PayableForm({ item, categories, accounts, onSave }: {
   const hasDebitOption = isCreditCard && (selectedAccount?.type?.includes('checking') || selectedAccount?.type?.includes('cash'));
   const installmentAmount = amount ? (parseFloat(amount) / installments) : 0;
 
+  // Auto-calculate due date from card billing cycle when in credit mode
+  const calcDueDate = useCallback((pDate: string, acc: typeof selectedAccount) => {
+    if (!pDate || !acc?.type?.includes('credit_card') || !acc.billingCloseDay || !acc.dueDay) return '';
+    const purchase = new Date(pDate + 'T12:00:00');
+    const closeDay = acc.billingCloseDay;
+    const dDay = acc.dueDay;
+    // If purchase is after close day, it goes to next month's invoice
+    let invoiceMonth = purchase.getMonth();
+    let invoiceYear = purchase.getFullYear();
+    if (purchase.getDate() > closeDay) {
+      invoiceMonth += 1;
+      if (invoiceMonth > 11) { invoiceMonth = 0; invoiceYear += 1; }
+    }
+    // Due date is dueDay of the month after the invoice month
+    let dueMonth = invoiceMonth + 1;
+    let dueYear = invoiceYear;
+    if (dueMonth > 11) { dueMonth = 0; dueYear += 1; }
+    const lastDay = new Date(dueYear, dueMonth + 1, 0).getDate();
+    const finalDay = Math.min(dDay, lastDay);
+    return `${dueYear}-${String(dueMonth + 1).padStart(2, '0')}-${String(finalDay).padStart(2, '0')}`;
+  }, []);
+
   // Reset payment mode when account changes
   const handleAccountChange = (v: string) => {
     setAccountId(v);
@@ -312,6 +335,18 @@ function PayableForm({ item, categories, accounts, onSave }: {
       setPaymentMode('debit');
     } else {
       setPaymentMode('credit');
+      // Auto-calc due date from purchase date
+      const calculated = calcDueDate(purchaseDate, acc);
+      if (calculated) setDueDate(calculated);
+    }
+  };
+
+  // When purchase date changes, recalculate due date for credit
+  const handlePurchaseDateChange = (val: string) => {
+    setPurchaseDate(val);
+    if (isCreditCard && paymentMode === 'credit') {
+      const calculated = calcDueDate(val, selectedAccount);
+      if (calculated) setDueDate(calculated);
     }
   };
 
@@ -357,8 +392,17 @@ function PayableForm({ item, categories, accounts, onSave }: {
 
       <div className="grid grid-cols-2 gap-3">
         <div><Label>Valor Total</Label><Input type="number" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} /></div>
-        <div><Label>Vencimento</Label><Input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} /></div>
+        {isCreditCard && paymentMode === 'credit' ? (
+          <div><Label>Data da Compra</Label><Input type="date" value={purchaseDate} onChange={e => handlePurchaseDateChange(e.target.value)} /></div>
+        ) : (
+          <div><Label>Vencimento</Label><Input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} /></div>
+        )}
       </div>
+      {isCreditCard && paymentMode === 'credit' && dueDate && (
+        <p className="text-xs text-muted-foreground -mt-2">
+          Vencimento da fatura: <strong className="text-foreground">{fmtDate(dueDate)}</strong>
+        </p>
+      )}
 
       {/* Installment option - only for credit mode */}
       {isCreditCard && paymentMode === 'credit' && (
@@ -493,11 +537,13 @@ function PayableForm({ item, categories, accounts, onSave }: {
       )}
 
       <div><Label>Notas (opcional)</Label><Input value={notes} onChange={e => setNotes(e.target.value)} /></div>
-      <Button className="w-full" disabled={!description || !supplier || !categoryId || !amount || !dueDate}
+      <Button className="w-full" disabled={!description || !supplier || !categoryId || !amount || (isCreditCard && paymentMode === 'credit' ? !purchaseDate : !dueDate)}
         onClick={() => {
           const isCredit = isCreditCard && paymentMode === 'credit';
+          const finalDueDate = isCredit && !dueDate ? purchaseDate : dueDate;
           onSave({
-            description, supplier, categoryId, accountId: accountId || undefined, amount: parseFloat(amount), dueDate,
+            description, supplier, categoryId, accountId: accountId || undefined, amount: parseFloat(amount),
+            dueDate: finalDueDate, purchaseDate: isCredit ? purchaseDate : undefined,
             status: item?.status || 'pending', notes: notes || undefined,
             recurring: (!isCredit && !useInstallments && recurring) || undefined,
             recurrenceFrequency: (!isCredit && !useInstallments && recurring) ? recurrenceFrequency : undefined,

@@ -81,7 +81,8 @@ function mapPayable(row: any): Payable {
     categoryId: row.category_id, accountId: row.account_id ?? undefined,
     amount: Number(row.amount), dueDate: row.due_date, paymentDate: row.payment_date ?? undefined,
     paymentMethod: row.payment_method ?? undefined, status,
-    notes: row.notes ?? undefined, recurring: row.recurring ?? undefined,
+    notes: row.notes ?? undefined, purchaseDate: row.purchase_date ?? undefined,
+    recurring: row.recurring ?? undefined,
     recurrenceFrequency: row.recurrence_frequency ?? undefined,
     recurrenceEndDate: row.recurrence_end_date ?? undefined,
   };
@@ -349,7 +350,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
             user_id: user.id, description: desc, supplier: `cartao:${acc.id}`,
             category_id: p.categoryId, account_id: p.accountId || null,
             amount: installmentAmount, due_date: dueStr, status: 'pending',
-            notes: p.notes || null,
+            notes: p.notes || null, purchase_date: (p as any).purchaseDate || null,
           });
         } else {
           await supabase.from('payables').insert({
@@ -373,7 +374,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
           user_id: user.id, description: p.description, supplier: `cartao:${acc.id}`,
           category_id: p.categoryId, account_id: p.accountId || null,
           amount: p.amount, due_date: p.dueDate, status: 'pending',
-          notes: p.notes || null,
+          notes: p.notes || null, purchase_date: (p as any).purchaseDate || null,
         });
         await fetchAll();
         return;

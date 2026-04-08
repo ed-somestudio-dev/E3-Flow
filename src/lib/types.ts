@@ -56,6 +56,7 @@ export interface Payable {
   paymentMethod?: string;
   status: PayableStatus;
   notes?: string;
+  purchaseDate?: string;
   recurring?: boolean;
   recurrenceFrequency?: RecurrenceFrequency;
   recurrenceEndDate?: string;
