@@ -323,7 +323,6 @@ function PayableForm({ item, categories, accounts, onSave }: {
     const finalDay = Math.min(dDay, lastDay);
     return `${dueYear}-${String(dueMonth + 1).padStart(2, '0')}-${String(finalDay).padStart(2, '0')}`;
   }, []);
-  const installmentAmount = amount ? (parseFloat(amount) / installments) : 0;
 
   // Reset payment mode when account changes
   const handleAccountChange = (v: string) => {
