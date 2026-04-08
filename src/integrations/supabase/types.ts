@@ -142,6 +142,7 @@ export type Database = {
           notes: string | null
           payment_date: string | null
           payment_method: string | null
+          purchase_date: string | null
           recurrence_end_date: string | null
           recurrence_frequency: string | null
           recurring: boolean | null
@@ -161,6 +162,7 @@ export type Database = {
           notes?: string | null
           payment_date?: string | null
           payment_method?: string | null
+          purchase_date?: string | null
           recurrence_end_date?: string | null
           recurrence_frequency?: string | null
           recurring?: boolean | null
@@ -180,6 +182,7 @@ export type Database = {
           notes?: string | null
           payment_date?: string | null
           payment_method?: string | null
+          purchase_date?: string | null
           recurrence_end_date?: string | null
           recurrence_frequency?: string | null
           recurring?: boolean | null
