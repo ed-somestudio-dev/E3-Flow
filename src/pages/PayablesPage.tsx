@@ -537,11 +537,13 @@ function PayableForm({ item, categories, accounts, onSave }: {
       )}
 
       <div><Label>Notas (opcional)</Label><Input value={notes} onChange={e => setNotes(e.target.value)} /></div>
-      <Button className="w-full" disabled={!description || !supplier || !categoryId || !amount || !dueDate}
+      <Button className="w-full" disabled={!description || !supplier || !categoryId || !amount || (isCreditCard && paymentMode === 'credit' ? !purchaseDate : !dueDate)}
         onClick={() => {
           const isCredit = isCreditCard && paymentMode === 'credit';
+          const finalDueDate = isCredit && !dueDate ? purchaseDate : dueDate;
           onSave({
-            description, supplier, categoryId, accountId: accountId || undefined, amount: parseFloat(amount), dueDate,
+            description, supplier, categoryId, accountId: accountId || undefined, amount: parseFloat(amount),
+            dueDate: finalDueDate, purchaseDate: isCredit ? purchaseDate : undefined,
             status: item?.status || 'pending', notes: notes || undefined,
             recurring: (!isCredit && !useInstallments && recurring) || undefined,
             recurrenceFrequency: (!isCredit && !useInstallments && recurring) ? recurrenceFrequency : undefined,
