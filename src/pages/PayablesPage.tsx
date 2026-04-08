@@ -31,6 +31,14 @@ function CreditCardInvoiceCard({ accName, invoices, totalPending, pendingCount, 
   const [expanded, setExpanded] = useState(false);
   const pendingIds = invoices.filter(i => i.status !== 'paid').map(i => i.id);
   const hasPending = pendingIds.length > 0;
+  // Determine a single due date and status for the invoice
+  const pendingInvoices = invoices.filter(i => i.status !== 'paid');
+  const invoiceDueDate = pendingInvoices.length > 0
+    ? pendingInvoices.reduce((latest, i) => i.dueDate > latest ? i.dueDate : latest, pendingInvoices[0].dueDate)
+    : invoices[0]?.dueDate || '';
+  const allPaid = invoices.every(i => i.status === 'paid');
+  const hasOverdue = invoices.some(i => i.status === 'overdue');
+  const invoiceStatus: PayableStatus = allPaid ? 'paid' : hasOverdue ? 'overdue' : 'pending';
 
   return (
     <div className="finance-card p-0 overflow-hidden">
@@ -45,30 +53,34 @@ function CreditCardInvoiceCard({ accName, invoices, totalPending, pendingCount, 
           <span className="text-xs text-muted-foreground">({pendingCount} compra{pendingCount !== 1 ? 's' : ''})</span>
         </div>
         <span className="text-sm mono font-semibold text-destructive">
-          Pendente: {fmt(totalPending)}
+          {fmt(totalPending)}
         </span>
       </button>
       {expanded && (
         <div>
-          {/* Pay all button at the top of the invoice */}
-          {hasPending && (
-            <div className="flex items-center justify-between px-4 py-2 bg-muted/20 border-b border-border">
-              <span className="text-sm text-muted-foreground">Total da fatura: <strong className="text-foreground">{fmt(totalPending)}</strong></span>
+          {/* Invoice header: due date, status, total and pay button on same line */}
+          <div className="flex items-center justify-between px-4 py-2.5 bg-muted/20 border-b border-border flex-wrap gap-2">
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-muted-foreground">Vencimento: <strong className="text-foreground">{fmtDate(invoiceDueDate)}</strong></span>
+              <StatusBadge status={invoiceStatus} />
+              <span className="text-sm text-muted-foreground">Total: <strong className="text-foreground">{fmt(totalPending)}</strong></span>
+            </div>
+            {hasPending && (
               <Button size="sm" variant="outline" className="text-success border-success/30 hover:bg-success/10 hover:text-success" onClick={() => onPayAll(pendingIds)}>
                 <CheckCircle className="h-3.5 w-3.5 mr-1.5" />
                 Pagar Fatura
               </Button>
-            </div>
-          )}
+            )}
+          </div>
+          {/* Individual purchases: only date, description, value */}
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border bg-muted/30">
-                  <th className="text-left py-2 px-4 font-medium text-muted-foreground text-xs">Vencimento</th>
+                  <th className="text-left py-2 px-4 font-medium text-muted-foreground text-xs">Data</th>
                   <th className="text-left py-2 px-4 font-medium text-muted-foreground text-xs">Descrição</th>
-                  <th className="text-left py-2 px-4 font-medium text-muted-foreground text-xs">Status</th>
                   <th className="text-right py-2 px-4 font-medium text-muted-foreground text-xs">Valor</th>
-                  <th className="text-right py-2 px-4 font-medium text-muted-foreground text-xs">Ações</th>
+                  <th className="text-right py-2 px-4 font-medium text-muted-foreground text-xs"></th>
                 </tr>
               </thead>
               <tbody>
@@ -76,12 +88,9 @@ function CreditCardInvoiceCard({ accName, invoices, totalPending, pendingCount, 
                   <motion.tr key={p.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
                     <td className="py-2 px-4 mono text-muted-foreground">{fmtDate(p.dueDate)}</td>
                     <td className="py-2 px-4 font-medium">{p.description}</td>
-                    <td className="py-2 px-4"><StatusBadge status={p.status} /></td>
                     <td className="py-2 px-4 text-right mono font-semibold text-destructive">{fmt(p.amount)}</td>
                     <td className="py-2 px-4 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); onDelete(p.id); }}><Trash2 className="h-3.5 w-3.5" /></Button>
-                      </div>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); onDelete(p.id); }}><Trash2 className="h-3.5 w-3.5" /></Button>
                     </td>
                   </motion.tr>
                 ))}
