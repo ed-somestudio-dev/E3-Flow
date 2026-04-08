@@ -392,8 +392,17 @@ function PayableForm({ item, categories, accounts, onSave }: {
 
       <div className="grid grid-cols-2 gap-3">
         <div><Label>Valor Total</Label><Input type="number" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} /></div>
-        <div><Label>Vencimento</Label><Input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} /></div>
+        {isCreditCard && paymentMode === 'credit' ? (
+          <div><Label>Data da Compra</Label><Input type="date" value={purchaseDate} onChange={e => handlePurchaseDateChange(e.target.value)} /></div>
+        ) : (
+          <div><Label>Vencimento</Label><Input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} /></div>
+        )}
       </div>
+      {isCreditCard && paymentMode === 'credit' && dueDate && (
+        <p className="text-xs text-muted-foreground -mt-2">
+          Vencimento da fatura: <strong className="text-foreground">{fmtDate(dueDate)}</strong>
+        </p>
+      )}
 
       {/* Installment option - only for credit mode */}
       {isCreditCard && paymentMode === 'credit' && (
