@@ -152,7 +152,6 @@ export default function PayablesPage() {
   const [editingItem, setEditingItem] = useState<Payable | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [payDialogOpen, setPayDialogOpen] = useState(false);
-  const [payingId, setPayingId] = useState<string | null>(null);
   const [payAccountId, setPayAccountId] = useState('');
 
   const allFiltered = data.payables
