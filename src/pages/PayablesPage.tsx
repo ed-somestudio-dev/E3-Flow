@@ -306,7 +306,7 @@ export default function PayablesPage() {
                 accName={accName}
                 invoicesByMonth={byMonth}
                 onMarkPaid={handleMarkPaid}
-                onPayAll={(ids) => ids.forEach(id => handleMarkPaid(id))}
+                onPayAll={handlePayAll}
                 onDelete={deletePayable}
               />
             );
