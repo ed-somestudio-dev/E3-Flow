@@ -100,23 +100,25 @@ function InvoiceMonthGroup({ monthKey, items, invoiceDueDate, invoiceStatus, mon
 
   return (
     <div>
-      <button onClick={() => setOpen(!open)} className="w-full flex items-center justify-between px-4 py-2 bg-muted/20 border-b border-border hover:bg-muted/30 transition-colors cursor-pointer">
-        <div className="flex items-center gap-3">
-          {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-          <span className="text-sm font-medium">Fatura {monthLabel}</span>
-          <span className="text-xs text-muted-foreground">Venc: <strong className="text-foreground">{fmtDate(invoiceDueDate)}</strong></span>
-          <StatusBadge status={invoiceStatus} />
-        </div>
-        <div className="flex items-center gap-3">
-          <span className="text-sm mono font-semibold text-destructive">{fmt(monthTotal)}</span>
-          {hasPending && (
+      <div className="px-4 py-2 bg-muted/20 border-b border-border">
+        <button onClick={() => setOpen(!open)} className="w-full flex items-center justify-between cursor-pointer hover:opacity-80 transition-opacity">
+          <div className="flex items-center gap-2 min-w-0 flex-wrap">
+            {open ? <ChevronDown className="h-3.5 w-3.5 shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0" />}
+            <span className="text-sm font-medium whitespace-nowrap">Fatura {monthLabel}</span>
+            <span className="text-xs text-muted-foreground whitespace-nowrap">Venc: <strong className="text-foreground">{fmtDate(invoiceDueDate)}</strong></span>
+            <StatusBadge status={invoiceStatus} />
+          </div>
+          <span className="text-sm mono font-semibold text-destructive whitespace-nowrap ml-2">{fmt(monthTotal)}</span>
+        </button>
+        {hasPending && (
+          <div className="mt-2 flex justify-end">
             <Button size="sm" variant="outline" className="text-success border-success/30 hover:bg-success/10 hover:text-success h-7 text-xs" onClick={(e) => { e.stopPropagation(); onPayAll(pendingIds); }}>
               <CheckCircle className="h-3 w-3 mr-1" />
-              Pagar
+              Pagar Fatura
             </Button>
-          )}
-        </div>
-      </button>
+          </div>
+        )}
+      </div>
       {open && (
         <table className="w-full text-sm">
           <thead>
