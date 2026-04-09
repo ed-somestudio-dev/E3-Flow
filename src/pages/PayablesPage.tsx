@@ -281,15 +281,18 @@ export default function PayablesPage() {
           </h2>
           {Object.entries(creditByAccount).map(([accountId, invoices]) => {
             const accName = getAccountName(accountId);
-            const totalPending = invoices.filter(i => i.status !== 'paid').reduce((s, i) => s + i.amount, 0);
-            const pendingCount = invoices.filter(i => i.status !== 'paid').length;
+            // Group by invoice month (dueDate year-month)
+            const byMonth = invoices.reduce<Record<string, Payable[]>>((acc, p) => {
+              const key = p.dueDate.substring(0, 7); // YYYY-MM
+              if (!acc[key]) acc[key] = [];
+              acc[key].push(p);
+              return acc;
+            }, {});
             return (
               <CreditCardInvoiceCard
                 key={accountId}
                 accName={accName}
-                invoices={invoices}
-                totalPending={totalPending}
-                pendingCount={pendingCount}
+                invoicesByMonth={byMonth}
                 onMarkPaid={handleMarkPaid}
                 onPayAll={(ids) => ids.forEach(id => handleMarkPaid(id))}
                 onDelete={deletePayable}
