@@ -171,24 +171,37 @@ export default function PayablesPage() {
     return acc;
   }, {});
 
+  const [payingIds, setPayingIds] = useState<string[]>([]);
+
   const handleMarkPaid = (id: string) => {
     const payable = data.payables.find(p => p.id === id);
-    if (payable?.accountId) {
-      markPayablePaid(id, payable.accountId);
-    } else {
-      setPayingId(id);
-      setPayAccountId(data.accounts[0]?.id || '');
-      setPayDialogOpen(true);
+    setPayingIds([id]);
+    setPayAccountId(payable?.accountId || data.accounts[0]?.id || '');
+    setPayDialogOpen(true);
+  };
+
+  const handlePayAll = (ids: string[]) => {
+    const first = data.payables.find(p => p.id === ids[0]);
+    setPayingIds(ids);
+    setPayAccountId(first?.accountId || data.accounts[0]?.id || '');
+    setPayDialogOpen(true);
+  };
+
+  const confirmPay = async () => {
+    if (payingIds.length > 0 && payAccountId) {
+      for (const id of payingIds) {
+        await markPayablePaid(id, payAccountId);
+      }
+      setPayDialogOpen(false);
+      setPayingIds([]);
     }
   };
 
-  const confirmPay = () => {
-    if (payingId && payAccountId) {
-      markPayablePaid(payingId, payAccountId);
-      setPayDialogOpen(false);
-      setPayingId(null);
-    }
-  };
+  const payingTotal = payingIds.reduce((sum, id) => {
+    const p = data.payables.find(x => x.id === id);
+    return sum + (p?.amount || 0);
+  }, 0);
+  const selectedPayAccount = data.accounts.find(a => a.id === payAccountId);
 
   return (
     <div className="space-y-6 max-w-5xl">
