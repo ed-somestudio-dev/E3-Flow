@@ -19,26 +19,19 @@ function StatusBadge({ status }: { status: PayableStatus }) {
   return <span className={cls}>{statusLabels[status]}</span>;
 }
 
-function CreditCardInvoiceCard({ accName, invoices, totalPending, pendingCount, onMarkPaid, onPayAll, onDelete }: {
+function CreditCardInvoiceCard({ accName, invoicesByMonth, onMarkPaid, onPayAll, onDelete }: {
   accName: string;
-  invoices: Payable[];
-  totalPending: number;
-  pendingCount: number;
+  invoicesByMonth: Record<string, Payable[]>;
   onMarkPaid: (id: string) => void;
   onPayAll: (ids: string[]) => void;
   onDelete: (id: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const pendingIds = invoices.filter(i => i.status !== 'paid').map(i => i.id);
-  const hasPending = pendingIds.length > 0;
-  // Determine a single due date and status for the invoice
-  const pendingInvoices = invoices.filter(i => i.status !== 'paid');
-  const invoiceDueDate = pendingInvoices.length > 0
-    ? pendingInvoices.reduce((latest, i) => i.dueDate > latest ? i.dueDate : latest, pendingInvoices[0].dueDate)
-    : invoices[0]?.dueDate || '';
-  const allPaid = invoices.every(i => i.status === 'paid');
-  const hasOverdue = invoices.some(i => i.status === 'overdue');
-  const invoiceStatus: PayableStatus = allPaid ? 'paid' : hasOverdue ? 'overdue' : 'pending';
+  const allInvoices = Object.values(invoicesByMonth).flat();
+  const totalPending = allInvoices.filter(i => i.status !== 'paid').reduce((s, i) => s + i.amount, 0);
+  const pendingCount = allInvoices.filter(i => i.status !== 'paid').length;
+
+  const sortedMonths = Object.keys(invoicesByMonth).sort();
 
   return (
     <div className="finance-card p-0 overflow-hidden">
@@ -50,54 +43,103 @@ function CreditCardInvoiceCard({ accName, invoices, totalPending, pendingCount, 
           {expanded ? <ChevronDown className="h-4 w-4 text-primary" /> : <ChevronRight className="h-4 w-4 text-primary" />}
           <CreditCard className="h-4 w-4 text-primary" />
           <span className="font-semibold">{accName}</span>
-          <span className="text-xs text-muted-foreground">({pendingCount} compra{pendingCount !== 1 ? 's' : ''})</span>
+          <span className="text-xs text-muted-foreground">({pendingCount} pendente{pendingCount !== 1 ? 's' : ''})</span>
         </div>
         <span className="text-sm mono font-semibold text-destructive">
           {fmt(totalPending)}
         </span>
       </button>
       {expanded && (
-        <div>
-          {/* Invoice header: due date, status, total and pay button on same line */}
-          <div className="flex items-center justify-between px-4 py-2.5 bg-muted/20 border-b border-border flex-wrap gap-2">
-            <div className="flex items-center gap-3">
-              <span className="text-xs text-muted-foreground">Vencimento: <strong className="text-foreground">{fmtDate(invoiceDueDate)}</strong></span>
-              <StatusBadge status={invoiceStatus} />
-              <span className="text-sm text-muted-foreground">Total: <strong className="text-foreground">{fmt(totalPending)}</strong></span>
-            </div>
-            {hasPending && (
-              <Button size="sm" variant="outline" className="text-success border-success/30 hover:bg-success/10 hover:text-success" onClick={() => onPayAll(pendingIds)}>
-                <CheckCircle className="h-3.5 w-3.5 mr-1.5" />
-                Pagar Fatura
-              </Button>
-            )}
-          </div>
-          {/* Individual purchases: only date, description, value */}
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border bg-muted/30">
-                  <th className="text-left py-2 px-4 font-medium text-muted-foreground text-xs">Data da Compra</th>
-                  <th className="text-left py-2 px-4 font-medium text-muted-foreground text-xs">Descrição</th>
-                  <th className="text-right py-2 px-4 font-medium text-muted-foreground text-xs">Valor</th>
-                  <th className="text-right py-2 px-4 font-medium text-muted-foreground text-xs"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {invoices.map(p => (
-                  <motion.tr key={p.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
-                    <td className="py-2 px-4 mono text-muted-foreground">{fmtDate(p.purchaseDate || p.dueDate)}</td>
-                    <td className="py-2 px-4 font-medium">{p.description}</td>
-                    <td className="py-2 px-4 text-right mono font-semibold text-destructive">{fmt(p.amount)}</td>
-                    <td className="py-2 px-4 text-right">
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); onDelete(p.id); }}><Trash2 className="h-3.5 w-3.5" /></Button>
-                    </td>
-                  </motion.tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+        <div className="divide-y divide-border">
+          {sortedMonths.map(monthKey => {
+            const items = invoicesByMonth[monthKey];
+            const pendingItems = items.filter(i => i.status !== 'paid');
+            const pendingIds = pendingItems.map(i => i.id);
+            const hasPending = pendingIds.length > 0;
+            const monthTotal = pendingItems.reduce((s, i) => s + i.amount, 0);
+            const invoiceDueDate = items[0]?.dueDate || '';
+            const allPaid = items.every(i => i.status === 'paid');
+            const hasOverdue = items.some(i => i.status === 'overdue');
+            const invoiceStatus: PayableStatus = allPaid ? 'paid' : hasOverdue ? 'overdue' : 'pending';
+
+            return (
+              <InvoiceMonthGroup
+                key={monthKey}
+                monthKey={monthKey}
+                items={items}
+                invoiceDueDate={invoiceDueDate}
+                invoiceStatus={invoiceStatus}
+                monthTotal={monthTotal}
+                hasPending={hasPending}
+                pendingIds={pendingIds}
+                onPayAll={onPayAll}
+                onDelete={onDelete}
+              />
+            );
+          })}
         </div>
+      )}
+    </div>
+  );
+}
+
+function InvoiceMonthGroup({ monthKey, items, invoiceDueDate, invoiceStatus, monthTotal, hasPending, pendingIds, onPayAll, onDelete }: {
+  monthKey: string;
+  items: Payable[];
+  invoiceDueDate: string;
+  invoiceStatus: PayableStatus;
+  monthTotal: number;
+  hasPending: boolean;
+  pendingIds: string[];
+  onPayAll: (ids: string[]) => void;
+  onDelete: (id: string) => void;
+}) {
+  const [open, setOpen] = useState(true);
+  const [y, m] = monthKey.split('-');
+  const monthLabel = `${m}/${y}`;
+
+  return (
+    <div>
+      <button onClick={() => setOpen(!open)} className="w-full flex items-center justify-between px-4 py-2 bg-muted/20 border-b border-border hover:bg-muted/30 transition-colors cursor-pointer">
+        <div className="flex items-center gap-3">
+          {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+          <span className="text-sm font-medium">Fatura {monthLabel}</span>
+          <span className="text-xs text-muted-foreground">Venc: <strong className="text-foreground">{fmtDate(invoiceDueDate)}</strong></span>
+          <StatusBadge status={invoiceStatus} />
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-sm mono font-semibold text-destructive">{fmt(monthTotal)}</span>
+          {hasPending && (
+            <Button size="sm" variant="outline" className="text-success border-success/30 hover:bg-success/10 hover:text-success h-7 text-xs" onClick={(e) => { e.stopPropagation(); onPayAll(pendingIds); }}>
+              <CheckCircle className="h-3 w-3 mr-1" />
+              Pagar
+            </Button>
+          )}
+        </div>
+      </button>
+      {open && (
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-border bg-muted/30">
+              <th className="text-left py-2 px-4 font-medium text-muted-foreground text-xs">Data da Compra</th>
+              <th className="text-left py-2 px-4 font-medium text-muted-foreground text-xs">Descrição</th>
+              <th className="text-right py-2 px-4 font-medium text-muted-foreground text-xs">Valor</th>
+              <th className="text-right py-2 px-4 font-medium text-muted-foreground text-xs"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map(p => (
+              <motion.tr key={p.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
+                <td className="py-2 px-4 mono text-muted-foreground">{fmtDate(p.purchaseDate || p.dueDate)}</td>
+                <td className="py-2 px-4 font-medium">{p.description}</td>
+                <td className="py-2 px-4 text-right mono font-semibold text-destructive">{fmt(p.amount)}</td>
+                <td className="py-2 px-4 text-right">
+                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); onDelete(p.id); }}><Trash2 className="h-3.5 w-3.5" /></Button>
+                </td>
+              </motion.tr>
+            ))}
+          </tbody>
+        </table>
       )}
     </div>
   );
@@ -239,15 +281,18 @@ export default function PayablesPage() {
           </h2>
           {Object.entries(creditByAccount).map(([accountId, invoices]) => {
             const accName = getAccountName(accountId);
-            const totalPending = invoices.filter(i => i.status !== 'paid').reduce((s, i) => s + i.amount, 0);
-            const pendingCount = invoices.filter(i => i.status !== 'paid').length;
+            // Group by invoice month (dueDate year-month)
+            const byMonth = invoices.reduce<Record<string, Payable[]>>((acc, p) => {
+              const key = p.dueDate.substring(0, 7); // YYYY-MM
+              if (!acc[key]) acc[key] = [];
+              acc[key].push(p);
+              return acc;
+            }, {});
             return (
               <CreditCardInvoiceCard
                 key={accountId}
                 accName={accName}
-                invoices={invoices}
-                totalPending={totalPending}
-                pendingCount={pendingCount}
+                invoicesByMonth={byMonth}
                 onMarkPaid={handleMarkPaid}
                 onPayAll={(ids) => ids.forEach(id => handleMarkPaid(id))}
                 onDelete={deletePayable}
