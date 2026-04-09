@@ -152,7 +152,6 @@ export default function PayablesPage() {
   const [editingItem, setEditingItem] = useState<Payable | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [payDialogOpen, setPayDialogOpen] = useState(false);
-  const [payingId, setPayingId] = useState<string | null>(null);
   const [payAccountId, setPayAccountId] = useState('');
 
   const allFiltered = data.payables
@@ -171,24 +170,37 @@ export default function PayablesPage() {
     return acc;
   }, {});
 
+  const [payingIds, setPayingIds] = useState<string[]>([]);
+
   const handleMarkPaid = (id: string) => {
     const payable = data.payables.find(p => p.id === id);
-    if (payable?.accountId) {
-      markPayablePaid(id, payable.accountId);
-    } else {
-      setPayingId(id);
-      setPayAccountId(data.accounts[0]?.id || '');
-      setPayDialogOpen(true);
+    setPayingIds([id]);
+    setPayAccountId(payable?.accountId || data.accounts[0]?.id || '');
+    setPayDialogOpen(true);
+  };
+
+  const handlePayAll = (ids: string[]) => {
+    const first = data.payables.find(p => p.id === ids[0]);
+    setPayingIds(ids);
+    setPayAccountId(first?.accountId || data.accounts[0]?.id || '');
+    setPayDialogOpen(true);
+  };
+
+  const confirmPay = async () => {
+    if (payingIds.length > 0 && payAccountId) {
+      for (const id of payingIds) {
+        await markPayablePaid(id, payAccountId);
+      }
+      setPayDialogOpen(false);
+      setPayingIds([]);
     }
   };
 
-  const confirmPay = () => {
-    if (payingId && payAccountId) {
-      markPayablePaid(payingId, payAccountId);
-      setPayDialogOpen(false);
-      setPayingId(null);
-    }
-  };
+  const payingTotal = payingIds.reduce((sum, id) => {
+    const p = data.payables.find(x => x.id === id);
+    return sum + (p?.amount || 0);
+  }, 0);
+  const selectedPayAccount = data.accounts.find(a => a.id === payAccountId);
 
   return (
     <div className="space-y-6 max-w-5xl">
@@ -294,7 +306,7 @@ export default function PayablesPage() {
                 accName={accName}
                 invoicesByMonth={byMonth}
                 onMarkPaid={handleMarkPaid}
-                onPayAll={(ids) => ids.forEach(id => handleMarkPaid(id))}
+                onPayAll={handlePayAll}
                 onDelete={deletePayable}
               />
             );
@@ -305,15 +317,35 @@ export default function PayablesPage() {
       {/* Pay dialog - select account */}
       <Dialog open={payDialogOpen} onOpenChange={setPayDialogOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Selecionar Conta para Pagamento</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Confirmar Pagamento</DialogTitle></DialogHeader>
           <div className="space-y-4">
-            <div><Label>Conta</Label>
+            <div className="flex items-center justify-between p-3 rounded-md bg-muted/50">
+              <span className="text-sm text-muted-foreground">{payingIds.length > 1 ? `${payingIds.length} itens` : 'Valor'}</span>
+              <span className="text-lg font-bold text-destructive mono">{fmt(payingTotal)}</span>
+            </div>
+            <div className="space-y-2">
+              <Label>Conta para débito</Label>
               <Select value={payAccountId} onValueChange={setPayAccountId}>
                 <SelectTrigger><SelectValue placeholder="Selecionar conta" /></SelectTrigger>
-                <SelectContent>{data.accounts.map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}</SelectContent>
+                <SelectContent>{data.accounts.map(a => (
+                  <SelectItem key={a.id} value={a.id}>
+                    <div className="flex items-center justify-between w-full gap-4">
+                      <span>{a.name}</span>
+                      <span className="text-xs text-muted-foreground mono">Saldo: {fmt(a.balance)}</span>
+                    </div>
+                  </SelectItem>
+                ))}</SelectContent>
               </Select>
+              {selectedPayAccount && (
+                <p className="text-xs text-muted-foreground">
+                  Saldo após pagamento: <span className="font-semibold mono">{fmt(selectedPayAccount.balance - payingTotal)}</span>
+                </p>
+              )}
             </div>
-            <Button className="w-full" disabled={!payAccountId} onClick={confirmPay}>Confirmar Pagamento</Button>
+            <Button className="w-full" disabled={!payAccountId} onClick={confirmPay}>
+              <CheckCircle className="h-4 w-4 mr-2" />
+              Confirmar Pagamento
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
