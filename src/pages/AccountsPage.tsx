@@ -91,7 +91,7 @@ export default function AccountsPage() {
           const usedAmount = hasCreditCard ? invoices.pending.reduce((s, p) => s + p.amount, 0) : 0;
           const totalLimit = hasCreditCard && acc.creditLimit ? acc.creditLimit : 0;
           const availableAmount = totalLimit - usedAmount;
-          const usedPercent = totalLimit > 0 ? Math.min(100, (usedAmount / totalLimit) * 100) : 0;
+          const availablePercent = totalLimit > 0 ? Math.max(0, Math.min(100, (availableAmount / totalLimit) * 100)) : 0;
 
           return (
             <motion.div key={acc.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
@@ -145,7 +145,7 @@ export default function AccountsPage() {
                     </div>
                     <div className="h-2 bg-muted rounded-full overflow-hidden">
                       <div className="h-full rounded-full transition-all bg-primary"
-                        style={{ width: `${usedPercent}%` }} />
+                        style={{ width: `${availablePercent}%` }} />
                     </div>
                     <div className="flex justify-between text-xs text-muted-foreground mt-1">
                       <span>Disponível: {fmt(availableAmount)}</span>
