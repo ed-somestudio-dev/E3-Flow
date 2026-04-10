@@ -516,7 +516,10 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     if (error) { console.error('markReceivableReceived error:', error); toast.error('Erro ao marcar como recebido'); return; }
     if (receivable && targetAccountId) {
       const acc = data.accounts.find(a => a.id === targetAccountId);
-      if (acc) await supabase.from('financial_accounts').update({ balance: acc.balance + receivable.amount }).eq('id', targetAccountId);
+      if (acc) {
+          const { error: balErr } = await supabase.rpc('increment_account_balance' as any, { p_account_id: targetAccountId, p_amount: receivable.amount });
+          if (balErr) console.error('increment balance error:', balErr);
+        }
       // Criar transação de receita automaticamente
       await supabase.from('transactions').insert({
         user_id: user.id,
