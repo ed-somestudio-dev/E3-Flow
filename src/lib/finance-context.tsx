@@ -429,8 +429,9 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       if (acc) {
         const isCreditCard = acc.type.includes('credit_card');
         if (!isCreditCard) {
-          // Only deduct balance for non-credit-card accounts
-          await supabase.rpc('decrement_account_balance', { p_account_id: targetAccountId, p_amount: payable.amount });
+          // Only deduct balance for non-credit-card accounts — use direct SQL update to avoid stale state
+          const { error: balErr } = await supabase.rpc('decrement_account_balance' as any, { p_account_id: targetAccountId, p_amount: payable.amount });
+          if (balErr) console.error('decrement balance error:', balErr);
         }
         // For credit cards: marking as paid moves it out of pending invoices,
         // which automatically restores the available limit
