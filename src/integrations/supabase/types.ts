@@ -343,6 +343,10 @@ export type Database = {
         Args: { p_account_id: string; p_amount: number }
         Returns: undefined
       }
+      increment_account_balance: {
+        Args: { p_account_id: string; p_amount: number }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never

@@ -429,8 +429,9 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       if (acc) {
         const isCreditCard = acc.type.includes('credit_card');
         if (!isCreditCard) {
-          // Only deduct balance for non-credit-card accounts
-          await supabase.rpc('decrement_account_balance', { p_account_id: targetAccountId, p_amount: payable.amount });
+          // Only deduct balance for non-credit-card accounts — use direct SQL update to avoid stale state
+          const { error: balErr } = await supabase.rpc('decrement_account_balance' as any, { p_account_id: targetAccountId, p_amount: payable.amount });
+          if (balErr) console.error('decrement balance error:', balErr);
         }
         // For credit cards: marking as paid moves it out of pending invoices,
         // which automatically restores the available limit
@@ -515,7 +516,10 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     if (error) { console.error('markReceivableReceived error:', error); toast.error('Erro ao marcar como recebido'); return; }
     if (receivable && targetAccountId) {
       const acc = data.accounts.find(a => a.id === targetAccountId);
-      if (acc) await supabase.from('financial_accounts').update({ balance: acc.balance + receivable.amount }).eq('id', targetAccountId);
+      if (acc) {
+          const { error: balErr } = await supabase.rpc('increment_account_balance' as any, { p_account_id: targetAccountId, p_amount: receivable.amount });
+          if (balErr) console.error('increment balance error:', balErr);
+        }
       // Criar transação de receita automaticamente
       await supabase.from('transactions').insert({
         user_id: user.id,
