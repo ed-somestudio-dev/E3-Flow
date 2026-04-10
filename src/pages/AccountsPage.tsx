@@ -145,7 +145,7 @@ export default function AccountsPage() {
                     </div>
                     <div className="h-2 bg-muted rounded-full overflow-hidden">
                       <div className="h-full rounded-full transition-all bg-primary"
-                        style={{ width: `${usedPercent}%` }} />
+                        style={{ width: `${availablePercent}%` }} />
                     </div>
                     <div className="flex justify-between text-xs text-muted-foreground mt-1">
                       <span>Disponível: {fmt(availableAmount)}</span>
