@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
-import { FinanceData, FinancialAccount, Transaction, Payable, Receivable, Budget, Category } from './types';
+import { FinanceData, FinancialAccount, Transaction, Payable, Receivable, Budget, Category, hasAccountType } from './types';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './auth-context';
 import { toast } from 'sonner';
@@ -427,9 +427,8 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     if (payable && targetAccountId) {
       const acc = data.accounts.find(a => a.id === targetAccountId);
       if (acc) {
-        const isCreditCard = acc.type.includes('credit_card');
-        if (!isCreditCard) {
-          // Only deduct balance for non-credit-card accounts — use direct SQL update to avoid stale state
+        const debitsMainBalance = hasAccountType(acc, 'checking') || hasAccountType(acc, 'cash');
+        if (debitsMainBalance) {
           const { error: balErr } = await supabase.rpc('decrement_account_balance' as any, { p_account_id: targetAccountId, p_amount: payable.amount });
           if (balErr) console.error('decrement balance error:', balErr);
         }
