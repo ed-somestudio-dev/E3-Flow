@@ -259,6 +259,39 @@ export default function PayablesPage() {
           </SelectContent>
         </Select>
       </div>
+      <div className="flex items-center gap-3 flex-wrap">
+        <Button variant={dateFrom && dateTo && format(dateFrom, 'yyyy-MM') === format(new Date(), 'yyyy-MM') && format(dateTo, 'yyyy-MM') === format(new Date(), 'yyyy-MM') ? 'default' : 'outline'} size="sm" onClick={setCurrentMonth}>
+          <CalendarIcon className="h-4 w-4 mr-2" />Mês Atual
+        </Button>
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" size="sm" className={cn("justify-start text-left font-normal", !dateFrom && "text-muted-foreground")}>
+              <CalendarIcon className="h-4 w-4 mr-2" />
+              {dateFrom ? format(dateFrom, "dd/MM/yyyy") : "Data inicial"}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <Calendar mode="single" selected={dateFrom} onSelect={setDateFrom} initialFocus className="p-3 pointer-events-auto" locale={ptBR} />
+          </PopoverContent>
+        </Popover>
+        <span className="text-muted-foreground text-sm">até</span>
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" size="sm" className={cn("justify-start text-left font-normal", !dateTo && "text-muted-foreground")}>
+              <CalendarIcon className="h-4 w-4 mr-2" />
+              {dateTo ? format(dateTo, "dd/MM/yyyy") : "Data final"}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <Calendar mode="single" selected={dateTo} onSelect={setDateTo} initialFocus className="p-3 pointer-events-auto" locale={ptBR} />
+          </PopoverContent>
+        </Popover>
+        {(dateFrom || dateTo) && (
+          <Button variant="ghost" size="sm" onClick={clearDateFilter}>
+            <X className="h-4 w-4 mr-1" />Limpar
+          </Button>
+        )}
+      </div>
       <div className="finance-card p-0 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
