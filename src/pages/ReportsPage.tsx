@@ -324,7 +324,10 @@ export default function ReportsPage() {
                   {payablesByPeriod.map(p => (
                     <tr key={p.id} className="border-b border-border last:border-0">
                       <td className="py-2 px-3 mono text-muted-foreground">{fmtDate(p.dueDate)}</td>
-                      <td className="py-2 px-3 font-medium">{p.description}</td>
+                      <td className="py-2 px-3 font-medium">
+                        {p.description}
+                        {p.isInvoice && <span className="ml-1 text-xs text-muted-foreground">({p.itemCount} itens)</span>}
+                      </td>
                       <td className="py-2 px-3 text-muted-foreground">{p.supplier}</td>
                       <td className={`py-2 px-3 font-medium ${p.status === 'overdue' ? 'text-destructive' : p.status === 'paid' ? 'text-success' : 'text-muted-foreground'}`}>
                         {statusLabel(p.status)}
