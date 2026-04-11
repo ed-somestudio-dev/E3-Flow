@@ -163,48 +163,6 @@ export default function AccountsPage() {
                 )}
               </div>
 
-              {/* Pending invoices */}
-              {hasCreditCard && invoices.pending.length > 0 && (
-                <div className="space-y-2 mt-3">
-                  <h4 className="text-sm font-medium flex items-center gap-1.5">
-                    <Receipt className="h-3.5 w-3.5 text-primary" />
-                    Faturas Pendentes
-                  </h4>
-                  <div className="space-y-1.5 max-h-32 overflow-y-auto">
-                    {invoices.pending.sort((a, b) => a.dueDate.localeCompare(b.dueDate)).map(inv => (
-                      <div key={inv.id} className="flex items-center justify-between text-sm p-2 rounded-lg bg-muted/50">
-                        <div>
-                          <span className="font-medium">{inv.description}</span>
-                          {inv.status === 'overdue' && <span className="ml-1 text-xs text-destructive font-semibold">(Vencida)</span>}
-                        </div>
-                        <div className="text-right">
-                          <span className="mono font-semibold text-destructive">{fmt(inv.amount)}</span>
-                          <p className="text-xs text-muted-foreground">{inv.status === 'overdue' ? 'Venceu' : 'Vence'} {fmtDate(inv.dueDate)}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Paid invoices */}
-              {hasCreditCard && invoices.paid.length > 0 && (
-                <div className="mt-3">
-                  <details className="text-sm">
-                    <summary className="cursor-pointer text-muted-foreground hover:text-foreground transition-colors">
-                      {invoices.paid.length} fatura(s) paga(s)
-                    </summary>
-                    <div className="space-y-1 mt-2">
-                      {invoices.paid.sort((a, b) => b.dueDate.localeCompare(a.dueDate)).map(inv => (
-                        <div key={inv.id} className="flex items-center justify-between text-xs p-1.5 text-muted-foreground">
-                          <span>{inv.description}</span>
-                          <span className="mono">{fmt(inv.amount)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </details>
-                </div>
-              )}
             </motion.div>
           );
         })}
