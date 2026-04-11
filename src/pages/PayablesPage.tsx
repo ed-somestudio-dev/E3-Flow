@@ -160,10 +160,27 @@ export default function PayablesPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [payDialogOpen, setPayDialogOpen] = useState(false);
   const [payAccountId, setPayAccountId] = useState('');
+  const [dateFrom, setDateFrom] = useState<Date | undefined>(startOfMonth(new Date()));
+  const [dateTo, setDateTo] = useState<Date | undefined>(endOfMonth(new Date()));
+
+  const setCurrentMonth = () => {
+    setDateFrom(startOfMonth(new Date()));
+    setDateTo(endOfMonth(new Date()));
+  };
+
+  const clearDateFilter = () => {
+    setDateFrom(undefined);
+    setDateTo(undefined);
+  };
 
   const allFiltered = data.payables
     .filter(p => statusFilter === 'all' || p.status === statusFilter)
     .filter(p => p.description.toLowerCase().includes(search.toLowerCase()) || p.supplier.toLowerCase().includes(search.toLowerCase()))
+    .filter(p => {
+      if (dateFrom && p.dueDate < format(dateFrom, 'yyyy-MM-dd')) return false;
+      if (dateTo && p.dueDate > format(dateTo, 'yyyy-MM-dd')) return false;
+      return true;
+    })
     .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
 
   const regularPayables = allFiltered.filter(p => !p.supplier?.startsWith('cartao:'));
