@@ -6,9 +6,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { SAFE_LABELS } from '@/lib/safe-labels';
+import { consolidatePayables } from '@/lib/consolidate-payables';
 
 export default function ReportsPage() {
-  const { data, getCategoryName, getCategoryColor } = useFinance();
+  const { data, getCategoryName, getCategoryColor, getAccountName } = useFinance();
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear().toString());
 
@@ -73,11 +74,13 @@ export default function ReportsPage() {
   }, [monthlySummary]);
 
   // Payables by period
+  const consolidated = useMemo(() => consolidatePayables(data.payables, getAccountName), [data.payables, getAccountName]);
+
   const payablesByPeriod = useMemo(() => {
-    return data.payables
+    return consolidated
       .filter(p => p.dueDate >= startDate && p.dueDate <= endDate)
       .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
-  }, [data.payables, startDate, endDate]);
+  }, [consolidated, startDate, endDate]);
 
   const payablesTotals = useMemo(() => {
     const pending = payablesByPeriod.filter(p => p.status !== 'paid').reduce((s, p) => s + p.amount, 0);
