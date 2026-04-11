@@ -6,9 +6,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { SAFE_LABELS } from '@/lib/safe-labels';
+import { consolidatePayables } from '@/lib/consolidate-payables';
 
 export default function ReportsPage() {
-  const { data, getCategoryName, getCategoryColor } = useFinance();
+  const { data, getCategoryName, getCategoryColor, getAccountName } = useFinance();
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear().toString());
 
@@ -73,11 +74,13 @@ export default function ReportsPage() {
   }, [monthlySummary]);
 
   // Payables by period
+  const consolidated = useMemo(() => consolidatePayables(data.payables, getAccountName), [data.payables, getAccountName]);
+
   const payablesByPeriod = useMemo(() => {
-    return data.payables
+    return consolidated
       .filter(p => p.dueDate >= startDate && p.dueDate <= endDate)
       .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
-  }, [data.payables, startDate, endDate]);
+  }, [consolidated, startDate, endDate]);
 
   const payablesTotals = useMemo(() => {
     const pending = payablesByPeriod.filter(p => p.status !== 'paid').reduce((s, p) => s + p.amount, 0);
@@ -105,7 +108,7 @@ export default function ReportsPage() {
   // Forecast: what will be the financial position on a specific date
   const forecast = useMemo(() => {
     const currentBalance = data.accounts.reduce((s, a) => s + a.balance, 0);
-    const futurePayables = data.payables
+    const futurePayables = consolidated
       .filter(p => p.status !== 'paid' && p.dueDate >= todayStr && p.dueDate <= forecastDate)
       .reduce((s, p) => s + p.amount, 0);
     const futureReceivables = data.receivables
@@ -321,7 +324,10 @@ export default function ReportsPage() {
                   {payablesByPeriod.map(p => (
                     <tr key={p.id} className="border-b border-border last:border-0">
                       <td className="py-2 px-3 mono text-muted-foreground">{fmtDate(p.dueDate)}</td>
-                      <td className="py-2 px-3 font-medium">{p.description}</td>
+                      <td className="py-2 px-3 font-medium">
+                        {p.description}
+                        {p.isInvoice && <span className="ml-1 text-xs text-muted-foreground">({p.itemCount} itens)</span>}
+                      </td>
                       <td className="py-2 px-3 text-muted-foreground">{p.supplier}</td>
                       <td className={`py-2 px-3 font-medium ${p.status === 'overdue' ? 'text-destructive' : p.status === 'paid' ? 'text-success' : 'text-muted-foreground'}`}>
                         {statusLabel(p.status)}

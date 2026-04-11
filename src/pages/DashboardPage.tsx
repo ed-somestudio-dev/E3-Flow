@@ -5,6 +5,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { motion } from 'framer-motion';
 import { fmt, fmtDate } from '@/lib/format';
 import { SAFE_LABELS } from '@/lib/safe-labels';
+import { consolidatePayables } from '@/lib/consolidate-payables';
 
 function StatCard({ label, value, icon: Icon, trend, color }: {
   label: string; value: string; icon: React.ElementType; trend?: 'up' | 'down'; color?: string;
@@ -27,11 +28,13 @@ function StatCard({ label, value, icon: Icon, trend, color }: {
 }
 
 export default function DashboardPage() {
-  const { data, getCategoryName, getCategoryColor } = useFinance();
+  const { data, getCategoryName, getCategoryColor, getAccountName } = useFinance();
+
+  const consolidated = useMemo(() => consolidatePayables(data.payables, getAccountName), [data.payables, getAccountName]);
 
   const stats = useMemo(() => {
     const totalBalance = data.accounts.reduce((s, a) => s + a.balance, 0);
-    const totalPayable = data.payables.filter(p => p.status !== 'paid').reduce((s, p) => s + p.amount, 0);
+    const totalPayable = consolidated.filter(p => p.status !== 'paid').reduce((s, p) => s + p.amount, 0);
     const totalReceivable = data.receivables.filter(r => r.status !== 'received').reduce((s, r) => s + r.amount, 0);
     const now = new Date();
     const monthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -41,7 +44,7 @@ export default function DashboardPage() {
     return { totalBalance, totalPayable, totalReceivable, monthIncome, monthExpense };
   }, [data]);
 
-  const overduePayables = data.payables.filter(p => p.status === 'overdue');
+  const overduePayables = consolidated.filter(p => p.status === 'overdue');
   const overdueReceivables = data.receivables.filter(r => r.status === 'overdue');
 
   const cashFlowData = useMemo(() => {
@@ -101,7 +104,7 @@ export default function DashboardPage() {
     }));
   }, [data.transactions, getCategoryName, getCategoryColor]);
 
-  const pendingPayables = data.payables.filter(p => p.status !== 'paid');
+  const pendingPayables = consolidated.filter(p => p.status !== 'paid');
   const pendingReceivables = data.receivables.filter(r => r.status !== 'received');
 
   return (
@@ -121,7 +124,7 @@ export default function DashboardPage() {
           <div className="space-y-1 text-sm">
             {overduePayables.map(p => (
               <p key={p.id} className="text-muted-foreground">
-                {SAFE_LABELS.shortPayable}: <span className="text-foreground font-medium">{p.description}</span> — {fmt(p.amount)} venceu em {fmtDate(p.dueDate)}
+                {SAFE_LABELS.shortPayable}: <span className="text-foreground font-medium">{p.description}</span>{p.isInvoice ? ` (${p.itemCount} itens)` : ''} — {fmt(p.amount)} venceu em {fmtDate(p.dueDate)}
               </p>
             ))}
             {overdueReceivables.map(r => (
@@ -144,9 +147,9 @@ export default function DashboardPage() {
             {pendingPayables.map(p => (
               <p key={p.id} className="text-muted-foreground">
                 <span className="text-foreground font-medium">{p.description}</span>
+                {p.isInvoice && <span className="ml-1 text-xs text-muted-foreground">({p.itemCount} itens)</span>}
                 {p.status === 'overdue' && <span className="ml-1 text-xs text-destructive font-semibold">(Vencida)</span>}
                 {' — '}{fmt(p.amount)} · {p.status === 'overdue' ? 'Venceu' : 'Vence'} {fmtDate(p.dueDate)}
-                {p.recurring && <span className="ml-2 text-xs text-primary">({p.recurrenceFrequency === 'monthly' ? 'Mensal' : p.recurrenceFrequency === 'weekly' ? 'Semanal' : 'Anual'})</span>}
               </p>
             ))}
           </div>
