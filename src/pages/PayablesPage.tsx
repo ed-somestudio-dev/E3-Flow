@@ -1,16 +1,21 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useFinance } from '@/lib/finance-context';
 import { Payable, PayableStatus, RecurrenceFrequency } from '@/lib/types';
-import { Plus, Trash2, Edit2, CheckCircle, Search, RefreshCw, CreditCard, Wallet, ChevronDown, ChevronRight } from 'lucide-react';
+import { Plus, Trash2, Edit2, CheckCircle, Search, RefreshCw, CreditCard, Wallet, ChevronDown, ChevronRight, CalendarIcon, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
 import { motion } from 'framer-motion';
 import { fmt, fmtDate } from '@/lib/format';
 import { SAFE_LABELS } from '@/lib/safe-labels';
+import { format, startOfMonth, endOfMonth } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { cn } from '@/lib/utils';
 
 const statusLabels: Record<PayableStatus, string> = { pending: 'Pendente', paid: 'Pago', overdue: 'Vencida' };
 
