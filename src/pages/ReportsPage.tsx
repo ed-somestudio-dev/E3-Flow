@@ -108,7 +108,7 @@ export default function ReportsPage() {
   // Forecast: what will be the financial position on a specific date
   const forecast = useMemo(() => {
     const currentBalance = data.accounts.reduce((s, a) => s + a.balance, 0);
-    const futurePayables = data.payables
+    const futurePayables = consolidated
       .filter(p => p.status !== 'paid' && p.dueDate >= todayStr && p.dueDate <= forecastDate)
       .reduce((s, p) => s + p.amount, 0);
     const futureReceivables = data.receivables
