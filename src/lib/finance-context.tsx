@@ -228,15 +228,13 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     const closeDay = acc.billingCloseDay || 1;
     const dueDay = acc.dueDay || 10;
     const d = new Date(txDate + 'T12:00:00');
-    let invoiceMonth: number, invoiceYear: number;
+    // Before close day: current month; after close day: next month
+    let invoiceMonth = d.getMonth() + 1; // 1-based
+    let invoiceYear = d.getFullYear();
     if (d.getDate() > closeDay) {
-      invoiceMonth = d.getMonth() + 2;
-      invoiceYear = d.getFullYear();
-    } else {
-      invoiceMonth = d.getMonth() + 1;
-      invoiceYear = d.getFullYear();
+      invoiceMonth += 1;
+      if (invoiceMonth > 12) { invoiceMonth = 1; invoiceYear++; }
     }
-    if (invoiceMonth > 12) { invoiceMonth = 1; invoiceYear++; }
     const invoiceKey = `${invoiceYear}-${String(invoiceMonth).padStart(2, '0')}`;
     const dueDate = `${invoiceYear}-${String(invoiceMonth).padStart(2, '0')}-${String(dueDay).padStart(2, '0')}`;
     const description = `Fatura ${acc.name} - ${String(invoiceMonth).padStart(2, '0')}/${invoiceYear}`;
@@ -348,16 +346,13 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
           const virtualPurchase = new Date(purchase);
           virtualPurchase.setMonth(virtualPurchase.getMonth() + i);
 
-          let invoiceMonth = virtualPurchase.getMonth(); // 0-based
-          let invoiceYear = virtualPurchase.getFullYear();
+          // Before close day: current month's invoice; after: next month's
+          let dueMonth = virtualPurchase.getMonth(); // 0-based
+          let dueYear = virtualPurchase.getFullYear();
           if (virtualPurchase.getDate() > closeDay) {
-            invoiceMonth += 1;
-            if (invoiceMonth > 11) { invoiceMonth = 0; invoiceYear += 1; }
+            dueMonth += 1;
+            if (dueMonth > 11) { dueMonth = 0; dueYear += 1; }
           }
-          // Due date is dueDay of the month after invoice month
-          let dueMonth = invoiceMonth + 1;
-          let dueYear = invoiceYear;
-          if (dueMonth > 11) { dueMonth = 0; dueYear += 1; }
           const lastDay = new Date(dueYear, dueMonth + 1, 0).getDate();
           const finalDay = Math.min(dDay, lastDay);
           dueStr = `${dueYear}-${String(dueMonth + 1).padStart(2, '0')}-${String(finalDay).padStart(2, '0')}`;

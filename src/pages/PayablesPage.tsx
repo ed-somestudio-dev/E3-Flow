@@ -442,17 +442,14 @@ function PayableForm({ item, categories, accounts, onSave }: {
     const purchase = new Date(pDate + 'T12:00:00');
     const closeDay = acc.billingCloseDay;
     const dDay = acc.dueDay;
-    // If purchase is after close day, it goes to next month's invoice
-    let invoiceMonth = purchase.getMonth();
-    let invoiceYear = purchase.getFullYear();
+    // Before close day: current month's invoice (due in current month)
+    // After close day: next month's invoice (due in next month)
+    let dueMonth = purchase.getMonth(); // 0-based
+    let dueYear = purchase.getFullYear();
     if (purchase.getDate() > closeDay) {
-      invoiceMonth += 1;
-      if (invoiceMonth > 11) { invoiceMonth = 0; invoiceYear += 1; }
+      dueMonth += 1;
+      if (dueMonth > 11) { dueMonth = 0; dueYear += 1; }
     }
-    // Due date is dueDay of the month after the invoice month
-    let dueMonth = invoiceMonth + 1;
-    let dueYear = invoiceYear;
-    if (dueMonth > 11) { dueMonth = 0; dueYear += 1; }
     const lastDay = new Date(dueYear, dueMonth + 1, 0).getDate();
     const finalDay = Math.min(dDay, lastDay);
     return `${dueYear}-${String(dueMonth + 1).padStart(2, '0')}-${String(finalDay).padStart(2, '0')}`;
