@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useFinance } from '@/lib/finance-context';
 import { FinancialAccount, AccountType, getAccountTypes, hasAccountType } from '@/lib/types';
-import { Plus, Trash2, Edit2, Wallet, PiggyBank, Banknote, CreditCard, ArrowRightLeft, Receipt } from 'lucide-react';
+import { Plus, Trash2, Edit2, Wallet, PiggyBank, Banknote, CreditCard, ArrowRightLeft, Receipt, Pencil, Check, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -23,6 +23,8 @@ export default function AccountsPage() {
   const [editingItem, setEditingItem] = useState<FinancialAccount | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
+  const [editingCreditLimit, setEditingCreditLimit] = useState<string | null>(null);
+  const [tempCreditLimit, setTempCreditLimit] = useState('');
 
   const totalBalance = data.accounts.reduce((s, a) => s + a.balance + a.savingsBalance, 0);
   const totalCreditLimit = data.accounts.reduce((s, a) => s + (hasAccountType(a, 'credit_card') ? (a.creditLimit || 0) : 0), 0);
@@ -141,7 +143,35 @@ export default function AccountsPage() {
                       <span className="text-xs text-muted-foreground flex items-center gap-1">
                         <CreditCard className="h-3 w-3" /> Limite Total
                       </span>
-                      <span className="mono font-semibold text-sm">{fmt(totalLimit)}</span>
+                      {editingCreditLimit === acc.id ? (
+                        <div className="flex items-center gap-1">
+                          <Input
+                            type="number"
+                            step="0.01"
+                            value={tempCreditLimit}
+                            onChange={e => setTempCreditLimit(e.target.value)}
+                            className="h-6 w-24 text-xs text-right"
+                            autoFocus
+                          />
+                          <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => {
+                            const val = parseFloat(tempCreditLimit);
+                            if (!isNaN(val) && val > 0) {
+                              updateAccount({ ...acc, creditLimit: val });
+                            }
+                            setEditingCreditLimit(null);
+                          }}>
+                            <Check className="h-3 w-3 text-success" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => setEditingCreditLimit(null)}>
+                            <X className="h-3 w-3 text-destructive" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <span className="mono font-semibold text-sm flex items-center gap-1 cursor-pointer hover:text-primary transition-colors" onClick={() => { setEditingCreditLimit(acc.id); setTempCreditLimit(totalLimit.toString()); }}>
+                          {fmt(totalLimit)}
+                          <Pencil className="h-2.5 w-2.5 text-muted-foreground" />
+                        </span>
+                      )}
                     </div>
                     <div className="h-2 bg-muted rounded-full overflow-hidden">
                       <div className="h-full rounded-full transition-all bg-primary"

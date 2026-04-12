@@ -328,7 +328,15 @@ export default function ReportsPage() {
                         {p.description}
                         {p.isInvoice && <span className="ml-1 text-xs text-muted-foreground">({p.itemCount} itens)</span>}
                       </td>
-                      <td className="py-2 px-3 text-muted-foreground">{p.supplier}</td>
+                      <td className="py-2 px-3 text-muted-foreground">
+                        {p.isInvoice && p.itemSuppliers.length > 0 ? (
+                          <span title={p.itemSuppliers.join(', ')}>
+                            {p.itemSuppliers.length <= 3
+                              ? p.itemSuppliers.join(', ')
+                              : `${p.itemSuppliers.slice(0, 3).join(', ')} +${p.itemSuppliers.length - 3}`}
+                          </span>
+                        ) : p.supplier}
+                      </td>
                       <td className={`py-2 px-3 font-medium ${p.status === 'overdue' ? 'text-destructive' : p.status === 'paid' ? 'text-success' : 'text-muted-foreground'}`}>
                         {statusLabel(p.status)}
                       </td>

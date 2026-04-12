@@ -11,6 +11,8 @@ export interface ConsolidatedPayable {
   accountId?: string;
   isInvoice: boolean;
   itemCount: number;
+  /** Unique supplier/description names from individual items within an invoice */
+  itemSuppliers: string[];
 }
 
 /**
@@ -32,6 +34,12 @@ export function consolidatePayables(
       const groupKey = `${p.accountId}::${monthKey}`;
       if (!creditGroups[groupKey]) creditGroups[groupKey] = [];
       creditGroups[groupKey].push(p);
+    } else if (p.supplier?.startsWith('cartao:') && p.accountId) {
+      // Also group system-generated invoice entries
+      const monthKey = p.dueDate.slice(0, 7);
+      const groupKey = `${p.accountId}::${monthKey}`;
+      if (!creditGroups[groupKey]) creditGroups[groupKey] = [];
+      creditGroups[groupKey].push(p);
     } else {
       result.push({
         id: p.id,
@@ -44,6 +52,7 @@ export function consolidatePayables(
         accountId: p.accountId,
         isInvoice: false,
         itemCount: 1,
+        itemSuppliers: [p.supplier],
       });
     }
   }
@@ -58,6 +67,14 @@ export function consolidatePayables(
     // Use earliest due date from the group
     const dueDate = items.sort((a, b) => a.dueDate.localeCompare(b.dueDate))[0].dueDate;
 
+    // Collect unique supplier/description names (exclude cartao: prefixed ones)
+    const uniqueSuppliers = [...new Set(
+      items.map(i => {
+        if (i.supplier?.startsWith('cartao:')) return i.description;
+        return i.supplier || i.description;
+      }).filter(Boolean)
+    )];
+
     result.push({
       id: `invoice-${groupKey}`,
       description: `Fatura ${accName}`,
@@ -69,6 +86,7 @@ export function consolidatePayables(
       accountId,
       isInvoice: true,
       itemCount: items.length,
+      itemSuppliers: uniqueSuppliers,
     });
   }
 

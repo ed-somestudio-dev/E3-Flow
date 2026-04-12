@@ -333,19 +333,44 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     if (!user) return;
 
     if (installments && installments > 1) {
-      // Credit card installments: create one payable per month
       const installmentAmount = Math.round((p.amount / installments) * 100) / 100;
-      const baseDate = new Date(p.dueDate + 'T12:00:00');
       const acc = p.accountId ? data.accounts.find(a => a.id === p.accountId) : undefined;
+      const closeDay = acc?.billingCloseDay || 1;
+      const dDay = acc?.dueDay || 10;
 
       for (let i = 0; i < installments; i++) {
-        const d = new Date(baseDate);
-        d.setMonth(d.getMonth() + i);
-        const dueStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        let dueStr: string;
+
+        if (acc?.type?.includes('credit_card') && (p as any).purchaseDate) {
+          // Calculate due date based on billing cycle for each installment
+          const purchase = new Date((p as any).purchaseDate + 'T12:00:00');
+          // Add i months to purchase date to get the "virtual" purchase date for this installment
+          const virtualPurchase = new Date(purchase);
+          virtualPurchase.setMonth(virtualPurchase.getMonth() + i);
+
+          let invoiceMonth = virtualPurchase.getMonth(); // 0-based
+          let invoiceYear = virtualPurchase.getFullYear();
+          if (virtualPurchase.getDate() > closeDay) {
+            invoiceMonth += 1;
+            if (invoiceMonth > 11) { invoiceMonth = 0; invoiceYear += 1; }
+          }
+          // Due date is dueDay of the month after invoice month
+          let dueMonth = invoiceMonth + 1;
+          let dueYear = invoiceYear;
+          if (dueMonth > 11) { dueMonth = 0; dueYear += 1; }
+          const lastDay = new Date(dueYear, dueMonth + 1, 0).getDate();
+          const finalDay = Math.min(dDay, lastDay);
+          dueStr = `${dueYear}-${String(dueMonth + 1).padStart(2, '0')}-${String(finalDay).padStart(2, '0')}`;
+        } else {
+          const baseDate = new Date(p.dueDate + 'T12:00:00');
+          const d = new Date(baseDate);
+          d.setMonth(d.getMonth() + i);
+          dueStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        }
+
         const desc = `${p.description} (${i + 1}/${installments})`;
 
         if (acc?.type?.includes('credit_card')) {
-          // Store as individual purchase linked to card
           await supabase.from('payables').insert({
             user_id: user.id, description: desc, supplier: `cartao:${acc.id}`,
             category_id: p.categoryId, account_id: p.accountId || null,
@@ -361,7 +386,6 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
           });
         }
       }
-      // credit_limit is NOT modified — pending invoices track usage
       await fetchAll();
       return;
     }
