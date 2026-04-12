@@ -143,7 +143,35 @@ export default function AccountsPage() {
                       <span className="text-xs text-muted-foreground flex items-center gap-1">
                         <CreditCard className="h-3 w-3" /> Limite Total
                       </span>
-                      <span className="mono font-semibold text-sm">{fmt(totalLimit)}</span>
+                      {editingCreditLimit === acc.id ? (
+                        <div className="flex items-center gap-1">
+                          <Input
+                            type="number"
+                            step="0.01"
+                            value={tempCreditLimit}
+                            onChange={e => setTempCreditLimit(e.target.value)}
+                            className="h-6 w-24 text-xs text-right"
+                            autoFocus
+                          />
+                          <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => {
+                            const val = parseFloat(tempCreditLimit);
+                            if (!isNaN(val) && val > 0) {
+                              updateAccount({ ...acc, creditLimit: val });
+                            }
+                            setEditingCreditLimit(null);
+                          }}>
+                            <Check className="h-3 w-3 text-success" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => setEditingCreditLimit(null)}>
+                            <X className="h-3 w-3 text-destructive" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <span className="mono font-semibold text-sm flex items-center gap-1 cursor-pointer hover:text-primary transition-colors" onClick={() => { setEditingCreditLimit(acc.id); setTempCreditLimit(totalLimit.toString()); }}>
+                          {fmt(totalLimit)}
+                          <Pencil className="h-2.5 w-2.5 text-muted-foreground" />
+                        </span>
+                      )}
                     </div>
                     <div className="h-2 bg-muted rounded-full overflow-hidden">
                       <div className="h-full rounded-full transition-all bg-primary"
