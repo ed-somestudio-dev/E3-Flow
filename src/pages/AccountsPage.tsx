@@ -23,6 +23,8 @@ export default function AccountsPage() {
   const [editingItem, setEditingItem] = useState<FinancialAccount | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
+  const [editingCreditLimit, setEditingCreditLimit] = useState<string | null>(null);
+  const [tempCreditLimit, setTempCreditLimit] = useState('');
 
   const totalBalance = data.accounts.reduce((s, a) => s + a.balance + a.savingsBalance, 0);
   const totalCreditLimit = data.accounts.reduce((s, a) => s + (hasAccountType(a, 'credit_card') ? (a.creditLimit || 0) : 0), 0);
