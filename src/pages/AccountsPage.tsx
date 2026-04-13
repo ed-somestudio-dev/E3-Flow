@@ -147,7 +147,6 @@ export default function AccountsPage() {
                       </span>
                       <span className="mono font-semibold text-sm">{fmt(totalLimit)}</span>
                     </div>
-                    </div>
                     <div className="h-2 bg-muted rounded-full overflow-hidden">
                       <div className="h-full rounded-full transition-all bg-primary"
                         style={{ width: `${availablePercent}%` }} />
