@@ -90,7 +90,9 @@ export default function AccountsPage() {
           const hasSavings = types.includes('savings');
           const hasCash = types.includes('cash');
           const invoices = cardInvoices[acc.id] || { pending: [], paid: [] };
-          const usedAmount = hasCreditCard ? invoices.pending.reduce((s, p) => s + p.amount, 0) : 0;
+          const usedFromPayables = hasCreditCard ? invoices.pending.reduce((s, p) => s + p.amount, 0) : 0;
+          const usedInitial = hasCreditCard ? (acc.creditUsed || 0) : 0;
+          const usedAmount = usedFromPayables + usedInitial;
           const totalLimit = hasCreditCard && acc.creditLimit ? acc.creditLimit : 0;
           const availableAmount = totalLimit - usedAmount;
           const availablePercent = totalLimit > 0 ? Math.max(0, Math.min(100, (availableAmount / totalLimit) * 100)) : 0;
