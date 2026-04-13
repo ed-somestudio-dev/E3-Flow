@@ -236,7 +236,14 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       if (invoiceMonth > 12) { invoiceMonth = 1; invoiceYear++; }
     }
     const invoiceKey = `${invoiceYear}-${String(invoiceMonth).padStart(2, '0')}`;
-    const dueDate = `${invoiceYear}-${String(invoiceMonth).padStart(2, '0')}-${String(dueDay).padStart(2, '0')}`;
+    // If close day >= due day, due date falls in the next month
+    let dueMonth = invoiceMonth;
+    let dueYr = invoiceYear;
+    if (closeDay >= dueDay) {
+      dueMonth += 1;
+      if (dueMonth > 12) { dueMonth = 1; dueYr++; }
+    }
+    const dueDate = `${dueYr}-${String(dueMonth).padStart(2, '0')}-${String(dueDay).padStart(2, '0')}`;
     const description = `Fatura ${acc.name} - ${String(invoiceMonth).padStart(2, '0')}/${invoiceYear}`;
 
     const { data: existing } = await supabase.from('payables')
@@ -350,6 +357,11 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
           let dueMonth = virtualPurchase.getMonth(); // 0-based
           let dueYear = virtualPurchase.getFullYear();
           if (virtualPurchase.getDate() > closeDay) {
+            dueMonth += 1;
+            if (dueMonth > 11) { dueMonth = 0; dueYear += 1; }
+          }
+          // If close day >= due day, due date falls in the next month
+          if (closeDay >= dDay) {
             dueMonth += 1;
             if (dueMonth > 11) { dueMonth = 0; dueYear += 1; }
           }
