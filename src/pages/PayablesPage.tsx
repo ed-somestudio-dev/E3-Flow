@@ -450,6 +450,11 @@ function PayableForm({ item, categories, accounts, onSave }: {
       dueMonth += 1;
       if (dueMonth > 11) { dueMonth = 0; dueYear += 1; }
     }
+    // If close day >= due day, the due date falls in the next month
+    if (closeDay >= dDay) {
+      dueMonth += 1;
+      if (dueMonth > 11) { dueMonth = 0; dueYear += 1; }
+    }
     const lastDay = new Date(dueYear, dueMonth + 1, 0).getDate();
     const finalDay = Math.min(dDay, lastDay);
     return `${dueYear}-${String(dueMonth + 1).padStart(2, '0')}-${String(finalDay).padStart(2, '0')}`;
