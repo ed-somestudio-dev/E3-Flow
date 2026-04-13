@@ -92,6 +92,7 @@ export type Database = {
           color: string
           created_at: string
           credit_limit: number | null
+          credit_used: number
           due_day: number | null
           id: string
           name: string
@@ -106,6 +107,7 @@ export type Database = {
           color?: string
           created_at?: string
           credit_limit?: number | null
+          credit_used?: number
           due_day?: number | null
           id?: string
           name: string
@@ -120,6 +122,7 @@ export type Database = {
           color?: string
           created_at?: string
           credit_limit?: number | null
+          credit_used?: number
           due_day?: number | null
           id?: string
           name?: string

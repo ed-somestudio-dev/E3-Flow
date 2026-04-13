@@ -59,6 +59,7 @@ function mapAccount(row: any): FinancialAccount {
     id: row.id, name: row.name, type: row.type, balance: Number(row.balance),
     savingsBalance: Number(row.savings_balance || 0),
     color: row.color, creditLimit: row.credit_limit ? Number(row.credit_limit) : undefined,
+    creditUsed: row.credit_used ? Number(row.credit_used) : undefined,
     billingCloseDay: row.billing_close_day ?? undefined, dueDay: row.due_day ?? undefined,
   };
 }
@@ -571,7 +572,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     const { error } = await supabase.from('financial_accounts').insert({
       user_id: user.id, name: a.name, type: a.type, balance: a.balance,
       savings_balance: a.savingsBalance || 0,
-      color: a.color, credit_limit: a.creditLimit || null,
+      color: a.color, credit_limit: a.creditLimit || null, credit_used: a.creditUsed || 0,
       billing_close_day: a.billingCloseDay || null, due_day: a.dueDay || null,
     });
     if (error) { console.error('addAccount error:', error); toast.error('Erro ao criar conta'); return; }
@@ -583,7 +584,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     const { error } = await supabase.from('financial_accounts').update({
       name: a.name, type: a.type, balance: a.balance,
       savings_balance: a.savingsBalance || 0,
-      color: a.color, credit_limit: a.creditLimit || null,
+      color: a.color, credit_limit: a.creditLimit || null, credit_used: a.creditUsed || 0,
       billing_close_day: a.billingCloseDay || null, due_day: a.dueDay || null,
     }).eq('id', a.id).eq('user_id', user.id);
     if (error) { console.error('updateAccount error:', error); toast.error('Erro ao atualizar conta'); return; }
