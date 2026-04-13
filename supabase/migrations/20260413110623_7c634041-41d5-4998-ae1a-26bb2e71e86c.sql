@@ -1,0 +1,1 @@
+ALTER TABLE public.financial_accounts ADD COLUMN credit_used numeric NOT NULL DEFAULT 0;
