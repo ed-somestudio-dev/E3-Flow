@@ -11,6 +11,7 @@ export interface FinancialAccount {
   balance: number;
   savingsBalance: number;
   creditLimit?: number;
+  creditUsed?: number;
   billingCloseDay?: number;
   dueDay?: number;
   color: string;
