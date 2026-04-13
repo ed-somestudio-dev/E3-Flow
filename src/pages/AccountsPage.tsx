@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useFinance } from '@/lib/finance-context';
 import { FinancialAccount, AccountType, getAccountTypes, hasAccountType } from '@/lib/types';
-import { Plus, Trash2, Edit2, Wallet, PiggyBank, Banknote, CreditCard, ArrowRightLeft, Receipt, Pencil, Check, X } from 'lucide-react';
+import { Plus, Trash2, Edit2, Wallet, PiggyBank, Banknote, CreditCard, ArrowRightLeft, Receipt } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -23,8 +23,6 @@ export default function AccountsPage() {
   const [editingItem, setEditingItem] = useState<FinancialAccount | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
-  const [editingCreditLimit, setEditingCreditLimit] = useState<string | null>(null);
-  const [tempCreditLimit, setTempCreditLimit] = useState('');
 
   const totalBalance = data.accounts.reduce((s, a) => s + a.balance + a.savingsBalance, 0);
   const totalCreditLimit = data.accounts.reduce((s, a) => s + (hasAccountType(a, 'credit_card') ? (a.creditLimit || 0) : 0), 0);
