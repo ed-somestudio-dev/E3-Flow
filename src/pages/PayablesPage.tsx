@@ -125,28 +125,30 @@ function InvoiceMonthGroup({ monthKey, items, invoiceDueDate, invoiceStatus, mon
         )}
       </div>
       {open && (
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border bg-muted/30">
-              <th className="text-left py-2 px-4 font-medium text-muted-foreground text-xs">Data da Compra</th>
-              <th className="text-left py-2 px-4 font-medium text-muted-foreground text-xs">Descrição</th>
-              <th className="text-right py-2 px-4 font-medium text-muted-foreground text-xs">Valor</th>
-              <th className="text-right py-2 px-4 font-medium text-muted-foreground text-xs"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map(p => (
-              <motion.tr key={p.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
-                <td className="py-2 px-4 mono text-muted-foreground">{fmtDate(p.purchaseDate || p.dueDate)}</td>
-                <td className="py-2 px-4 font-medium">{p.description}</td>
-                <td className="py-2 px-4 text-right mono font-semibold text-destructive">{fmt(p.amount)}</td>
-                <td className="py-2 px-4 text-right">
-                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); onDelete(p.id); }}><Trash2 className="h-3.5 w-3.5" /></Button>
-                </td>
-              </motion.tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[480px]">
+            <thead>
+              <tr className="border-b border-border bg-muted/30">
+                <th className="text-left py-2 px-4 font-medium text-muted-foreground text-xs">Data da Compra</th>
+                <th className="text-left py-2 px-4 font-medium text-muted-foreground text-xs">Descrição</th>
+                <th className="text-right py-2 px-4 font-medium text-muted-foreground text-xs">Valor</th>
+                <th className="text-right py-2 px-4 font-medium text-muted-foreground text-xs"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map(p => (
+                <motion.tr key={p.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
+                  <td className="py-2 px-4 mono text-muted-foreground whitespace-nowrap">{fmtDate(p.purchaseDate || p.dueDate)}</td>
+                  <td className="py-2 px-4 font-medium">{p.description}</td>
+                  <td className="py-2 px-4 text-right mono font-semibold text-destructive whitespace-nowrap">{fmt(p.amount)}</td>
+                  <td className="py-2 px-4 text-right">
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); onDelete(p.id); }}><Trash2 className="h-3.5 w-3.5" /></Button>
+                  </td>
+                </motion.tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );
