@@ -59,6 +59,7 @@ function mapAccount(row: any): FinancialAccount {
     id: row.id, name: row.name, type: row.type, balance: Number(row.balance),
     savingsBalance: Number(row.savings_balance || 0),
     color: row.color, creditLimit: row.credit_limit ? Number(row.credit_limit) : undefined,
+    creditUsed: row.credit_used ? Number(row.credit_used) : undefined,
     billingCloseDay: row.billing_close_day ?? undefined, dueDay: row.due_day ?? undefined,
   };
 }
