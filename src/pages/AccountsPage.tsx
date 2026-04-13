@@ -237,6 +237,7 @@ function AccountForm({ item, onSave }: {
   const [balance, setBalance] = useState(item?.balance?.toString() || '0');
   const [savingsBalance, setSavingsBalance] = useState(item?.savingsBalance?.toString() || '0');
   const [creditLimit, setCreditLimit] = useState(item?.creditLimit?.toString() || '');
+  const [creditUsed, setCreditUsed] = useState(item?.creditUsed?.toString() || '0');
   const [billingCloseDay, setBillingCloseDay] = useState(item?.billingCloseDay?.toString() || '');
   const [dueDay, setDueDay] = useState(item?.dueDay?.toString() || '');
   const colors = ['#0ea5e9', '#10b981', '#eab308', '#ef4444', '#8b5cf6', '#f97316'];
@@ -277,6 +278,7 @@ function AccountForm({ item, onSave }: {
       {hasCreditCard && (
         <>
           <div><Label>Limite de Crédito</Label><Input type="number" step="0.01" value={creditLimit} onChange={e => setCreditLimit(e.target.value)} placeholder="Ex: 5000" /></div>
+          <div><Label>Limite Utilizado</Label><Input type="number" step="0.01" value={creditUsed} onChange={e => setCreditUsed(e.target.value)} placeholder="Ex: 1500" /></div>
           <div className="grid grid-cols-2 gap-3">
             <div><Label>Dia Fechamento</Label><Input type="number" min="1" max="31" value={billingCloseDay} onChange={e => setBillingCloseDay(e.target.value)} placeholder="Ex: 15" /></div>
             <div><Label>Dia Vencimento</Label><Input type="number" min="1" max="31" value={dueDay} onChange={e => setDueDay(e.target.value)} placeholder="Ex: 10" /></div>
@@ -299,6 +301,7 @@ function AccountForm({ item, onSave }: {
           balance: hasChecking ? parseFloat(balance || '0') : 0,
           savingsBalance: hasSavings ? parseFloat(savingsBalance) : 0,
           creditLimit: hasCreditCard ? parseFloat(creditLimit) : undefined,
+          creditUsed: hasCreditCard ? parseFloat(creditUsed || '0') : undefined,
           billingCloseDay: hasCreditCard && billingCloseDay ? parseInt(billingCloseDay) : undefined,
           dueDay: hasCreditCard && dueDay ? parseInt(dueDay) : undefined,
         })}>
