@@ -92,6 +92,9 @@ export default function BudgetsPage() {
           <div className="col-span-full text-center py-12 text-muted-foreground finance-card">Nenhum orçamento definido para este mês</div>
         )}
       </div>
+      <ConfirmDeleteDialog open={!!deleteId} onOpenChange={(o) => { if (!o) setDeleteId(null); }}
+        onConfirm={() => { if (deleteId) { deleteBudget(deleteId); setDeleteId(null); } }}
+        title="Excluir orçamento?" description="Tem certeza que deseja excluir este orçamento? Esta ação não pode ser desfeita." />
     </div>
   );
 }

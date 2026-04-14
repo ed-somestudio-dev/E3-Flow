@@ -95,6 +95,9 @@ export default function TransactionsPage() {
           </table>
         </div>
       </div>
+      <ConfirmDeleteDialog open={!!deleteId} onOpenChange={(o) => { if (!o) setDeleteId(null); }}
+        onConfirm={() => { if (deleteId) { deleteTransaction(deleteId); setDeleteId(null); } }}
+        title="Excluir transação?" description="Tem certeza que deseja excluir esta transação? Esta ação não pode ser desfeita." />
     </div>
   );
 }

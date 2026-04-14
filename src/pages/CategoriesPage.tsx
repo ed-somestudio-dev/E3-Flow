@@ -91,6 +91,9 @@ export default function CategoriesPage() {
           <p className="text-center text-muted-foreground col-span-full py-12">Nenhuma categoria encontrada</p>
         )}
       </div>
+      <ConfirmDeleteDialog open={!!deleteId} onOpenChange={(o) => { if (!o) setDeleteId(null); }}
+        onConfirm={() => { if (deleteId) { deleteCategory(deleteId); setDeleteId(null); } }}
+        title="Excluir categoria?" description="Tem certeza que deseja excluir esta categoria? Esta ação não pode ser desfeita." />
     </div>
   );
 }
