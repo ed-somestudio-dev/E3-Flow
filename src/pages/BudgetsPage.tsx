@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { useFinance } from '@/lib/finance-context';
 import { Budget } from '@/lib/types';
 import { Plus, Trash2, Edit2, AlertTriangle } from 'lucide-react';
+import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -15,6 +16,7 @@ export default function BudgetsPage() {
   const { data, addBudget, updateBudget, deleteBudget, getCategoryName, getCategoryColor } = useFinance();
   const [editingItem, setEditingItem] = useState<Budget | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
   const now = new Date();
   const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   const [month, setMonth] = useState(currentMonth);
@@ -73,7 +75,7 @@ export default function BudgetsPage() {
                 <div className="flex items-center gap-1">
                   {(over || nearLimit) && <AlertTriangle className={`h-4 w-4 ${over ? 'text-destructive' : 'text-warning'}`} />}
                   <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setEditingItem(budget); setDialogOpen(true); }}><Edit2 className="h-3 w-3" /></Button>
-                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deleteBudget(budget.id)}><Trash2 className="h-3 w-3" /></Button>
+                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setDeleteId(budget.id)}><Trash2 className="h-3 w-3" /></Button>
                 </div>
               </div>
               <div className="flex justify-between text-sm mb-2">
