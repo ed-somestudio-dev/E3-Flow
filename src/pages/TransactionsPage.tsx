@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useFinance } from '@/lib/finance-context';
 import { Transaction, TransactionType } from '@/lib/types';
 import { Plus, Trash2, Edit2, Search } from 'lucide-react';
+import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -17,6 +18,7 @@ export default function TransactionsPage() {
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const filtered = data.transactions
     .filter(t => typeFilter === 'all' || t.type === typeFilter)
@@ -83,7 +85,7 @@ export default function TransactionsPage() {
                   <td className="py-3 px-4 text-right">
                     <div className="flex items-center justify-end gap-1">
                       <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setEditingTx(tx); setDialogOpen(true); }}><Edit2 className="h-3.5 w-3.5" /></Button>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => deleteTransaction(tx.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => setDeleteId(tx.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
                     </div>
                   </td>
                 </motion.tr>
@@ -93,6 +95,9 @@ export default function TransactionsPage() {
           </table>
         </div>
       </div>
+      <ConfirmDeleteDialog open={!!deleteId} onOpenChange={(o) => { if (!o) setDeleteId(null); }}
+        onConfirm={() => { if (deleteId) { deleteTransaction(deleteId); setDeleteId(null); } }}
+        title="Excluir transação?" description="Tem certeza que deseja excluir esta transação? Esta ação não pode ser desfeita." />
     </div>
   );
 }

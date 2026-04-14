@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { useFinance } from '@/lib/finance-context';
 import { FinancialAccount, AccountType, getAccountTypes, hasAccountType } from '@/lib/types';
 import { Plus, Trash2, Edit2, Wallet, PiggyBank, Banknote, CreditCard, ArrowRightLeft, Receipt } from 'lucide-react';
+import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -22,6 +23,7 @@ export default function AccountsPage() {
   const { data, addAccount, updateAccount, deleteAccount, transferBetweenAccounts } = useFinance();
   const [editingItem, setEditingItem] = useState<FinancialAccount | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
   const [transferOpen, setTransferOpen] = useState(false);
 
   const totalBalance = data.accounts.reduce((s, a) => s + a.balance + a.savingsBalance, 0);
@@ -115,7 +117,7 @@ export default function AccountsPage() {
                 </div>
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setEditingItem(acc); setDialogOpen(true); }}><Edit2 className="h-3 w-3" /></Button>
-                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deleteAccount(acc.id)}><Trash2 className="h-3 w-3" /></Button>
+                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setDeleteId(acc.id)}><Trash2 className="h-3 w-3" /></Button>
                 </div>
               </div>
 
@@ -180,6 +182,9 @@ export default function AccountsPage() {
           }} />
         </DialogContent>
       </Dialog>
+      <ConfirmDeleteDialog open={!!deleteId} onOpenChange={(o) => { if (!o) setDeleteId(null); }}
+        onConfirm={() => { if (deleteId) { deleteAccount(deleteId); setDeleteId(null); } }}
+        title="Excluir conta?" description="Tem certeza que deseja excluir esta conta? Esta ação não pode ser desfeita." />
     </div>
   );
 }

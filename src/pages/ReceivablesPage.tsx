@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useFinance } from '@/lib/finance-context';
 import { Receivable, ReceivableStatus } from '@/lib/types';
 import { Plus, Trash2, Edit2, CheckCircle, Search, CreditCard } from 'lucide-react';
+import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -25,6 +26,7 @@ export default function ReceivablesPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [editingItem, setEditingItem] = useState<Receivable | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
   const [receiveDialogOpen, setReceiveDialogOpen] = useState(false);
   const [receivingId, setReceivingId] = useState<string | null>(null);
   const [receiveAccountId, setReceiveAccountId] = useState('');
@@ -119,7 +121,7 @@ export default function ReceivablesPage() {
                         </Button>
                       )}
                       <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setEditingItem(r); setDialogOpen(true); }}><Edit2 className="h-3.5 w-3.5" /></Button>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => deleteReceivable(r.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => setDeleteId(r.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
                     </div>
                   </td>
                 </motion.tr>
@@ -145,6 +147,9 @@ export default function ReceivablesPage() {
           </div>
         </DialogContent>
       </Dialog>
+      <ConfirmDeleteDialog open={!!deleteId} onOpenChange={(o) => { if (!o) setDeleteId(null); }}
+        onConfirm={() => { if (deleteId) { deleteReceivable(deleteId); setDeleteId(null); } }}
+        title="Excluir recebível?" description="Tem certeza que deseja excluir este recebível? Esta ação não pode ser desfeita." />
     </div>
   );
 }
