@@ -368,7 +368,7 @@ export default function PayablesPage() {
                 invoicesByMonth={byMonth}
                 onMarkPaid={handleMarkPaid}
                 onPayAll={handlePayAll}
-                onDelete={deletePayable}
+                onDelete={(id) => setDeleteId(id)}
               />
             );
           })}
@@ -410,6 +410,9 @@ export default function PayablesPage() {
           </div>
         </DialogContent>
       </Dialog>
+      <ConfirmDeleteDialog open={!!deleteId} onOpenChange={(o) => { if (!o) setDeleteId(null); }}
+        onConfirm={() => { if (deleteId) { deletePayable(deleteId); setDeleteId(null); } }}
+        title="Excluir conta a pagar?" description="Tem certeza que deseja excluir esta conta a pagar? Esta ação não pode ser desfeita." />
     </div>
   );
 }

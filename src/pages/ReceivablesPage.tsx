@@ -147,6 +147,9 @@ export default function ReceivablesPage() {
           </div>
         </DialogContent>
       </Dialog>
+      <ConfirmDeleteDialog open={!!deleteId} onOpenChange={(o) => { if (!o) setDeleteId(null); }}
+        onConfirm={() => { if (deleteId) { deleteReceivable(deleteId); setDeleteId(null); } }}
+        title="Excluir recebível?" description="Tem certeza que deseja excluir este recebível? Esta ação não pode ser desfeita." />
     </div>
   );
 }
