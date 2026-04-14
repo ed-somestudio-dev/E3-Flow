@@ -32,6 +32,8 @@ interface FinanceContextType {
   getAccountName: (id: string) => string;
   getCategoryColor: (id: string) => string;
   resetAllData: () => Promise<void>;
+  exportBackup: () => void;
+  importBackup: (file: File) => Promise<void>;
 }
 
 const FinanceContext = createContext<FinanceContextType | null>(null);
@@ -677,6 +679,106 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     await fetchAll();
   }, [user, fetchAll]);
 
+  const exportBackup = useCallback(() => {
+    const backup = {
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      data,
+    };
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `fluxopro-backup-${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success('Backup exportado com sucesso');
+  }, [data]);
+
+  const importBackup = useCallback(async (file: File) => {
+    if (!user) return;
+    try {
+      const text = await file.text();
+      const backup = JSON.parse(text);
+      if (!backup.data || !backup.version) {
+        toast.error('Arquivo de backup inválido');
+        return;
+      }
+      const bd = backup.data as FinanceData;
+
+      // Clear existing data
+      await supabase.from('budgets').delete().eq('user_id', user.id);
+      await supabase.from('transactions').delete().eq('user_id', user.id);
+      await supabase.from('payables').delete().eq('user_id', user.id);
+      await supabase.from('receivables').delete().eq('user_id', user.id);
+      await supabase.from('financial_accounts').delete().eq('user_id', user.id);
+      await supabase.from('categories').delete().eq('user_id', user.id);
+
+      // Restore categories
+      if (bd.categories.length > 0) {
+        await supabase.from('categories').insert(bd.categories.map(c => ({
+          id: c.id, name: c.name, type: c.type, icon: c.icon, color: c.color, user_id: user.id,
+        })));
+      }
+
+      // Restore accounts
+      if (bd.accounts.length > 0) {
+        await supabase.from('financial_accounts').insert(bd.accounts.map(a => ({
+          id: a.id, name: a.name, type: a.type, balance: a.balance,
+          savings_balance: a.savingsBalance || 0, credit_limit: a.creditLimit ?? null,
+          credit_used: a.creditUsed ?? 0, billing_close_day: a.billingCloseDay ?? null,
+          due_day: a.dueDay ?? null, color: a.color, user_id: user.id,
+        })));
+      }
+
+      // Restore transactions
+      if (bd.transactions.length > 0) {
+        await supabase.from('transactions').insert(bd.transactions.map(t => ({
+          id: t.id, type: t.type, description: t.description, category_id: t.categoryId,
+          amount: t.amount, date: t.date, account_id: t.accountId,
+          notes: t.notes ?? null, is_credit: t.isCredit ?? false, user_id: user.id,
+        })));
+      }
+
+      // Restore payables
+      if (bd.payables.length > 0) {
+        await supabase.from('payables').insert(bd.payables.map(p => ({
+          id: p.id, description: p.description, supplier: p.supplier,
+          category_id: p.categoryId, account_id: p.accountId ?? null,
+          amount: p.amount, due_date: p.dueDate, payment_date: p.paymentDate ?? null,
+          payment_method: p.paymentMethod ?? null, status: p.status === 'overdue' ? 'pending' : p.status,
+          notes: p.notes ?? null, purchase_date: p.purchaseDate ?? null,
+          recurring: p.recurring ?? false, recurrence_frequency: p.recurrenceFrequency ?? null,
+          recurrence_end_date: p.recurrenceEndDate ?? null, user_id: user.id,
+        })));
+      }
+
+      // Restore receivables
+      if (bd.receivables.length > 0) {
+        await supabase.from('receivables').insert(bd.receivables.map(r => ({
+          id: r.id, client_name: r.clientName, description: r.description,
+          category_id: r.categoryId, account_id: r.accountId ?? null,
+          amount: r.amount, due_date: r.dueDate, payment_date: r.paymentDate ?? null,
+          payment_method: r.paymentMethod ?? null, status: r.status === 'overdue' ? 'pending' : r.status,
+          notes: r.notes ?? null, user_id: user.id,
+        })));
+      }
+
+      // Restore budgets
+      if (bd.budgets.length > 0) {
+        await supabase.from('budgets').insert(bd.budgets.map(b => ({
+          id: b.id, category_id: b.categoryId, amount: b.amount, month: b.month, user_id: user.id,
+        })));
+      }
+
+      toast.success('Backup restaurado com sucesso');
+      await fetchAll();
+    } catch (e) {
+      console.error('Import error:', e);
+      toast.error('Erro ao restaurar backup');
+    }
+  }, [user, fetchAll]);
+
   return (
     <FinanceContext.Provider value={{
       data, loading,
@@ -687,7 +789,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       addBudget, updateBudget, deleteBudget,
       addCategory, updateCategory, deleteCategory,
       getCategoryName, getAccountName, getCategoryColor,
-      resetAllData,
+      resetAllData, exportBackup, importBackup,
     }}>
       {children}
     </FinanceContext.Provider>

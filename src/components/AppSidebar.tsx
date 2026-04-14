@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import {
-  LayoutDashboard, FileText, FileInput, ArrowUpDown, Wallet, Target, Sun, Moon, BarChart3, LogOut, Tag, RotateCcw,
+  LayoutDashboard, FileText, FileInput, ArrowUpDown, Wallet, Target, Sun, Moon, BarChart3, LogOut, Tag, RotateCcw, Download, Upload,
 } from 'lucide-react';
 import logoFluxoPro from '@/assets/Logo_FluxoPro.png';
 import { NavLink } from '@/components/NavLink';
@@ -36,8 +36,11 @@ export function AppSidebar() {
   const collapsed = state === 'collapsed';
   const { theme, toggleTheme } = useTheme();
   const { signOut } = useAuth();
-  const { resetAllData } = useFinance();
+  const { resetAllData, exportBackup, importBackup } = useFinance();
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [restoreConfirmOpen, setRestoreConfirmOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const pendingFileRef = useRef<File | null>(null);
 
   return (
     <>
@@ -85,6 +88,21 @@ export function AppSidebar() {
           </SidebarGroup>
         </SidebarContent>
         <SidebarFooter>
+          <button onClick={exportBackup}
+            className="flex items-center gap-2 px-4 py-3 text-sidebar-muted hover:text-sidebar-foreground transition-colors w-full">
+            <Download className="h-4 w-4" />
+            {!collapsed && <span className="text-sm">Exportar Backup</span>}
+          </button>
+          <button onClick={() => fileInputRef.current?.click()}
+            className="flex items-center gap-2 px-4 py-3 text-sidebar-muted hover:text-sidebar-foreground transition-colors w-full">
+            <Upload className="h-4 w-4" />
+            {!collapsed && <span className="text-sm">Restaurar Backup</span>}
+          </button>
+          <input ref={fileInputRef} type="file" accept=".json" className="hidden" onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) { pendingFileRef.current = file; setRestoreConfirmOpen(true); }
+            e.target.value = '';
+          }} />
           <button onClick={() => setConfirmOpen(true)}
             className="flex items-center gap-2 px-4 py-3 text-sidebar-muted hover:text-destructive transition-colors w-full">
             <RotateCcw className="h-4 w-4" />
@@ -118,6 +136,32 @@ export function AppSidebar() {
               onClick={async () => { await resetAllData(); setConfirmOpen(false); }}
             >
               Sim, reiniciar tudo
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={restoreConfirmOpen} onOpenChange={setRestoreConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Restaurar backup?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação irá substituir todos os seus dados atuais pelos dados do backup. Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => { pendingFileRef.current = null; }}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
+              onClick={async () => {
+                if (pendingFileRef.current) {
+                  await importBackup(pendingFileRef.current);
+                  pendingFileRef.current = null;
+                }
+                setRestoreConfirmOpen(false);
+              }}
+            >
+              Sim, restaurar
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
