@@ -23,6 +23,7 @@ export default function AccountsPage() {
   const { data, addAccount, updateAccount, deleteAccount, transferBetweenAccounts } = useFinance();
   const [editingItem, setEditingItem] = useState<FinancialAccount | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
   const [transferOpen, setTransferOpen] = useState(false);
 
   const totalBalance = data.accounts.reduce((s, a) => s + a.balance + a.savingsBalance, 0);

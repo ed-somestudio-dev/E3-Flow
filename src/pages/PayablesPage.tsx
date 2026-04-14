@@ -161,6 +161,7 @@ export default function PayablesPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [editingItem, setEditingItem] = useState<Payable | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
   const [payDialogOpen, setPayDialogOpen] = useState(false);
   const [payAccountId, setPayAccountId] = useState('');
   const [dateFrom, setDateFrom] = useState<Date | undefined>(startOfMonth(new Date()));

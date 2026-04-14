@@ -26,6 +26,7 @@ export default function ReceivablesPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [editingItem, setEditingItem] = useState<Receivable | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
   const [receiveDialogOpen, setReceiveDialogOpen] = useState(false);
   const [receivingId, setReceivingId] = useState<string | null>(null);
   const [receiveAccountId, setReceiveAccountId] = useState('');
