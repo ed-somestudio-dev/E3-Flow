@@ -182,6 +182,9 @@ export default function AccountsPage() {
           }} />
         </DialogContent>
       </Dialog>
+      <ConfirmDeleteDialog open={!!deleteId} onOpenChange={(o) => { if (!o) setDeleteId(null); }}
+        onConfirm={() => { if (deleteId) { deleteAccount(deleteId); setDeleteId(null); } }}
+        title="Excluir conta?" description="Tem certeza que deseja excluir esta conta? Esta ação não pode ser desfeita." />
     </div>
   );
 }
