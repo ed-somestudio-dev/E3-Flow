@@ -140,6 +140,32 @@ export function AppSidebar() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AlertDialog open={restoreConfirmOpen} onOpenChange={setRestoreConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Restaurar backup?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação irá substituir todos os seus dados atuais pelos dados do backup. Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => { pendingFileRef.current = null; }}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
+              onClick={async () => {
+                if (pendingFileRef.current) {
+                  await importBackup(pendingFileRef.current);
+                  pendingFileRef.current = null;
+                }
+                setRestoreConfirmOpen(false);
+              }}
+            >
+              Sim, restaurar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
