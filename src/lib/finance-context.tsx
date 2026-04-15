@@ -144,6 +144,53 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
         categories = (inserted || []).map(mapCategory);
       }
 
+      // Deduplicate categories (same name + type): keep the first, reassign references
+      const seen = new Map<string, string>(); // "name|type" -> kept id
+      const idMap = new Map<string, string>(); // duplicate id -> kept id
+      const toDelete: string[] = [];
+      for (const cat of categories) {
+        const key = `${cat.name.trim().toLowerCase()}|${cat.type}`;
+        if (seen.has(key)) {
+          idMap.set(cat.id, seen.get(key)!);
+          toDelete.push(cat.id);
+        } else {
+          seen.set(key, cat.id);
+        }
+      }
+      if (toDelete.length > 0) {
+        // Reassign references in payables, receivables, transactions, budgets
+        for (const [oldId, newId] of idMap.entries()) {
+          await Promise.all([
+            supabase.from('payables').update({ category_id: newId }).eq('category_id', oldId).eq('user_id', user.id),
+            supabase.from('receivables').update({ category_id: newId }).eq('category_id', oldId).eq('user_id', user.id),
+            supabase.from('transactions').update({ category_id: newId }).eq('category_id', oldId).eq('user_id', user.id),
+            supabase.from('budgets').update({ category_id: newId }).eq('category_id', oldId).eq('user_id', user.id),
+          ]);
+        }
+        // Delete duplicate categories
+        await supabase.from('categories').delete().in('id', toDelete);
+        categories = categories.filter(c => !toDelete.includes(c.id));
+        // Re-map category IDs in local data
+        const remapCatId = (id: string) => idMap.get(id) || id;
+        // We'll re-fetch to get clean data
+        const [txs2, pays2, recs2, buds2] = await Promise.all([
+          supabase.from('transactions').select('*').eq('user_id', user.id).order('date', { ascending: false }),
+          supabase.from('payables').select('*').eq('user_id', user.id).order('due_date'),
+          supabase.from('receivables').select('*').eq('user_id', user.id).order('due_date'),
+          supabase.from('budgets').select('*').eq('user_id', user.id),
+        ]);
+        setData({
+          categories,
+          accounts: (accs.data || []).map(mapAccount),
+          transactions: (txs2.data || []).map(mapTransaction),
+          payables: (pays2.data || []).map(mapPayable),
+          receivables: (recs2.data || []).map(mapReceivable),
+          budgets: (buds2.data || []).map(mapBudget),
+        });
+        toast.success(`${toDelete.length} categoria(s) duplicada(s) removida(s)`);
+        return;
+      }
+
       setData({
         categories,
         accounts: (accs.data || []).map(mapAccount),
