@@ -78,6 +78,9 @@ export default function ReceivablesPage() {
     }
   };
 
+  const receivingAmount = receivingId ? (data.receivables.find(r => r.id === receivingId)?.amount || 0) : 0;
+  const selectedReceiveAccount = data.accounts.find(a => a.id === receiveAccountId);
+
   return (
     <div className="space-y-6 max-w-5xl">
       <div className="flex items-center justify-between flex-wrap gap-4">
