@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useFinance } from '@/lib/finance-context';
 import { Transaction, TransactionType } from '@/lib/types';
 import { Plus, Trash2, Edit2, Search } from 'lucide-react';
+import { CalculatorInput } from '@/components/CalculatorInput';
 import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -141,7 +142,7 @@ function TransactionForm({ tx, categories, accounts, onSave }: {
           </Select>
         </div>
       </div>
-      <div><Label>Valor</Label><Input type="number" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0,00" /></div>
+      <div><Label>Valor</Label><CalculatorInput value={amount} onChange={setAmount} placeholder="0,00" /></div>
       <div><Label>Notas (opcional)</Label><Input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Observações" /></div>
       <Button className="w-full" disabled={!description || !categoryId || !amount || !accountId}
         onClick={() => onSave({ type, description, categoryId, amount: parseFloat(amount), date, accountId, notes: notes || undefined })}>

@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo } from 'react';
 import { useFinance } from '@/lib/finance-context';
 import { Payable, PayableStatus, RecurrenceFrequency } from '@/lib/types';
 import { Plus, Trash2, Edit2, CheckCircle, Search, RefreshCw, CreditCard, Wallet, ChevronDown, ChevronRight, CalendarIcon, X } from 'lucide-react';
+import { CalculatorInput } from '@/components/CalculatorInput';
 import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -534,7 +535,7 @@ function PayableForm({ item, categories, accounts, onSave }: {
       )}
 
       <div className="grid grid-cols-2 gap-3">
-        <div><Label>Valor Total</Label><Input type="number" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} /></div>
+        <div><Label>Valor Total</Label><CalculatorInput value={amount} onChange={setAmount} /></div>
         {isCreditCard && paymentMode === 'credit' ? (
           <div><Label>Data da Compra</Label><Input type="date" value={purchaseDate} onChange={e => handlePurchaseDateChange(e.target.value)} /></div>
         ) : (
