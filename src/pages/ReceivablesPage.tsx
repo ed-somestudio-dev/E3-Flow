@@ -1,17 +1,23 @@
 import { useState } from 'react';
 import { useFinance } from '@/lib/finance-context';
 import { Receivable, ReceivableStatus } from '@/lib/types';
-import { Plus, Trash2, Edit2, CheckCircle, Search, CreditCard } from 'lucide-react';
+import { Plus, Trash2, Edit2, CheckCircle, Search, CreditCard, CalendarIcon, X } from 'lucide-react';
 import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog';
+import { CalculatorInput } from '@/components/CalculatorInput';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
 import { motion } from 'framer-motion';
 import { fmt, fmtDate } from '@/lib/format';
 import { SAFE_LABELS } from '@/lib/safe-labels';
+import { format, startOfMonth, endOfMonth } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { cn } from '@/lib/utils';
 
 const statusLabels: Record<ReceivableStatus, string> = { pending: 'Pendente', received: 'Recebido', overdue: 'Atrasado' };
 
@@ -30,10 +36,27 @@ export default function ReceivablesPage() {
   const [receiveDialogOpen, setReceiveDialogOpen] = useState(false);
   const [receivingId, setReceivingId] = useState<string | null>(null);
   const [receiveAccountId, setReceiveAccountId] = useState('');
+  const [dateFrom, setDateFrom] = useState<Date | undefined>(startOfMonth(new Date()));
+  const [dateTo, setDateTo] = useState<Date | undefined>(endOfMonth(new Date()));
+
+  const setCurrentMonth = () => {
+    setDateFrom(startOfMonth(new Date()));
+    setDateTo(endOfMonth(new Date()));
+  };
+
+  const clearDateFilter = () => {
+    setDateFrom(undefined);
+    setDateTo(undefined);
+  };
 
   const filtered = data.receivables
     .filter(r => statusFilter === 'all' || r.status === statusFilter)
     .filter(r => r.description.toLowerCase().includes(search.toLowerCase()) || r.clientName.toLowerCase().includes(search.toLowerCase()))
+    .filter(r => {
+      if (dateFrom && r.dueDate < format(dateFrom, 'yyyy-MM-dd')) return false;
+      if (dateTo && r.dueDate > format(dateTo, 'yyyy-MM-dd')) return false;
+      return true;
+    })
     .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
 
   const handleMarkReceived = (id: string) => {
@@ -87,6 +110,39 @@ export default function ReceivablesPage() {
             <SelectItem value="overdue">Atrasado</SelectItem>
           </SelectContent>
         </Select>
+      </div>
+      <div className="flex items-center gap-3 flex-wrap">
+        <Button variant={dateFrom && dateTo && format(dateFrom, 'yyyy-MM') === format(new Date(), 'yyyy-MM') && format(dateTo, 'yyyy-MM') === format(new Date(), 'yyyy-MM') ? 'default' : 'outline'} size="sm" onClick={setCurrentMonth}>
+          <CalendarIcon className="h-4 w-4 mr-2" />Mês Atual
+        </Button>
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" size="sm" className={cn("justify-start text-left font-normal", !dateFrom && "text-muted-foreground")}>
+              <CalendarIcon className="h-4 w-4 mr-2" />
+              {dateFrom ? format(dateFrom, "dd/MM/yyyy") : "Data inicial"}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <Calendar mode="single" selected={dateFrom} onSelect={setDateFrom} initialFocus className="p-3 pointer-events-auto" locale={ptBR} />
+          </PopoverContent>
+        </Popover>
+        <span className="text-muted-foreground text-sm">até</span>
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" size="sm" className={cn("justify-start text-left font-normal", !dateTo && "text-muted-foreground")}>
+              <CalendarIcon className="h-4 w-4 mr-2" />
+              {dateTo ? format(dateTo, "dd/MM/yyyy") : "Data final"}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <Calendar mode="single" selected={dateTo} onSelect={setDateTo} initialFocus className="p-3 pointer-events-auto" locale={ptBR} />
+          </PopoverContent>
+        </Popover>
+        {(dateFrom || dateTo) && (
+          <Button variant="ghost" size="sm" onClick={clearDateFilter}>
+            <X className="h-4 w-4 mr-1" />Limpar
+          </Button>
+        )}
       </div>
       <div className="finance-card p-0 overflow-hidden">
         <div className="overflow-x-auto">
@@ -192,7 +248,7 @@ function ReceivableForm({ item, categories, accounts, onSave }: {
         </div>
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <div><Label>Valor Total</Label><Input type="number" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} /></div>
+        <div><Label>Valor Total</Label><CalculatorInput value={amount} onChange={setAmount} /></div>
         <div><Label>Vencimento</Label><Input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} /></div>
       </div>
 
