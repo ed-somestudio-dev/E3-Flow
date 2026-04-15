@@ -194,15 +194,35 @@ export default function ReceivablesPage() {
       {/* Receive dialog - select account */}
       <Dialog open={receiveDialogOpen} onOpenChange={setReceiveDialogOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Selecionar Conta para Recebimento</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Confirmar Recebimento</DialogTitle></DialogHeader>
           <div className="space-y-4">
-            <div><Label>Conta</Label>
+            <div className="flex items-center justify-between p-3 rounded-md bg-muted/50">
+              <span className="text-sm text-muted-foreground">Valor</span>
+              <span className="text-lg font-bold text-success mono">{fmt(receivingAmount)}</span>
+            </div>
+            <div className="space-y-2">
+              <Label>Conta para crédito</Label>
               <Select value={receiveAccountId} onValueChange={setReceiveAccountId}>
                 <SelectTrigger><SelectValue placeholder="Selecionar conta" /></SelectTrigger>
-                <SelectContent>{data.accounts.map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}</SelectContent>
+                <SelectContent>{data.accounts.map(a => (
+                  <SelectItem key={a.id} value={a.id}>
+                    <div className="flex items-center justify-between w-full gap-4">
+                      <span>{a.name}</span>
+                      <span className="text-xs text-muted-foreground mono">Saldo: {fmt(a.balance)}</span>
+                    </div>
+                  </SelectItem>
+                ))}</SelectContent>
               </Select>
+              {selectedReceiveAccount && (
+                <p className="text-xs text-muted-foreground">
+                  Saldo após recebimento: <span className="font-semibold mono">{fmt(selectedReceiveAccount.balance + receivingAmount)}</span>
+                </p>
+              )}
             </div>
-            <Button className="w-full" disabled={!receiveAccountId} onClick={confirmReceive}>Confirmar Recebimento</Button>
+            <Button className="w-full" disabled={!receiveAccountId} onClick={confirmReceive}>
+              <CheckCircle className="h-4 w-4 mr-2" />
+              Confirmar Recebimento
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
