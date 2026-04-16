@@ -635,12 +635,15 @@ function PayableForm({ item, categories, accounts, onSave }: {
                 <div>
                   <Label>Nº de Parcelas</Label>
                   <Input type="number" min="2" max="48" value={installments} onChange={e => {
-                    const n = Math.max(2, parseInt(e.target.value) || 2);
+                    const raw = e.target.value;
+                    const parsed = parseInt(raw);
+                    if (raw === '' || isNaN(parsed)) { setInstallments('' as any); return; }
+                    const n = Math.min(48, parsed);
                     setInstallments(n);
                     if (inputMode === 'installment' && installmentValue) {
                       setAmount((parseFloat(installmentValue) * n).toFixed(2));
                     }
-                  }} />
+                  }} onBlur={() => { if (!installments || installments < 2) setInstallments(2); }} />
                 </div>
                 {inputMode === 'installment' ? (
                   <div>
