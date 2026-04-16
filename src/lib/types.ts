@@ -75,6 +75,9 @@ export interface Receivable {
   paymentMethod?: string;
   status: ReceivableStatus;
   notes?: string;
+  recurring?: boolean;
+  recurrenceFrequency?: RecurrenceFrequency;
+  recurrenceEndDate?: string;
 }
 
 export interface Budget {

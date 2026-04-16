@@ -297,6 +297,12 @@ export default function PayablesPage() {
           </Button>
         )}
       </div>
+      {/* Totals */}
+      <div className="flex items-center gap-4 p-3 rounded-lg bg-muted/50 border border-border">
+        <span className="text-sm text-muted-foreground">Total exibido:</span>
+        <span className="text-lg font-bold text-destructive mono">{fmt(allFiltered.reduce((s, p) => s + p.amount, 0))}</span>
+        <span className="text-xs text-muted-foreground">({allFiltered.length} {allFiltered.length === 1 ? 'item' : 'itens'})</span>
+      </div>
       <div className="finance-card p-0 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -629,12 +635,15 @@ function PayableForm({ item, categories, accounts, onSave }: {
                 <div>
                   <Label>Nº de Parcelas</Label>
                   <Input type="number" min="2" max="48" value={installments} onChange={e => {
-                    const n = Math.max(2, parseInt(e.target.value) || 2);
+                    const raw = e.target.value;
+                    const parsed = parseInt(raw);
+                    if (raw === '' || isNaN(parsed)) { setInstallments('' as any); return; }
+                    const n = Math.min(48, parsed);
                     setInstallments(n);
                     if (inputMode === 'installment' && installmentValue) {
                       setAmount((parseFloat(installmentValue) * n).toFixed(2));
                     }
-                  }} />
+                  }} onBlur={() => { if (!installments || installments < 2) setInstallments(2); }} />
                 </div>
                 {inputMode === 'installment' ? (
                   <div>

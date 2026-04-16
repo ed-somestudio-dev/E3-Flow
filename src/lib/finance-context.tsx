@@ -101,6 +101,9 @@ function mapReceivable(row: any): Receivable {
     amount: Number(row.amount), dueDate: row.due_date, paymentDate: row.payment_date ?? undefined,
     paymentMethod: row.payment_method ?? undefined, status,
     notes: row.notes ?? undefined,
+    recurring: row.recurring ?? false,
+    recurrenceFrequency: row.recurrence_frequency ?? undefined,
+    recurrenceEndDate: row.recurrence_end_date ?? undefined,
   };
 }
 
@@ -561,6 +564,9 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       category_id: r.categoryId, account_id: r.accountId || null,
       amount: r.amount, due_date: r.dueDate, status: r.status,
       notes: r.notes || null,
+      recurring: r.recurring || false,
+      recurrence_frequency: r.recurrenceFrequency || null,
+      recurrence_end_date: r.recurrenceEndDate || null,
     });
     if (error) { console.error('addReceivable error:', error); toast.error('Erro ao criar conta a receber'); return; }
     await fetchAll();
@@ -573,6 +579,9 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       category_id: r.categoryId, account_id: r.accountId || null,
       amount: r.amount, due_date: r.dueDate, status: r.status,
       notes: r.notes || null,
+      recurring: r.recurring || false,
+      recurrence_frequency: r.recurrenceFrequency || null,
+      recurrence_end_date: r.recurrenceEndDate || null,
     }).eq('id', r.id).eq('user_id', user.id);
     if (error) { console.error('updateReceivable error:', error); toast.error('Erro ao atualizar conta a receber'); return; }
     await fetchAll();
@@ -807,7 +816,9 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
           category_id: r.categoryId, account_id: r.accountId ?? null,
           amount: r.amount, due_date: r.dueDate, payment_date: r.paymentDate ?? null,
           payment_method: r.paymentMethod ?? null, status: r.status === 'overdue' ? 'pending' : r.status,
-          notes: r.notes ?? null, user_id: user.id,
+          notes: r.notes ?? null, recurring: r.recurring ?? false,
+          recurrence_frequency: r.recurrenceFrequency ?? null,
+          recurrence_end_date: r.recurrenceEndDate ?? null, user_id: user.id,
         })));
       }
 

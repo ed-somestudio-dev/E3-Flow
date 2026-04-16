@@ -224,6 +224,9 @@ export type Database = {
           notes: string | null
           payment_date: string | null
           payment_method: string | null
+          recurrence_end_date: string | null
+          recurrence_frequency: string | null
+          recurring: boolean | null
           status: string
           updated_at: string
           user_id: string
@@ -240,6 +243,9 @@ export type Database = {
           notes?: string | null
           payment_date?: string | null
           payment_method?: string | null
+          recurrence_end_date?: string | null
+          recurrence_frequency?: string | null
+          recurring?: boolean | null
           status?: string
           updated_at?: string
           user_id: string
@@ -256,6 +262,9 @@ export type Database = {
           notes?: string | null
           payment_date?: string | null
           payment_method?: string | null
+          recurrence_end_date?: string | null
+          recurrence_frequency?: string | null
+          recurring?: boolean | null
           status?: string
           updated_at?: string
           user_id?: string

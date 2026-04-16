@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useFinance } from '@/lib/finance-context';
-import { Receivable, ReceivableStatus } from '@/lib/types';
-import { Plus, Trash2, Edit2, CheckCircle, Search, CreditCard, CalendarIcon, X } from 'lucide-react';
+import { Receivable, ReceivableStatus, RecurrenceFrequency } from '@/lib/types';
+import { Plus, Trash2, Edit2, CheckCircle, Search, CreditCard, CalendarIcon, X, RefreshCw } from 'lucide-react';
 import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog';
 import { CalculatorInput } from '@/components/CalculatorInput';
 import { Button } from '@/components/ui/button';
@@ -59,15 +59,13 @@ export default function ReceivablesPage() {
     })
     .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
 
+  const totalFiltered = filtered.reduce((sum, r) => sum + r.amount, 0);
+
   const handleMarkReceived = (id: string) => {
     const receivable = data.receivables.find(r => r.id === id);
-    if (receivable?.accountId) {
-      markReceivableReceived(id, receivable.accountId);
-    } else {
-      setReceivingId(id);
-      setReceiveAccountId(data.accounts[0]?.id || '');
-      setReceiveDialogOpen(true);
-    }
+    setReceivingId(id);
+    setReceiveAccountId(receivable?.accountId || data.accounts[0]?.id || '');
+    setReceiveDialogOpen(true);
   };
 
   const confirmReceive = () => {
@@ -147,6 +145,14 @@ export default function ReceivablesPage() {
           </Button>
         )}
       </div>
+
+      {/* Totals */}
+      <div className="flex items-center gap-4 p-3 rounded-lg bg-muted/50 border border-border">
+        <span className="text-sm text-muted-foreground">Total exibido:</span>
+        <span className="text-lg font-bold text-success mono">{fmt(totalFiltered)}</span>
+        <span className="text-xs text-muted-foreground">({filtered.length} {filtered.length === 1 ? 'item' : 'itens'})</span>
+      </div>
+
       <div className="finance-card p-0 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -167,7 +173,12 @@ export default function ReceivablesPage() {
                 <motion.tr key={r.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
                   <td className="py-3 px-4 mono text-muted-foreground">{fmtDate(r.dueDate)}</td>
                   <td className="py-3 px-4 font-medium">{r.clientName}</td>
-                  <td className="py-3 px-4 text-muted-foreground">{r.description}</td>
+                  <td className="py-3 px-4 text-muted-foreground">
+                    <div className="flex items-center gap-1.5">
+                      {r.description}
+                      {r.recurring && <RefreshCw className="h-3 w-3 text-primary" />}
+                    </div>
+                  </td>
                   <td className="py-3 px-4 text-muted-foreground">{getCategoryName(r.categoryId)}</td>
                   <td className="py-3 px-4 text-muted-foreground">{r.accountId ? getAccountName(r.accountId) : '—'}</td>
                   <td className="py-3 px-4"><StatusBadge status={r.status} /></td>
@@ -191,7 +202,7 @@ export default function ReceivablesPage() {
         </div>
       </div>
 
-      {/* Receive dialog - select account */}
+      {/* Receive dialog - always show, allow changing account */}
       <Dialog open={receiveDialogOpen} onOpenChange={setReceiveDialogOpen}>
         <DialogContent>
           <DialogHeader><DialogTitle>Confirmar Recebimento</DialogTitle></DialogHeader>
@@ -249,6 +260,8 @@ function ReceivableForm({ item, categories, accounts, onSave }: {
   const [installments, setInstallments] = useState(2);
   const [inputMode, setInputMode] = useState<'total' | 'installment'>('total');
   const [installmentValue, setInstallmentValue] = useState('');
+  const [recurring, setRecurring] = useState(item?.recurring || false);
+  const [recurrenceFrequency, setRecurrenceFrequency] = useState<RecurrenceFrequency>(item?.recurrenceFrequency || 'monthly');
 
   const installmentAmount = amount ? (parseFloat(amount) / installments) : 0;
 
@@ -277,7 +290,7 @@ function ReceivableForm({ item, categories, accounts, onSave }: {
 
       <div className="space-y-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
         <div className="flex items-center gap-2">
-          <Checkbox id="useInstallmentsRec" checked={useInstallments} onCheckedChange={(c) => { setUseInstallments(c === true); if (!c) setInstallments(2); }} />
+          <Checkbox id="useInstallmentsRec" checked={useInstallments} onCheckedChange={(c) => { setUseInstallments(c === true); if (c) setRecurring(false); if (!c) setInstallments(2); }} />
           <Label htmlFor="useInstallmentsRec" className="cursor-pointer flex items-center gap-1.5">
             <CreditCard className="h-3.5 w-3.5 text-primary" />
             Parcelar
@@ -296,12 +309,15 @@ function ReceivableForm({ item, categories, accounts, onSave }: {
               <div>
                 <Label>Nº de Parcelas</Label>
                 <Input type="number" min="2" max="48" value={installments} onChange={e => {
-                  const n = Math.max(2, parseInt(e.target.value) || 2);
+                  const raw = e.target.value;
+                  const parsed = parseInt(raw);
+                  if (raw === '' || isNaN(parsed)) { setInstallments('' as any); return; }
+                  const n = Math.min(48, parsed);
                   setInstallments(n);
                   if (inputMode === 'installment' && installmentValue) {
                     setAmount((parseFloat(installmentValue) * n).toFixed(2));
                   }
-                }} />
+                }} onBlur={() => { if (!installments || installments < 2) setInstallments(2); }} />
               </div>
               {inputMode === 'installment' ? (
                 <div>
@@ -328,12 +344,38 @@ function ReceivableForm({ item, categories, accounts, onSave }: {
         )}
       </div>
 
+      {!useInstallments && (
+        <>
+          <div className="flex items-center gap-2">
+            <Checkbox id="recurringRec" checked={recurring} onCheckedChange={(c) => setRecurring(c === true)} />
+            <Label htmlFor="recurringRec" className="cursor-pointer flex items-center gap-1.5">
+              <RefreshCw className="h-3.5 w-3.5 text-primary" />
+              Recebimento recorrente
+            </Label>
+          </div>
+          {recurring && (
+            <div><Label>Frequência</Label>
+              <Select value={recurrenceFrequency} onValueChange={v => setRecurrenceFrequency(v as RecurrenceFrequency)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="weekly">Semanal</SelectItem>
+                  <SelectItem value="monthly">Mensal</SelectItem>
+                  <SelectItem value="yearly">Anual</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+        </>
+      )}
+
       <div><Label>Notas (opcional)</Label><Input value={notes} onChange={e => setNotes(e.target.value)} /></div>
       <Button className="w-full" disabled={!clientName || !description || !categoryId || !amount || !dueDate}
         onClick={() => onSave({
           clientName, description, categoryId, accountId: accountId || undefined,
           amount: parseFloat(amount), dueDate, status: item?.status || 'pending',
           notes: notes || undefined,
+          recurring: (!useInstallments && recurring) || undefined,
+          recurrenceFrequency: (!useInstallments && recurring) ? recurrenceFrequency : undefined,
           installments: (useInstallments && installments > 1) ? installments : undefined,
         })}>
         {item ? 'Atualizar' : 'Criar'} Recebível
