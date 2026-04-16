@@ -297,6 +297,12 @@ export default function PayablesPage() {
           </Button>
         )}
       </div>
+      {/* Totals */}
+      <div className="flex items-center gap-4 p-3 rounded-lg bg-muted/50 border border-border">
+        <span className="text-sm text-muted-foreground">Total exibido:</span>
+        <span className="text-lg font-bold text-destructive mono">{fmt(allFiltered.reduce((s, p) => s + p.amount, 0))}</span>
+        <span className="text-xs text-muted-foreground">({allFiltered.length} {allFiltered.length === 1 ? 'item' : 'itens'})</span>
+      </div>
       <div className="finance-card p-0 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
