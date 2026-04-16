@@ -101,6 +101,9 @@ function mapReceivable(row: any): Receivable {
     amount: Number(row.amount), dueDate: row.due_date, paymentDate: row.payment_date ?? undefined,
     paymentMethod: row.payment_method ?? undefined, status,
     notes: row.notes ?? undefined,
+    recurring: row.recurring ?? false,
+    recurrenceFrequency: row.recurrence_frequency ?? undefined,
+    recurrenceEndDate: row.recurrence_end_date ?? undefined,
   };
 }
 
