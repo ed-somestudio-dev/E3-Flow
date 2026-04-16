@@ -564,6 +564,9 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       category_id: r.categoryId, account_id: r.accountId || null,
       amount: r.amount, due_date: r.dueDate, status: r.status,
       notes: r.notes || null,
+      recurring: r.recurring || false,
+      recurrence_frequency: r.recurrenceFrequency || null,
+      recurrence_end_date: r.recurrenceEndDate || null,
     });
     if (error) { console.error('addReceivable error:', error); toast.error('Erro ao criar conta a receber'); return; }
     await fetchAll();
