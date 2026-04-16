@@ -816,7 +816,9 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
           category_id: r.categoryId, account_id: r.accountId ?? null,
           amount: r.amount, due_date: r.dueDate, payment_date: r.paymentDate ?? null,
           payment_method: r.paymentMethod ?? null, status: r.status === 'overdue' ? 'pending' : r.status,
-          notes: r.notes ?? null, user_id: user.id,
+          notes: r.notes ?? null, recurring: r.recurring ?? false,
+          recurrence_frequency: r.recurrenceFrequency ?? null,
+          recurrence_end_date: r.recurrenceEndDate ?? null, user_id: user.id,
         })));
       }
 
