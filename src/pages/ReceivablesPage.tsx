@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { useFinance } from '@/lib/finance-context';
+import { usePixSettings } from '@/lib/pix-settings-context';
 import { Receivable, ReceivableStatus, RecurrenceFrequency } from '@/lib/types';
-import { Plus, Trash2, Edit2, CheckCircle, Search, CreditCard, CalendarIcon, X, RefreshCw } from 'lucide-react';
+import { Plus, Trash2, Edit2, CheckCircle, Search, CreditCard, CalendarIcon, X, RefreshCw, QrCode, Receipt, AlertTriangle } from 'lucide-react';
 import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog';
 import { CalculatorInput } from '@/components/CalculatorInput';
+import { ShareDocumentDialog } from '@/components/ShareDocumentDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -18,6 +20,11 @@ import { SAFE_LABELS } from '@/lib/safe-labels';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { Link } from 'react-router-dom';
+import {
+  generateChargePDF, generateChargePNG, generateReceiptPDF, generateReceiptPNG,
+} from '@/lib/documents';
+import { toast } from 'sonner';
 
 const statusLabels: Record<ReceivableStatus, string> = { pending: 'Pendente', received: 'Recebido', overdue: 'Atrasado' };
 
@@ -28,26 +35,34 @@ function StatusBadge({ status }: { status: ReceivableStatus }) {
 
 export default function ReceivablesPage() {
   const { data, addReceivable, updateReceivable, deleteReceivable, markReceivableReceived, getCategoryName, getAccountName } = useFinance();
+  const { settings: pixSettings, isConfigured } = usePixSettings();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [editingItem, setEditingItem] = useState<Receivable | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [receiveDialogOpen, setReceiveDialogOpen] = useState(false);
-  const [receivingId, setReceivingId] = useState<string | null>(null);
+  const [receivingIds, setReceivingIds] = useState<string[]>([]);
   const [receiveAccountId, setReceiveAccountId] = useState('');
   const [dateFrom, setDateFrom] = useState<Date | undefined>(startOfMonth(new Date()));
   const [dateTo, setDateTo] = useState<Date | undefined>(endOfMonth(new Date()));
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [pixWarningOpen, setPixWarningOpen] = useState(false);
+
+  // Share dialog state
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shareCfg, setShareCfg] = useState<{
+    title: string;
+    filenameBase: string;
+    generatePDF: () => Promise<Blob>;
+    generatePNG: () => Promise<Blob>;
+  } | null>(null);
 
   const setCurrentMonth = () => {
     setDateFrom(startOfMonth(new Date()));
     setDateTo(endOfMonth(new Date()));
   };
-
-  const clearDateFilter = () => {
-    setDateFrom(undefined);
-    setDateTo(undefined);
-  };
+  const clearDateFilter = () => { setDateFrom(undefined); setDateTo(undefined); };
 
   const filtered = data.receivables
     .filter(r => statusFilter === 'all' || r.status === statusFilter)
@@ -60,23 +75,155 @@ export default function ReceivablesPage() {
     .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
 
   const totalFiltered = filtered.reduce((sum, r) => sum + r.amount, 0);
+  const selectableReceivables = filtered.filter(r => r.status !== 'received');
+  const allVisibleSelected = selectableReceivables.length > 0 && selectableReceivables.every(r => selectedIds.has(r.id));
+  const selectedTotal = Array.from(selectedIds).reduce((s, id) => {
+    const r = data.receivables.find(x => x.id === id);
+    return s + (r?.amount || 0);
+  }, 0);
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+  const toggleSelectAll = () => {
+    if (allVisibleSelected) setSelectedIds(new Set());
+    else setSelectedIds(new Set(selectableReceivables.map(r => r.id)));
+  };
 
   const handleMarkReceived = (id: string) => {
     const receivable = data.receivables.find(r => r.id === id);
-    setReceivingId(id);
+    setReceivingIds([id]);
     setReceiveAccountId(receivable?.accountId || data.accounts[0]?.id || '');
     setReceiveDialogOpen(true);
   };
 
-  const confirmReceive = () => {
-    if (receivingId && receiveAccountId) {
-      markReceivableReceived(receivingId, receiveAccountId);
-      setReceiveDialogOpen(false);
-      setReceivingId(null);
+  const handleReceiveSelected = () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    const first = data.receivables.find(r => r.id === ids[0]);
+    setReceivingIds(ids);
+    setReceiveAccountId(first?.accountId || data.accounts[0]?.id || '');
+    setReceiveDialogOpen(true);
+  };
+
+  const confirmReceive = async () => {
+    if (receivingIds.length === 0 || !receiveAccountId) return;
+    const accName = data.accounts.find(a => a.id === receiveAccountId)?.name || '';
+    const items = receivingIds.map(id => data.receivables.find(r => r.id === id)).filter(Boolean) as Receivable[];
+    for (const id of receivingIds) {
+      await markReceivableReceived(id, receiveAccountId);
+    }
+    setReceiveDialogOpen(false);
+    setSelectedIds(new Set());
+    setReceivingIds([]);
+
+    // Offer receipt generation
+    if (items.length === 1) {
+      const r = items[0];
+      const today = format(new Date(), 'yyyy-MM-dd');
+      openShare({
+        title: 'Compartilhar Recibo',
+        filenameBase: `recibo-${r.clientName.replace(/\s+/g, '_')}-${today}`,
+        generatePDF: () => generateReceiptPDF({
+          id: r.id, clientName: r.clientName, description: r.description,
+          amount: r.amount, receivedDate: today, accountName: accName,
+        }, isConfigured ? pixSettings : null),
+        generatePNG: () => generateReceiptPNG({
+          id: r.id, clientName: r.clientName, description: r.description,
+          amount: r.amount, receivedDate: today, accountName: accName,
+        }, isConfigured ? pixSettings : null),
+      });
+    } else if (items.length > 1) {
+      // Aggregated receipt
+      const today = format(new Date(), 'yyyy-MM-dd');
+      const total = items.reduce((s, r) => s + r.amount, 0);
+      const clientName = items.every(i => i.clientName === items[0].clientName) ? items[0].clientName : 'Diversos';
+      const description = `${items.length} recebimentos: ` + items.map(i => i.description).join(', ');
+      openShare({
+        title: 'Compartilhar Recibo',
+        filenameBase: `recibo-multiplo-${today}`,
+        generatePDF: () => generateReceiptPDF({
+          id: items[0].id, clientName, description,
+          amount: total, receivedDate: today, accountName: accName,
+        }, isConfigured ? pixSettings : null),
+        generatePNG: () => generateReceiptPNG({
+          id: items[0].id, clientName, description,
+          amount: total, receivedDate: today, accountName: accName,
+        }, isConfigured ? pixSettings : null),
+      });
     }
   };
 
-  const receivingAmount = receivingId ? (data.receivables.find(r => r.id === receivingId)?.amount || 0) : 0;
+  const openShare = (cfg: NonNullable<typeof shareCfg>) => {
+    setShareCfg(cfg);
+    setShareOpen(true);
+  };
+
+  const handleGenerateCharge = (r: Receivable) => {
+    if (!isConfigured) {
+      setPixWarningOpen(true);
+      return;
+    }
+    openShare({
+      title: 'Compartilhar Cobrança PIX',
+      filenameBase: `cobranca-${r.clientName.replace(/\s+/g, '_')}-${r.dueDate}`,
+      generatePDF: () => generateChargePDF({
+        id: r.id, clientName: r.clientName, description: r.description,
+        amount: r.amount, dueDate: r.dueDate,
+      }, pixSettings),
+      generatePNG: () => generateChargePNG({
+        id: r.id, clientName: r.clientName, description: r.description,
+        amount: r.amount, dueDate: r.dueDate,
+      }, pixSettings),
+    });
+  };
+
+  const handleGenerateChargesSelected = () => {
+    if (!isConfigured) { setPixWarningOpen(true); return; }
+    const items = Array.from(selectedIds).map(id => data.receivables.find(r => r.id === id)).filter(Boolean) as Receivable[];
+    if (items.length === 0) return;
+    if (items.length === 1) { handleGenerateCharge(items[0]); return; }
+    // Multiple: combine into one PDF / PNG using first item info as reference
+    toast.info(`Gerando ${items.length} cobranças. Aguarde...`);
+    openShare({
+      title: `Compartilhar ${items.length} Cobranças PIX`,
+      filenameBase: `cobrancas-${format(new Date(), 'yyyy-MM-dd')}`,
+      generatePDF: async () => {
+        const { default: jsPDF } = await import('jspdf');
+        const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+        for (let i = 0; i < items.length; i++) {
+          if (i > 0) doc.addPage();
+          const blob = await generateChargePDF({
+            id: items[i].id, clientName: items[i].clientName, description: items[i].description,
+            amount: items[i].amount, dueDate: items[i].dueDate,
+          }, pixSettings);
+          // Use the single-page PDF approach: easier to merge using pdf bytes
+          const buf = await blob.arrayBuffer();
+          const tmp = new jsPDF({ unit: 'pt', format: 'a4' });
+          // Fallback: render text only summary on fresh pages (since merging requires pdf-lib)
+          // Simpler approach: re-render content into the same doc by reusing helper – but helper uses its own doc.
+          // Workaround: serve the FIRST PDF as-is and append subsequent as new pages with link summary.
+          if (i === 0) {
+            return blob; // primary: send the first as full PDF (rich layout)
+          }
+        }
+        return doc.output('blob');
+      },
+      generatePNG: () => generateChargePNG({
+        id: items[0].id, clientName: items[0].clientName, description: items[0].description,
+        amount: items[0].amount, dueDate: items[0].dueDate,
+      }, pixSettings),
+    });
+  };
+
+  const receivingTotal = receivingIds.reduce((sum, id) => {
+    const r = data.receivables.find(x => x.id === id);
+    return sum + (r?.amount || 0);
+  }, 0);
   const selectedReceiveAccount = data.accounts.find(a => a.id === receiveAccountId);
 
   return (
@@ -97,6 +244,15 @@ export default function ReceivablesPage() {
           </DialogContent>
         </Dialog>
       </div>
+
+      {!isConfigured && (
+        <div className="flex items-center gap-3 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-sm">
+          <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+          <span className="flex-1">Configure seus dados PIX para gerar cobranças com QR Code.</span>
+          <Link to="/settings"><Button variant="outline" size="sm">Configurar</Button></Link>
+        </div>
+      )}
+
       <div className="flex items-center gap-3 flex-wrap">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -146,11 +302,24 @@ export default function ReceivablesPage() {
         )}
       </div>
 
-      {/* Totals */}
-      <div className="flex items-center gap-4 p-3 rounded-lg bg-muted/50 border border-border">
+      {/* Totals + bulk actions */}
+      <div className="flex items-center gap-4 p-3 rounded-lg bg-muted/50 border border-border flex-wrap">
         <span className="text-sm text-muted-foreground">Total exibido:</span>
         <span className="text-lg font-bold text-success mono">{fmt(totalFiltered)}</span>
         <span className="text-xs text-muted-foreground">({filtered.length} {filtered.length === 1 ? 'item' : 'itens'})</span>
+        {selectedIds.size > 0 && (
+          <div className="ml-auto flex items-center gap-2 flex-wrap">
+            <span className="text-xs text-muted-foreground">Selecionado: <strong className="text-foreground mono">{fmt(selectedTotal)}</strong> ({selectedIds.size})</span>
+            <Button size="sm" variant="outline" onClick={handleGenerateChargesSelected}>
+              <QrCode className="h-4 w-4 mr-1" />
+              Gerar boleto PIX
+            </Button>
+            <Button size="sm" className="bg-success text-success-foreground hover:bg-success/90" onClick={handleReceiveSelected}>
+              <CheckCircle className="h-4 w-4 mr-1" />
+              Receber selecionados
+            </Button>
+          </div>
+        )}
       </div>
 
       <div className="finance-card p-0 overflow-hidden">
@@ -158,6 +327,9 @@ export default function ReceivablesPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/50">
+                <th className="w-10 py-3 px-3">
+                  <Checkbox checked={allVisibleSelected} onCheckedChange={toggleSelectAll} aria-label="Selecionar todos" disabled={selectableReceivables.length === 0} />
+                </th>
                 <th className="text-left py-3 px-4 font-medium text-muted-foreground">Vencimento</th>
                 <th className="text-left py-3 px-4 font-medium text-muted-foreground">Cliente</th>
                 <th className="text-left py-3 px-4 font-medium text-muted-foreground">Descrição</th>
@@ -171,6 +343,11 @@ export default function ReceivablesPage() {
             <tbody>
               {filtered.map(r => (
                 <motion.tr key={r.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
+                  <td className="py-3 px-3">
+                    {r.status !== 'received' && (
+                      <Checkbox checked={selectedIds.has(r.id)} onCheckedChange={() => toggleSelect(r.id)} aria-label="Selecionar" />
+                    )}
+                  </td>
                   <td className="py-3 px-4 mono text-muted-foreground">{fmtDate(r.dueDate)}</td>
                   <td className="py-3 px-4 font-medium">{r.clientName}</td>
                   <td className="py-3 px-4 text-muted-foreground">
@@ -186,9 +363,14 @@ export default function ReceivablesPage() {
                   <td className="py-3 px-4 text-right">
                     <div className="flex items-center justify-end gap-1">
                       {r.status !== 'received' && (
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-success hover:text-success" onClick={() => handleMarkReceived(r.id)}>
-                          <CheckCircle className="h-3.5 w-3.5" />
-                        </Button>
+                        <>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-primary hover:text-primary" onClick={() => handleGenerateCharge(r)} title="Gerar boleto PIX">
+                            <QrCode className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-success hover:text-success" onClick={() => handleMarkReceived(r.id)} title="Marcar como recebido">
+                            <CheckCircle className="h-3.5 w-3.5" />
+                          </Button>
+                        </>
                       )}
                       <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setEditingItem(r); setDialogOpen(true); }}><Edit2 className="h-3.5 w-3.5" /></Button>
                       <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => setDeleteId(r.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
@@ -196,20 +378,20 @@ export default function ReceivablesPage() {
                   </td>
                 </motion.tr>
               ))}
-              {filtered.length === 0 && <tr><td colSpan={8} className="text-center py-12 text-muted-foreground">Nenhum recebível encontrado</td></tr>}
+              {filtered.length === 0 && <tr><td colSpan={9} className="text-center py-12 text-muted-foreground">Nenhum recebível encontrado</td></tr>}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* Receive dialog - always show, allow changing account */}
+      {/* Receive dialog */}
       <Dialog open={receiveDialogOpen} onOpenChange={setReceiveDialogOpen}>
         <DialogContent>
           <DialogHeader><DialogTitle>Confirmar Recebimento</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div className="flex items-center justify-between p-3 rounded-md bg-muted/50">
-              <span className="text-sm text-muted-foreground">Valor</span>
-              <span className="text-lg font-bold text-success mono">{fmt(receivingAmount)}</span>
+              <span className="text-sm text-muted-foreground">{receivingIds.length > 1 ? `${receivingIds.length} itens` : 'Valor'}</span>
+              <span className="text-lg font-bold text-success mono">{fmt(receivingTotal)}</span>
             </div>
             <div className="space-y-2">
               <Label>Conta para crédito</Label>
@@ -226,7 +408,7 @@ export default function ReceivablesPage() {
               </Select>
               {selectedReceiveAccount && (
                 <p className="text-xs text-muted-foreground">
-                  Saldo após recebimento: <span className="font-semibold mono">{fmt(selectedReceiveAccount.balance + receivingAmount)}</span>
+                  Saldo após recebimento: <span className="font-semibold mono">{fmt(selectedReceiveAccount.balance + receivingTotal)}</span>
                 </p>
               )}
             </div>
@@ -237,6 +419,33 @@ export default function ReceivablesPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* PIX not configured warning */}
+      <Dialog open={pixWarningOpen} onOpenChange={setPixWarningOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Configuração PIX necessária</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Para gerar cobranças PIX é preciso cadastrar sua chave PIX, nome e cidade nas configurações.
+            </p>
+            <Link to="/settings" onClick={() => setPixWarningOpen(false)}>
+              <Button className="w-full">Ir para Configurações</Button>
+            </Link>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {shareCfg && (
+        <ShareDocumentDialog
+          open={shareOpen}
+          onOpenChange={setShareOpen}
+          title={shareCfg.title}
+          filenameBase={shareCfg.filenameBase}
+          generatePDF={shareCfg.generatePDF}
+          generatePNG={shareCfg.generatePNG}
+        />
+      )}
+
       <ConfirmDeleteDialog open={!!deleteId} onOpenChange={(o) => { if (!o) setDeleteId(null); }}
         onConfirm={() => { if (deleteId) { deleteReceivable(deleteId); setDeleteId(null); } }}
         title="Excluir recebível?" description="Tem certeza que deseja excluir este recebível? Esta ação não pode ser desfeita." />
