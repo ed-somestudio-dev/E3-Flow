@@ -22,7 +22,8 @@ import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { Link } from 'react-router-dom';
 import {
-  generateChargePDF, generateChargePNG, generateReceiptPDF, generateReceiptPNG,
+  generateChargePDF, generateChargePNG, generateChargesPDF,
+  generateReceiptPDF, generateReceiptPNG,
 } from '@/lib/documents';
 import { toast } from 'sonner';
 
@@ -187,36 +188,17 @@ export default function ReceivablesPage() {
     const items = Array.from(selectedIds).map(id => data.receivables.find(r => r.id === id)).filter(Boolean) as Receivable[];
     if (items.length === 0) return;
     if (items.length === 1) { handleGenerateCharge(items[0]); return; }
-    // Multiple: combine into one PDF / PNG using first item info as reference
-    toast.info(`Gerando ${items.length} cobranças. Aguarde...`);
+    const charges = items.map(r => ({
+      id: r.id, clientName: r.clientName, description: r.description,
+      amount: r.amount, dueDate: r.dueDate,
+    }));
+    toast.info(`Gerando PDF com ${items.length} cobranças...`);
     openShare({
       title: `Compartilhar ${items.length} Cobranças PIX`,
       filenameBase: `cobrancas-${format(new Date(), 'yyyy-MM-dd')}`,
-      generatePDF: async () => {
-        const { default: jsPDF } = await import('jspdf');
-        const doc = new jsPDF({ unit: 'pt', format: 'a4' });
-        for (let i = 0; i < items.length; i++) {
-          if (i > 0) doc.addPage();
-          const blob = await generateChargePDF({
-            id: items[i].id, clientName: items[i].clientName, description: items[i].description,
-            amount: items[i].amount, dueDate: items[i].dueDate,
-          }, pixSettings);
-          // Use the single-page PDF approach: easier to merge using pdf bytes
-          const buf = await blob.arrayBuffer();
-          const tmp = new jsPDF({ unit: 'pt', format: 'a4' });
-          // Fallback: render text only summary on fresh pages (since merging requires pdf-lib)
-          // Simpler approach: re-render content into the same doc by reusing helper – but helper uses its own doc.
-          // Workaround: serve the FIRST PDF as-is and append subsequent as new pages with link summary.
-          if (i === 0) {
-            return blob; // primary: send the first as full PDF (rich layout)
-          }
-        }
-        return doc.output('blob');
-      },
-      generatePNG: () => generateChargePNG({
-        id: items[0].id, clientName: items[0].clientName, description: items[0].description,
-        amount: items[0].amount, dueDate: items[0].dueDate,
-      }, pixSettings),
+      generatePDF: () => generateChargesPDF(charges, pixSettings),
+      // PNG only renders the first as preview (PNG não suporta multi-página)
+      generatePNG: () => generateChargePNG(charges[0], pixSettings),
     });
   };
 
@@ -246,8 +228,8 @@ export default function ReceivablesPage() {
       </div>
 
       {!isConfigured && (
-        <div className="flex items-center gap-3 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-sm">
-          <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+        <div className="flex items-center gap-3 p-3 rounded-lg bg-warning/10 border border-warning/30 text-sm">
+          <AlertTriangle className="h-4 w-4 text-warning shrink-0" />
           <span className="flex-1">Configure seus dados PIX para gerar cobranças com QR Code.</span>
           <Link to="/settings"><Button variant="outline" size="sm">Configurar</Button></Link>
         </div>
