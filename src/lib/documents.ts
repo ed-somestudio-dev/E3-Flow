@@ -25,7 +25,7 @@ async function pixDataUrl(brcode: string): Promise<string> {
 
 // ---------- Charge (boleto PIX) ----------
 
-export async function generateChargePDF(charge: ChargeData, pix: PixSettings): Promise<Blob> {
+async function renderChargeOnDoc(doc: jsPDF, charge: ChargeData, pix: PixSettings) {
   const brcode = generatePixBRCode({
     pixKey: pix.pixKey,
     amount: charge.amount,
@@ -36,18 +36,18 @@ export async function generateChargePDF(charge: ChargeData, pix: PixSettings): P
   });
   const qr = await pixDataUrl(brcode);
 
-  const doc = new jsPDF({ unit: 'pt', format: 'a4' });
   const w = doc.internal.pageSize.getWidth();
   let y = 50;
 
-  doc.setFont('helvetica', 'bold').setFontSize(20);
+  doc.setFont('helvetica', 'bold').setFontSize(20).setTextColor(15, 23, 42);
   doc.text('Cobrança PIX', w / 2, y, { align: 'center' });
   y += 30;
 
-  doc.setLineWidth(0.5).line(40, y, w - 40, y);
+  doc.setLineWidth(0.5).setDrawColor(200);
+  doc.line(40, y, w - 40, y);
   y += 25;
 
-  doc.setFont('helvetica', 'bold').setFontSize(11);
+  doc.setFont('helvetica', 'bold').setFontSize(11).setTextColor(15, 23, 42);
   doc.text('Beneficiário', 40, y); y += 16;
   doc.setFont('helvetica', 'normal').setFontSize(11);
   doc.text(pix.beneficiaryName, 40, y); y += 14;
@@ -65,7 +65,6 @@ export async function generateChargePDF(charge: ChargeData, pix: PixSettings): P
   const descLines = doc.splitTextToSize(charge.description, w - 80);
   doc.text(descLines, 40, y); y += descLines.length * 14 + 10;
 
-  // Box with amount
   doc.setFillColor(245, 248, 250);
   doc.rect(40, y, w - 80, 60, 'F');
   doc.setFont('helvetica', 'bold').setFontSize(12);
@@ -77,14 +76,12 @@ export async function generateChargePDF(charge: ChargeData, pix: PixSettings): P
   doc.text(fmtDate(charge.dueDate), w - 55, y + 44, { align: 'right' });
   y += 80;
 
-  // QR Code
   doc.setFont('helvetica', 'bold').setFontSize(11);
   doc.text('Pague com PIX – escaneie o QR Code', w / 2, y, { align: 'center' });
   y += 12;
   doc.addImage(qr, 'PNG', (w - 180) / 2, y, 180, 180);
   y += 195;
 
-  // PIX copia e cola
   doc.setFont('helvetica', 'bold').setFontSize(10);
   doc.text('PIX Copia e Cola:', 40, y); y += 12;
   doc.setFont('courier', 'normal').setFontSize(8);
@@ -93,7 +90,20 @@ export async function generateChargePDF(charge: ChargeData, pix: PixSettings): P
 
   doc.setFont('helvetica', 'italic').setFontSize(8).setTextColor(120);
   doc.text('Documento gerado automaticamente. Confira os dados antes de efetuar o pagamento.', w / 2, y, { align: 'center' });
+}
 
+export async function generateChargePDF(charge: ChargeData, pix: PixSettings): Promise<Blob> {
+  const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+  await renderChargeOnDoc(doc, charge, pix);
+  return doc.output('blob');
+}
+
+export async function generateChargesPDF(charges: ChargeData[], pix: PixSettings): Promise<Blob> {
+  const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+  for (let i = 0; i < charges.length; i++) {
+    if (i > 0) doc.addPage();
+    await renderChargeOnDoc(doc, charges[i], pix);
+  }
   return doc.output('blob');
 }
 
