@@ -346,6 +346,42 @@ export type Database = {
           },
         ]
       }
+      user_settings: {
+        Row: {
+          beneficiary_city: string | null
+          beneficiary_document: string | null
+          beneficiary_name: string | null
+          created_at: string
+          id: string
+          pix_key: string | null
+          pix_key_type: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          beneficiary_city?: string | null
+          beneficiary_document?: string | null
+          beneficiary_name?: string | null
+          created_at?: string
+          id?: string
+          pix_key?: string | null
+          pix_key_type?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          beneficiary_city?: string | null
+          beneficiary_document?: string | null
+          beneficiary_name?: string | null
+          created_at?: string
+          id?: string
+          pix_key?: string | null
+          pix_key_type?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
