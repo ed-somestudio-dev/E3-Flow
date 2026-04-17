@@ -200,6 +200,22 @@ export default function PayablesPage() {
   }, {});
 
   const [payingIds, setPayingIds] = useState<string[]>([]);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const selectablePayables = regularPayables.filter(p => p.status !== 'paid');
+  const allVisibleSelected = selectablePayables.length > 0 && selectablePayables.every(p => selectedIds.has(p.id));
+  const toggleSelectAll = () => {
+    if (allVisibleSelected) setSelectedIds(new Set());
+    else setSelectedIds(new Set(selectablePayables.map(p => p.id)));
+  };
 
   const handleMarkPaid = (id: string) => {
     const payable = data.payables.find(p => p.id === id);
@@ -215,12 +231,19 @@ export default function PayablesPage() {
     setPayDialogOpen(true);
   };
 
+  const handlePaySelected = () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    handlePayAll(ids);
+  };
+
   const confirmPay = async () => {
     if (payingIds.length > 0 && payAccountId) {
       for (const id of payingIds) {
         await markPayablePaid(id, payAccountId);
       }
       setPayDialogOpen(false);
+      setSelectedIds(new Set());
       setPayingIds([]);
     }
   };
@@ -230,6 +253,10 @@ export default function PayablesPage() {
     return sum + (p?.amount || 0);
   }, 0);
   const selectedPayAccount = data.accounts.find(a => a.id === payAccountId);
+  const selectedTotal = Array.from(selectedIds).reduce((s, id) => {
+    const p = data.payables.find(x => x.id === id);
+    return s + (p?.amount || 0);
+  }, 0);
 
   return (
     <div className="space-y-6 max-w-5xl">
