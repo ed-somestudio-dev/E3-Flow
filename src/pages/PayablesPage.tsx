@@ -200,6 +200,22 @@ export default function PayablesPage() {
   }, {});
 
   const [payingIds, setPayingIds] = useState<string[]>([]);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const selectablePayables = regularPayables.filter(p => p.status !== 'paid');
+  const allVisibleSelected = selectablePayables.length > 0 && selectablePayables.every(p => selectedIds.has(p.id));
+  const toggleSelectAll = () => {
+    if (allVisibleSelected) setSelectedIds(new Set());
+    else setSelectedIds(new Set(selectablePayables.map(p => p.id)));
+  };
 
   const handleMarkPaid = (id: string) => {
     const payable = data.payables.find(p => p.id === id);
@@ -215,12 +231,19 @@ export default function PayablesPage() {
     setPayDialogOpen(true);
   };
 
+  const handlePaySelected = () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    handlePayAll(ids);
+  };
+
   const confirmPay = async () => {
     if (payingIds.length > 0 && payAccountId) {
       for (const id of payingIds) {
         await markPayablePaid(id, payAccountId);
       }
       setPayDialogOpen(false);
+      setSelectedIds(new Set());
       setPayingIds([]);
     }
   };
@@ -230,6 +253,10 @@ export default function PayablesPage() {
     return sum + (p?.amount || 0);
   }, 0);
   const selectedPayAccount = data.accounts.find(a => a.id === payAccountId);
+  const selectedTotal = Array.from(selectedIds).reduce((s, id) => {
+    const p = data.payables.find(x => x.id === id);
+    return s + (p?.amount || 0);
+  }, 0);
 
   return (
     <div className="space-y-6 max-w-5xl">
@@ -297,17 +324,29 @@ export default function PayablesPage() {
           </Button>
         )}
       </div>
-      {/* Totals */}
-      <div className="flex items-center gap-4 p-3 rounded-lg bg-muted/50 border border-border">
+      {/* Totals + bulk action */}
+      <div className="flex items-center gap-4 p-3 rounded-lg bg-muted/50 border border-border flex-wrap">
         <span className="text-sm text-muted-foreground">Total exibido:</span>
         <span className="text-lg font-bold text-destructive mono">{fmt(allFiltered.reduce((s, p) => s + p.amount, 0))}</span>
         <span className="text-xs text-muted-foreground">({allFiltered.length} {allFiltered.length === 1 ? 'item' : 'itens'})</span>
+        {selectedIds.size > 0 && (
+          <div className="ml-auto flex items-center gap-3 flex-wrap">
+            <span className="text-xs text-muted-foreground">Selecionado: <strong className="text-foreground mono">{fmt(selectedTotal)}</strong> ({selectedIds.size})</span>
+            <Button size="sm" className="bg-success text-success-foreground hover:bg-success/90" onClick={handlePaySelected}>
+              <CheckCircle className="h-4 w-4 mr-1" />
+              Pagar selecionados
+            </Button>
+          </div>
+        )}
       </div>
       <div className="finance-card p-0 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/50">
+                <th className="w-10 py-3 px-3">
+                  <Checkbox checked={allVisibleSelected} onCheckedChange={toggleSelectAll} aria-label="Selecionar todos" disabled={selectablePayables.length === 0} />
+                </th>
                 <th className="text-left py-3 px-4 font-medium text-muted-foreground">Vencimento</th>
                 <th className="text-left py-3 px-4 font-medium text-muted-foreground">Descrição</th>
                 <th className="text-left py-3 px-4 font-medium text-muted-foreground">Fornecedor</th>
@@ -321,6 +360,11 @@ export default function PayablesPage() {
             <tbody>
               {regularPayables.map(p => (
                 <motion.tr key={p.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
+                  <td className="py-3 px-3">
+                    {p.status !== 'paid' && (
+                      <Checkbox checked={selectedIds.has(p.id)} onCheckedChange={() => toggleSelect(p.id)} aria-label="Selecionar" />
+                    )}
+                  </td>
                   <td className="py-3 px-4 mono text-muted-foreground">{fmtDate(p.dueDate)}</td>
                   <td className="py-3 px-4 font-medium">
                     <div className="flex items-center gap-1.5">
@@ -346,7 +390,7 @@ export default function PayablesPage() {
                   </td>
                 </motion.tr>
               ))}
-              {regularPayables.length === 0 && <tr><td colSpan={8} className="text-center py-12 text-muted-foreground">Nenhuma conta encontrada</td></tr>}
+              {regularPayables.length === 0 && <tr><td colSpan={9} className="text-center py-12 text-muted-foreground">Nenhuma conta encontrada</td></tr>}
             </tbody>
           </table>
         </div>
