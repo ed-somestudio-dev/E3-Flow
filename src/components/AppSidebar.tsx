@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import {
-  LayoutDashboard, FileText, FileInput, ArrowUpDown, Wallet, Target, Sun, Moon, BarChart3, LogOut, Tag, RotateCcw, Download, Upload,
+  LayoutDashboard, FileText, FileInput, ArrowUpDown, Wallet, Target, Sun, Moon, BarChart3, LogOut, Tag, RotateCcw, Download, Upload, Settings,
 } from 'lucide-react';
 import logoFluxoPro from '@/assets/Logo_FluxoPro.png';
 import { NavLink } from '@/components/NavLink';
@@ -29,6 +29,7 @@ const manageItems = [
   { title: 'Categorias', url: '/categories', icon: Tag },
   { title: 'Orçamentos', url: '/budgets', icon: Target },
   { title: 'Relatórios', url: '/reports', icon: BarChart3 },
+  { title: 'Configurações', url: '/settings', icon: Settings },
 ];
 
 export function AppSidebar() {
