@@ -5,6 +5,7 @@ import { Receivable, ReceivableStatus, RecurrenceFrequency } from '@/lib/types';
 import { Plus, Trash2, Edit2, CheckCircle, Search, CreditCard, CalendarIcon, X, RefreshCw, QrCode, Receipt, AlertTriangle } from 'lucide-react';
 import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog';
 import { CalculatorInput } from '@/components/CalculatorInput';
+import { ContactAutocomplete } from '@/components/ContactAutocomplete';
 import { ShareDocumentDialog } from '@/components/ShareDocumentDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -489,7 +490,7 @@ function ReceivableForm({ item, categories, accounts, onSave }: {
 
   return (
     <div className="space-y-4">
-      <div><Label>Nome do Cliente</Label><Input value={clientName} onChange={e => setClientName(e.target.value)} placeholder="Nome do cliente" /></div>
+      <div><Label>Nome do Cliente</Label><ContactAutocomplete value={clientName} onChange={setClientName} placeholder="Nome do cliente" /></div>
       <div><Label>Descrição</Label><Input value={description} onChange={e => setDescription(e.target.value)} placeholder="Descrição" /></div>
       <div className="grid grid-cols-2 gap-3">
         <div><Label>Categoria</Label>

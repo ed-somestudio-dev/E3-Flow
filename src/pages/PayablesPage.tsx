@@ -3,6 +3,7 @@ import { useFinance } from '@/lib/finance-context';
 import { Payable, PayableStatus, RecurrenceFrequency } from '@/lib/types';
 import { Plus, Trash2, Edit2, CheckCircle, Search, RefreshCw, CreditCard, Wallet, ChevronDown, ChevronRight, CalendarIcon, X } from 'lucide-react';
 import { CalculatorInput } from '@/components/CalculatorInput';
+import { ContactAutocomplete } from '@/components/ContactAutocomplete';
 import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -547,7 +548,7 @@ function PayableForm({ item, categories, accounts, onSave }: {
   return (
     <div className="space-y-4">
       <div><Label>Descrição</Label><Input value={description} onChange={e => setDescription(e.target.value)} placeholder="Descrição da conta" /></div>
-      <div><Label>Fornecedor</Label><Input value={supplier} onChange={e => setSupplier(e.target.value)} placeholder="Nome do fornecedor" /></div>
+      <div><Label>Fornecedor</Label><ContactAutocomplete value={supplier} onChange={setSupplier} placeholder="Nome do fornecedor" /></div>
       <div className="grid grid-cols-2 gap-3">
         <div><Label>Categoria</Label>
           <Select value={categoryId || undefined} onValueChange={setCategoryId}>
