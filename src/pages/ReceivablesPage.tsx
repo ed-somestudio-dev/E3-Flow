@@ -455,6 +455,7 @@ export default function ReceivablesPage() {
           filenameBase={shareCfg.filenameBase}
           generatePDF={shareCfg.generatePDF}
           generatePNG={shareCfg.generatePNG}
+          pixCopyText={shareCfg.pixCopyText}
         />
       )}
 
