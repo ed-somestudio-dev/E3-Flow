@@ -57,6 +57,7 @@ export default function ReceivablesPage() {
     filenameBase: string;
     generatePDF: () => Promise<Blob>;
     generatePNG: () => Promise<Blob>;
+    pixCopyText?: Promise<string>;
   } | null>(null);
 
   const setCurrentMonth = () => {
@@ -180,6 +181,17 @@ export default function ReceivablesPage() {
         id: r.id, clientName: r.clientName, description: r.description,
         amount: r.amount, dueDate: r.dueDate,
       }, pixSettings),
+      pixCopyText: (async () => {
+        const { generatePixBRCode } = await import('@/lib/pix');
+        return generatePixBRCode({
+          pixKey: pixSettings.pixKey,
+          amount: r.amount,
+          beneficiaryName: pixSettings.beneficiaryName,
+          beneficiaryCity: pixSettings.beneficiaryCity,
+          txid: r.id.replace(/-/g, '').substring(0, 25),
+          description: r.description,
+        });
+      })(),
     });
   };
 
@@ -188,17 +200,35 @@ export default function ReceivablesPage() {
     const items = Array.from(selectedIds).map(id => data.receivables.find(r => r.id === id)).filter(Boolean) as Receivable[];
     if (items.length === 0) return;
     if (items.length === 1) { handleGenerateCharge(items[0]); return; }
-    const charges = items.map(r => ({
-      id: r.id, clientName: r.clientName, description: r.description,
-      amount: r.amount, dueDate: r.dueDate,
-    }));
-    toast.info(`Gerando PDF com ${items.length} cobranças...`);
+
+    // Consolidated single charge: sum amounts, earliest due date
+    const total = items.reduce((s, r) => s + r.amount, 0);
+    const clientName = items.every(i => i.clientName === items[0].clientName) ? items[0].clientName : 'Diversos';
+    const earliestDue = items.map(i => i.dueDate).sort()[0];
+    const description = `${items.length} cobranças: ` + items.map(i => i.description).join(', ');
+    const consolidated = {
+      id: items[0].id,
+      clientName,
+      description: description.length > 70 ? description.substring(0, 67) + '...' : description,
+      amount: total,
+      dueDate: earliestDue,
+    };
     openShare({
-      title: `Compartilhar ${items.length} Cobranças PIX`,
-      filenameBase: `cobrancas-${format(new Date(), 'yyyy-MM-dd')}`,
-      generatePDF: () => generateChargesPDF(charges, pixSettings),
-      // PNG only renders the first as preview (PNG não suporta multi-página)
-      generatePNG: () => generateChargePNG(charges[0], pixSettings),
+      title: `Cobrança PIX Consolidada (${items.length} itens)`,
+      filenameBase: `cobranca-consolidada-${format(new Date(), 'yyyy-MM-dd')}`,
+      generatePDF: () => generateChargePDF(consolidated, pixSettings),
+      generatePNG: () => generateChargePNG(consolidated, pixSettings),
+      pixCopyText: (async () => {
+        const { generatePixBRCode } = await import('@/lib/pix');
+        return generatePixBRCode({
+          pixKey: pixSettings.pixKey,
+          amount: total,
+          beneficiaryName: pixSettings.beneficiaryName,
+          beneficiaryCity: pixSettings.beneficiaryCity,
+          txid: consolidated.id.replace(/-/g, '').substring(0, 25),
+          description: consolidated.description,
+        });
+      })(),
     });
   };
 
@@ -425,6 +455,7 @@ export default function ReceivablesPage() {
           filenameBase={shareCfg.filenameBase}
           generatePDF={shareCfg.generatePDF}
           generatePNG={shareCfg.generatePNG}
+          pixCopyText={shareCfg.pixCopyText}
         />
       )}
 
