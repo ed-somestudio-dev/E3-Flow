@@ -181,6 +181,17 @@ export default function ReceivablesPage() {
         id: r.id, clientName: r.clientName, description: r.description,
         amount: r.amount, dueDate: r.dueDate,
       }, pixSettings),
+      pixCopyText: (async () => {
+        const { generatePixBRCode } = await import('@/lib/pix');
+        return generatePixBRCode({
+          pixKey: pixSettings.pixKey,
+          amount: r.amount,
+          beneficiaryName: pixSettings.beneficiaryName,
+          beneficiaryCity: pixSettings.beneficiaryCity,
+          txid: r.id.replace(/-/g, '').substring(0, 25),
+          description: r.description,
+        });
+      })(),
     });
   };
 
