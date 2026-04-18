@@ -57,6 +57,7 @@ export default function ReceivablesPage() {
     filenameBase: string;
     generatePDF: () => Promise<Blob>;
     generatePNG: () => Promise<Blob>;
+    pixCopyText?: Promise<string>;
   } | null>(null);
 
   const setCurrentMonth = () => {
