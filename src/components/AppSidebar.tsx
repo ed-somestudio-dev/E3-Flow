@@ -1,7 +1,8 @@
 import { useState, useRef } from 'react';
 import {
-  LayoutDashboard, FileText, FileInput, ArrowUpDown, Wallet, Target, Sun, Moon, BarChart3, LogOut, Tag, RotateCcw, Download, Upload, Settings, Users,
+  LayoutDashboard, FileText, FileInput, ArrowUpDown, Wallet, Target, Sun, Moon, BarChart3, LogOut, Tag, RotateCcw, Download, Upload, Settings, Users, ChevronDown, MoreHorizontal,
 } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import logoFluxoPro from '@/assets/Logo_FluxoPro.png';
 import { NavLink } from '@/components/NavLink';
 import { useTheme } from '@/lib/theme-context';
@@ -41,6 +42,7 @@ export function AppSidebar() {
   const { resetAllData, exportBackup, importBackup } = useFinance();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [restoreConfirmOpen, setRestoreConfirmOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pendingFileRef = useRef<File | null>(null);
 
@@ -90,36 +92,51 @@ export function AppSidebar() {
           </SidebarGroup>
         </SidebarContent>
         <SidebarFooter>
-          <button onClick={exportBackup}
-            className="flex items-center gap-2 px-4 py-3 text-sidebar-muted hover:text-sidebar-foreground transition-colors w-full">
-            <Download className="h-4 w-4" />
-            {!collapsed && <span className="text-sm">Exportar Backup</span>}
-          </button>
-          <button onClick={() => fileInputRef.current?.click()}
-            className="flex items-center gap-2 px-4 py-3 text-sidebar-muted hover:text-sidebar-foreground transition-colors w-full">
-            <Upload className="h-4 w-4" />
-            {!collapsed && <span className="text-sm">Restaurar Backup</span>}
-          </button>
-          <input ref={fileInputRef} type="file" accept=".json" className="hidden" onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) { pendingFileRef.current = file; setRestoreConfirmOpen(true); }
-            e.target.value = '';
-          }} />
-          <button onClick={() => setConfirmOpen(true)}
-            className="flex items-center gap-2 px-4 py-3 text-sidebar-muted hover:text-destructive transition-colors w-full">
-            <RotateCcw className="h-4 w-4" />
-            {!collapsed && <span className="text-sm">Reiniciar Dados</span>}
-          </button>
-          <button onClick={toggleTheme}
-            className="flex items-center gap-2 px-4 py-3 text-sidebar-muted hover:text-sidebar-foreground transition-colors w-full">
-            {theme === 'light' ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
-            {!collapsed && <span className="text-sm">{theme === 'light' ? 'Modo Escuro' : 'Modo Claro'}</span>}
-          </button>
-          <button onClick={signOut}
-            className="flex items-center gap-2 px-4 py-3 text-sidebar-muted hover:text-destructive transition-colors w-full">
-            <LogOut className="h-4 w-4" />
-            {!collapsed && <span className="text-sm">Sair</span>}
-          </button>
+          <Collapsible open={moreOpen} onOpenChange={setMoreOpen}>
+            <CollapsibleTrigger asChild>
+              <button className="flex items-center gap-2 px-4 py-3 text-sidebar-muted hover:text-sidebar-foreground transition-colors w-full">
+                <MoreHorizontal className="h-4 w-4" />
+                {!collapsed && (
+                  <>
+                    <span className="text-sm">Mais opções</span>
+                    <ChevronDown className={`h-4 w-4 ml-auto transition-transform ${moreOpen ? 'rotate-180' : ''}`} />
+                  </>
+                )}
+              </button>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <button onClick={exportBackup}
+                className="flex items-center gap-2 px-4 py-3 text-sidebar-muted hover:text-sidebar-foreground transition-colors w-full">
+                <Download className="h-4 w-4" />
+                {!collapsed && <span className="text-sm">Exportar Backup</span>}
+              </button>
+              <button onClick={() => fileInputRef.current?.click()}
+                className="flex items-center gap-2 px-4 py-3 text-sidebar-muted hover:text-sidebar-foreground transition-colors w-full">
+                <Upload className="h-4 w-4" />
+                {!collapsed && <span className="text-sm">Restaurar Backup</span>}
+              </button>
+              <input ref={fileInputRef} type="file" accept=".json" className="hidden" onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) { pendingFileRef.current = file; setRestoreConfirmOpen(true); }
+                e.target.value = '';
+              }} />
+              <button onClick={() => setConfirmOpen(true)}
+                className="flex items-center gap-2 px-4 py-3 text-sidebar-muted hover:text-destructive transition-colors w-full">
+                <RotateCcw className="h-4 w-4" />
+                {!collapsed && <span className="text-sm">Reiniciar Dados</span>}
+              </button>
+              <button onClick={toggleTheme}
+                className="flex items-center gap-2 px-4 py-3 text-sidebar-muted hover:text-sidebar-foreground transition-colors w-full">
+                {theme === 'light' ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
+                {!collapsed && <span className="text-sm">{theme === 'light' ? 'Modo Escuro' : 'Modo Claro'}</span>}
+              </button>
+              <button onClick={signOut}
+                className="flex items-center gap-2 px-4 py-3 text-sidebar-muted hover:text-destructive transition-colors w-full">
+                <LogOut className="h-4 w-4" />
+                {!collapsed && <span className="text-sm">Sair</span>}
+              </button>
+            </CollapsibleContent>
+          </Collapsible>
         </SidebarFooter>
       </Sidebar>
 
