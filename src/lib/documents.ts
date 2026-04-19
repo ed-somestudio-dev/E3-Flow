@@ -357,6 +357,8 @@ function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number)
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
+    // habilita CORS para imagens externas (carimbo armazenado no Supabase Storage)
+    if (src.startsWith('http')) img.crossOrigin = 'anonymous';
     img.onload = () => resolve(img);
     img.onerror = reject;
     img.src = src;
