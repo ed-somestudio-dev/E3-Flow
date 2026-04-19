@@ -9,6 +9,7 @@ export interface PixSettings {
   beneficiaryName: string;
   beneficiaryCity: string;
   beneficiaryDocument?: string;
+  receiptStampUrl?: string;
 }
 
 export interface ChargeData {
@@ -170,7 +171,20 @@ export async function generateReceiptPDF(receipt: ReceiptData, pix: PixSettings 
 
   doc.text('Para clareza, firmo o presente recibo.', 40, y); y += 50;
 
-  // Signature
+  // Carimbo / assinatura (se configurado)
+  if (pix?.receiptStampUrl) {
+    try {
+      const stampData = await loadImageAsDataUrl(pix.receiptStampUrl);
+      const stampW = 140;
+      const stampH = 70;
+      doc.addImage(stampData, 'PNG', (w - stampW) / 2, y - 20, stampW, stampH);
+      y += stampH - 10;
+    } catch (e) {
+      console.warn('Não foi possível carregar o carimbo:', e);
+    }
+  }
+
+  // Linha de assinatura
   doc.line(w / 2 - 120, y, w / 2 + 120, y);
   y += 14;
   doc.setFont('helvetica', 'bold').setFontSize(11);
@@ -198,6 +212,19 @@ export async function generateReceiptPNG(receipt: ReceiptData, pix: PixSettings 
     ],
     amount: receipt.amount,
     footer: 'Pagamento confirmado',
+    stampUrl: pix?.receiptStampUrl,
+  });
+}
+
+// Carrega imagem externa e converte para data URL (necessário para incluir no PDF)
+async function loadImageAsDataUrl(url: string): Promise<string> {
+  const res = await fetch(url, { mode: 'cors' });
+  const blob = await res.blob();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
   });
 }
 
