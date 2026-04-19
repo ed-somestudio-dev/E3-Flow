@@ -42,6 +42,7 @@ export function AppSidebar() {
   const { resetAllData, exportBackup, importBackup } = useFinance();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [restoreConfirmOpen, setRestoreConfirmOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pendingFileRef = useRef<File | null>(null);
 
