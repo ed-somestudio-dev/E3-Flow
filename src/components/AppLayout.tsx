@@ -1,7 +1,12 @@
 import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/AppSidebar';
+import { useAutoRefresh } from '@/hooks/use-auto-refresh';
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
+  // Recarrega a página quando volta de background há mais de 60s
+  // (corrige o problema do Chrome mobile que mantém o estado antigo)
+  useAutoRefresh({ staleAfterMs: 60_000 });
+
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full">
@@ -18,3 +23,4 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     </SidebarProvider>
   );
 }
+

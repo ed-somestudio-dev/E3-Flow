@@ -9,6 +9,7 @@ export interface PixSettings {
   beneficiaryName: string;
   beneficiaryCity: string;
   beneficiaryDocument?: string;
+  receiptStampUrl?: string;
 }
 
 export interface ChargeData {
@@ -170,7 +171,20 @@ export async function generateReceiptPDF(receipt: ReceiptData, pix: PixSettings 
 
   doc.text('Para clareza, firmo o presente recibo.', 40, y); y += 50;
 
-  // Signature
+  // Carimbo / assinatura (se configurado)
+  if (pix?.receiptStampUrl) {
+    try {
+      const stampData = await loadImageAsDataUrl(pix.receiptStampUrl);
+      const stampW = 140;
+      const stampH = 70;
+      doc.addImage(stampData, 'PNG', (w - stampW) / 2, y - 20, stampW, stampH);
+      y += stampH - 10;
+    } catch (e) {
+      console.warn('Não foi possível carregar o carimbo:', e);
+    }
+  }
+
+  // Linha de assinatura
   doc.line(w / 2 - 120, y, w / 2 + 120, y);
   y += 14;
   doc.setFont('helvetica', 'bold').setFontSize(11);
@@ -198,6 +212,19 @@ export async function generateReceiptPNG(receipt: ReceiptData, pix: PixSettings 
     ],
     amount: receipt.amount,
     footer: 'Pagamento confirmado',
+    stampUrl: pix?.receiptStampUrl,
+  });
+}
+
+// Carrega imagem externa e converte para data URL (necessário para incluir no PDF)
+async function loadImageAsDataUrl(url: string): Promise<string> {
+  const res = await fetch(url, { mode: 'cors' });
+  const blob = await res.blob();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
   });
 }
 
@@ -211,6 +238,7 @@ interface CardOptions {
   qr?: string;
   footer?: string;
   copyText?: string;
+  stampUrl?: string;
 }
 
 async function renderCardPNG(opts: CardOptions): Promise<Blob> {
@@ -221,9 +249,10 @@ async function renderCardPNG(opts: CardOptions): Promise<Blob> {
   const amountH = 90;
   const qrH = opts.qr ? 280 : 0;
   const copyH = opts.copyText ? 80 : 0;
+  const stampH = opts.stampUrl ? 110 : 0;
   const footerH = 50;
   const rowsH = opts.rows.length * rowHeight;
-  const H = headerH + amountH + rowsH + qrH + copyH + footerH + padding * 2;
+  const H = headerH + amountH + rowsH + qrH + copyH + stampH + footerH + padding * 2;
 
   const canvas = document.createElement('canvas');
   canvas.width = W;
@@ -284,6 +313,19 @@ async function renderCardPNG(opts: CardOptions): Promise<Blob> {
     y += 10;
   }
 
+  // Carimbo / assinatura
+  if (opts.stampUrl) {
+    try {
+      const img = await loadImage(opts.stampUrl);
+      const maxW = 200, maxH = 90;
+      const ratio = Math.min(maxW / img.width, maxH / img.height);
+      const drawW = img.width * ratio;
+      const drawH = img.height * ratio;
+      ctx.drawImage(img, (W - drawW) / 2, y, drawW, drawH);
+      y += maxH + 10;
+    } catch {/* ignore */}
+  }
+
   // Footer
   if (opts.footer) {
     ctx.fillStyle = '#94a3b8';
@@ -315,6 +357,8 @@ function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number)
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
+    // habilita CORS para imagens externas (carimbo armazenado no Supabase Storage)
+    if (src.startsWith('http')) img.crossOrigin = 'anonymous';
     img.onload = () => resolve(img);
     img.onerror = reject;
     img.src = src;
