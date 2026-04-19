@@ -40,9 +40,15 @@ export interface PixPayload {
 export function generatePixBRCode({
   pixKey, amount, beneficiaryName, beneficiaryCity, txid, description,
 }: PixPayload): string {
-  const merchantAccount = tlv('00', 'br.gov.bcb.pix') +
-    tlv('01', pixKey) +
-    (description ? tlv('02', sanitize(description, 72)) : '');
+  // EMV TLV usa length de 2 dígitos (00–99). O merchantAccount inteiro precisa caber em 99 chars,
+  // senão o pad2 estoura e o QR Code vira "parâmetros inválidos" no app do banco.
+  const safePixKey = sanitize(pixKey, 77); // 99 - 4 (tag+len GUI) - 14 ("br.gov.bcb.pix") - 4 (tag+len key) = 77 max
+  const baseMerchant = tlv('00', 'br.gov.bcb.pix') + tlv('01', safePixKey);
+  const remainingForDesc = 99 - baseMerchant.length - 4; // 4 = tag '02' + length de 2 dígitos
+  const safeDesc = description && remainingForDesc > 0
+    ? sanitize(description, Math.min(72, remainingForDesc))
+    : '';
+  const merchantAccount = baseMerchant + (safeDesc ? tlv('02', safeDesc) : '');
 
   const safeTxid = sanitize(txid || '***', 25) || '***';
   const additionalData = tlv('05', safeTxid);
