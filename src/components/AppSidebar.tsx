@@ -50,9 +50,9 @@ export function AppSidebar() {
     <>
       <Sidebar collapsible="icon">
         <SidebarContent>
-          <div className="px-4 py-5">
+          <div className="px-4 pt-2 pb-0">
             {!collapsed && (
-              <img src={logoFluxoPro} alt="FluxoPro" className="h-48 w-full object-contain" />
+              <img src={logoFluxoPro} alt="FluxoPro" className="h-28 w-full object-contain" />
             )}
             {collapsed && <img src={logoFluxoPro} alt="FluxoPro" className="h-10 w-10 object-contain mx-auto" />}
           </div>
