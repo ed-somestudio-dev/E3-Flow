@@ -391,6 +391,7 @@ export type Database = {
           id: string
           pix_key: string | null
           pix_key_type: string | null
+          receipt_stamp_url: string | null
           updated_at: string
           user_id: string
         }
@@ -402,6 +403,7 @@ export type Database = {
           id?: string
           pix_key?: string | null
           pix_key_type?: string | null
+          receipt_stamp_url?: string | null
           updated_at?: string
           user_id: string
         }
@@ -413,6 +415,7 @@ export type Database = {
           id?: string
           pix_key?: string | null
           pix_key_type?: string | null
+          receipt_stamp_url?: string | null
           updated_at?: string
           user_id?: string
         }
