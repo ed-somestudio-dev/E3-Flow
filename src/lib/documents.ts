@@ -238,6 +238,7 @@ interface CardOptions {
   qr?: string;
   footer?: string;
   copyText?: string;
+  stampUrl?: string;
 }
 
 async function renderCardPNG(opts: CardOptions): Promise<Blob> {
@@ -248,9 +249,10 @@ async function renderCardPNG(opts: CardOptions): Promise<Blob> {
   const amountH = 90;
   const qrH = opts.qr ? 280 : 0;
   const copyH = opts.copyText ? 80 : 0;
+  const stampH = opts.stampUrl ? 110 : 0;
   const footerH = 50;
   const rowsH = opts.rows.length * rowHeight;
-  const H = headerH + amountH + rowsH + qrH + copyH + footerH + padding * 2;
+  const H = headerH + amountH + rowsH + qrH + copyH + stampH + footerH + padding * 2;
 
   const canvas = document.createElement('canvas');
   canvas.width = W;
@@ -309,6 +311,19 @@ async function renderCardPNG(opts: CardOptions): Promise<Blob> {
       y += 16;
     }
     y += 10;
+  }
+
+  // Carimbo / assinatura
+  if (opts.stampUrl) {
+    try {
+      const img = await loadImage(opts.stampUrl);
+      const maxW = 200, maxH = 90;
+      const ratio = Math.min(maxW / img.width, maxH / img.height);
+      const drawW = img.width * ratio;
+      const drawH = img.height * ratio;
+      ctx.drawImage(img, (W - drawW) / 2, y, drawW, drawH);
+      y += maxH + 10;
+    } catch {/* ignore */}
   }
 
   // Footer
