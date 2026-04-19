@@ -1,15 +1,18 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { usePixSettings, PixSettingsRow } from '@/lib/pix-settings-context';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { QrCode, Save } from 'lucide-react';
+import { QrCode, Save, Stamp, Upload, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 export default function SettingsPage() {
-  const { settings, save, loaded } = usePixSettings();
+  const { settings, save, loaded, uploadStamp, removeStamp } = usePixSettings();
   const [form, setForm] = useState<PixSettingsRow>(settings);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { setForm(settings); }, [settings]);
 
@@ -18,13 +21,38 @@ export default function SettingsPage() {
     try { await save(form); } finally { setSaving(false); }
   };
 
+  const handleStampPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast.error('Selecione um arquivo de imagem (PNG/JPG)');
+      return;
+    }
+    setUploading(true);
+    try {
+      await uploadStamp(file);
+      toast.success('Carimbo enviado');
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao enviar imagem');
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  };
+
+  const handleRemoveStamp = async () => {
+    setUploading(true);
+    try { await removeStamp(); toast.success('Carimbo removido'); }
+    finally { setUploading(false); }
+  };
+
   if (!loaded) return <p className="text-muted-foreground">Carregando...</p>;
 
   return (
     <div className="space-y-6 max-w-2xl">
       <div>
         <h1 className="text-2xl font-bold">Configurações</h1>
-        <p className="text-muted-foreground text-sm">Configure seus dados PIX para gerar cobranças e recibos</p>
+        <p className="text-muted-foreground text-sm">Configure seus dados PIX e personalize seus recibos</p>
       </div>
 
       <div className="finance-card p-6 space-y-4">
@@ -81,6 +109,52 @@ export default function SettingsPage() {
           <Save className="h-4 w-4 mr-2" />
           {saving ? 'Salvando...' : 'Salvar configurações'}
         </Button>
+      </div>
+
+      <div className="finance-card p-6 space-y-4">
+        <div className="flex items-center gap-2 pb-2 border-b border-border">
+          <Stamp className="h-5 w-5 text-primary" />
+          <h2 className="font-semibold">Carimbo / Assinatura para Recibo</h2>
+        </div>
+
+        <p className="text-sm text-muted-foreground">
+          Envie uma imagem PNG ou JPG do seu carimbo "PAGO" ou da sua assinatura.
+          Ela será incluída automaticamente nos recibos em PDF. Recomendado: PNG com fundo transparente, máx 2MB.
+        </p>
+
+        {settings.receiptStampUrl ? (
+          <div className="flex flex-col sm:flex-row items-start gap-4">
+            <div className="rounded-md border border-border bg-secondary/30 p-3 flex items-center justify-center w-full sm:w-48 h-32">
+              <img
+                src={settings.receiptStampUrl}
+                alt="Carimbo / Assinatura"
+                className="max-w-full max-h-full object-contain"
+              />
+            </div>
+            <div className="flex flex-col gap-2 w-full sm:w-auto">
+              <Button variant="outline" onClick={() => fileRef.current?.click()} disabled={uploading}>
+                <Upload className="h-4 w-4 mr-2" /> Substituir
+              </Button>
+              <Button variant="outline" onClick={handleRemoveStamp} disabled={uploading}
+                className="text-destructive hover:text-destructive">
+                <Trash2 className="h-4 w-4 mr-2" /> Remover
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <Button variant="outline" onClick={() => fileRef.current?.click()} disabled={uploading} className="w-full sm:w-auto">
+            <Upload className="h-4 w-4 mr-2" />
+            {uploading ? 'Enviando...' : 'Enviar imagem do carimbo'}
+          </Button>
+        )}
+
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/png,image/jpeg,image/webp"
+          className="hidden"
+          onChange={handleStampPick}
+        />
       </div>
     </div>
   );
