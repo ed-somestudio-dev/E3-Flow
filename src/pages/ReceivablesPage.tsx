@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useFinance } from '@/lib/finance-context';
+import { supabase } from '@/integrations/supabase/client';
 import { usePixSettings } from '@/lib/pix-settings-context';
 import { Receivable, ReceivableStatus, RecurrenceFrequency } from '@/lib/types';
 import { Plus, Trash2, Edit2, CheckCircle, Search, CreditCard, CalendarIcon, X, RefreshCw, QrCode, Receipt, AlertTriangle } from 'lucide-react';
@@ -133,22 +134,30 @@ export default function ReceivablesPage() {
       } else {
         const total = items.reduce((s, r) => s + r.amount, 0);
         if (total <= 0) return;
-        const cap = Math.min(amt, total);
-        let allocated = 0;
-        for (let i = 0; i < items.length; i++) {
-          const r = items[i];
-          let pay: number;
-          if (i === items.length - 1) {
-            pay = Math.round((cap - allocated) * 100) / 100;
-          } else {
-            pay = Math.round((r.amount / total) * cap * 100) / 100;
-            allocated += pay;
-          }
-          if (pay <= 0) continue;
-          if (pay >= r.amount) {
-            await markReceivableReceived(r.id, receiveAccountId);
-          } else {
-            await markReceivableReceivedPartial(r.id, receiveAccountId, pay);
+        if (amt >= total) {
+          for (const r of items) await markReceivableReceived(r.id, receiveAccountId);
+        } else {
+          const remaining = Math.round((total - amt) * 100) / 100;
+          // 1) Dá baixa total em cada item selecionado
+          for (const r of items) await markReceivableReceived(r.id, receiveAccountId);
+          // 2) Cria um único novo recebível com o saldo restante
+          const base = items[0];
+          const earliestDue = items.map(i => i.dueDate).sort()[0];
+          const { data: userRes } = await supabase.auth.getUser();
+          const uid = userRes.user?.id;
+          if (uid) {
+            const { error: insErr } = await supabase.from('receivables').insert({
+              user_id: uid,
+              client_name: base.clientName,
+              description: `Saldo restante de ${items.length} recebíveis (${base.clientName})`,
+              category_id: base.categoryId,
+              account_id: base.accountId || null,
+              amount: remaining,
+              due_date: earliestDue,
+              status: 'pending',
+              notes: `Saldo restante de recebimento parcial agrupado. Total original: ${total.toFixed(2)}, recebido: ${amt.toFixed(2)}, itens: ${items.length}.`,
+            });
+            if (insErr) console.error('grouped partial insert error:', insErr);
           }
         }
       }
@@ -507,7 +516,7 @@ export default function ReceivablesPage() {
                       onChange={(e) => setPartialAmount(e.target.value)} placeholder="0,00" />
                     {partialAmount && parseFloat(partialAmount) > 0 && parseFloat(partialAmount) < receivingTotal && (
                       <p className="text-xs text-muted-foreground">
-                        Saldo restante: <span className="font-semibold mono text-success">{fmt(receivingTotal - parseFloat(partialAmount))}</span> — {recItems.length > 1 ? 'será criado um novo recebível pendente para cada item com o respectivo saldo restante.' : 'será criado um novo recebível pendente com os mesmos dados.'}
+                        Saldo restante: <span className="font-semibold mono text-success">{fmt(receivingTotal - parseFloat(partialAmount))}</span> — {recItems.length > 1 ? `os ${recItems.length} itens serão recebidos e será criado UM novo recebível pendente com o saldo restante.` : 'será criado um novo recebível pendente com os mesmos dados.'}
                       </p>
                     )}
                     {partialAmount && parseFloat(partialAmount) >= receivingTotal && (
