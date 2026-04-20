@@ -465,13 +465,41 @@ export default function PayablesPage() {
               </Select>
               {selectedPayAccount && (
                 <p className="text-xs text-muted-foreground">
-                  Saldo após pagamento: <span className="font-semibold mono">{fmt(selectedPayAccount.balance - payingTotal)}</span>
+                  Saldo após pagamento: <span className="font-semibold mono">{fmt(selectedPayAccount.balance - (partialMode && partialAmount ? parseFloat(partialAmount) || 0 : payingTotal))}</span>
                 </p>
               )}
             </div>
-            <Button className="w-full" disabled={!payAccountId} onClick={confirmPay}>
+            {payingIds.length === 1 && (
+              <div className="space-y-2 p-3 rounded-lg bg-primary/5 border border-primary/20">
+                <div className="flex items-center gap-2">
+                  <Checkbox id="partialPay" checked={partialMode} onCheckedChange={(c) => {
+                    const checked = c === true;
+                    setPartialMode(checked);
+                    if (checked && !partialAmount) setPartialAmount((payingTotal / 2).toFixed(2));
+                    if (!checked) setPartialAmount('');
+                  }} />
+                  <Label htmlFor="partialPay" className="cursor-pointer text-sm">Pagamento parcial</Label>
+                </div>
+                {partialMode && (
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Valor pago agora</Label>
+                    <Input type="number" step="0.01" min="0.01" max={payingTotal} value={partialAmount}
+                      onChange={(e) => setPartialAmount(e.target.value)} placeholder="0,00" />
+                    {partialAmount && parseFloat(partialAmount) > 0 && parseFloat(partialAmount) < payingTotal && (
+                      <p className="text-xs text-muted-foreground">
+                        Saldo restante: <span className="font-semibold mono text-destructive">{fmt(payingTotal - parseFloat(partialAmount))}</span> — será criada uma nova conta pendente com os mesmos dados.
+                      </p>
+                    )}
+                    {partialAmount && parseFloat(partialAmount) >= payingTotal && (
+                      <p className="text-xs text-warning">Valor igual ou maior que o total — será registrado como pagamento integral.</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+            <Button className="w-full" disabled={!payAccountId || (partialMode && (!partialAmount || parseFloat(partialAmount) <= 0))} onClick={confirmPay}>
               <CheckCircle className="h-4 w-4 mr-2" />
-              Confirmar Pagamento
+              {partialMode ? 'Confirmar Pagamento Parcial' : 'Confirmar Pagamento'}
             </Button>
           </div>
         </DialogContent>
