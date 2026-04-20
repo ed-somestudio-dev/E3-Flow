@@ -36,7 +36,7 @@ function StatusBadge({ status }: { status: ReceivableStatus }) {
 }
 
 export default function ReceivablesPage() {
-  const { data, addReceivable, updateReceivable, deleteReceivable, markReceivableReceived, getCategoryName, getAccountName } = useFinance();
+  const { data, addReceivable, updateReceivable, deleteReceivable, markReceivableReceived, markReceivableReceivedPartial, getCategoryName, getAccountName } = useFinance();
   const { settings: pixSettings, isConfigured } = usePixSettings();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -46,6 +46,8 @@ export default function ReceivablesPage() {
   const [receiveDialogOpen, setReceiveDialogOpen] = useState(false);
   const [receivingIds, setReceivingIds] = useState<string[]>([]);
   const [receiveAccountId, setReceiveAccountId] = useState('');
+  const [partialMode, setPartialMode] = useState(false);
+  const [partialAmount, setPartialAmount] = useState('');
   const [dateFrom, setDateFrom] = useState<Date | undefined>(startOfMonth(new Date()));
   const [dateTo, setDateTo] = useState<Date | undefined>(endOfMonth(new Date()));
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
