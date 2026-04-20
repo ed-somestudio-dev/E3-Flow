@@ -960,8 +960,8 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     <FinanceContext.Provider value={{
       data, loading,
       addTransaction, updateTransaction, deleteTransaction,
-      addPayable, updatePayable, deletePayable, markPayablePaid,
-      addReceivable, updateReceivable, deleteReceivable, markReceivableReceived,
+      addPayable, updatePayable, deletePayable, markPayablePaid, markPayablePaidPartial,
+      addReceivable, updateReceivable, deleteReceivable, markReceivableReceived, markReceivableReceivedPartial,
       addAccount, updateAccount, deleteAccount, transferBetweenAccounts,
       addBudget, updateBudget, deleteBudget,
       addCategory, updateCategory, deleteCategory,
