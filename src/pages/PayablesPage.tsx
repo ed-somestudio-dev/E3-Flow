@@ -246,10 +246,40 @@ export default function PayablesPage() {
 
   const confirmPay = async () => {
     if (payingIds.length > 0 && payAccountId) {
-      if (partialMode && payingIds.length === 1) {
+      if (partialMode) {
         const amt = parseFloat(partialAmount);
         if (!amt || amt <= 0) return;
-        await markPayablePaidPartial(payingIds[0], payAccountId, amt);
+        if (payingIds.length === 1) {
+          await markPayablePaidPartial(payingIds[0], payAccountId, amt);
+        } else {
+          // Distribute partial amount proportionally across selected items.
+          // Each item gets paid (item.amount / total) * amt, and a residual
+          // entry is created for the remaining balance per item.
+          const items = payingIds
+            .map(id => data.payables.find(x => x.id === id))
+            .filter(Boolean) as Payable[];
+          const total = items.reduce((s, p) => s + p.amount, 0);
+          if (total <= 0) return;
+          const cap = Math.min(amt, total);
+          let allocated = 0;
+          for (let i = 0; i < items.length; i++) {
+            const p = items[i];
+            let pay: number;
+            if (i === items.length - 1) {
+              // Last item absorbs rounding leftovers
+              pay = Math.round((cap - allocated) * 100) / 100;
+            } else {
+              pay = Math.round((p.amount / total) * cap * 100) / 100;
+              allocated += pay;
+            }
+            if (pay <= 0) continue;
+            if (pay >= p.amount) {
+              await markPayablePaid(p.id, payAccountId);
+            } else {
+              await markPayablePaidPartial(p.id, payAccountId, pay);
+            }
+          }
+        }
       } else {
         for (const id of payingIds) {
           await markPayablePaid(id, payAccountId);
@@ -469,7 +499,11 @@ export default function PayablesPage() {
                 </p>
               )}
             </div>
-            {payingIds.length === 1 && (
+            {(() => {
+              const payingItems = payingIds.map(id => data.payables.find(x => x.id === id)).filter(Boolean) as Payable[];
+              const sameSupplier = payingItems.length > 0 && payingItems.every(p => p.supplier === payingItems[0].supplier);
+              const allowPartial = payingItems.length === 1 || (payingItems.length > 1 && sameSupplier);
+              return allowPartial && (
               <div className="space-y-2 p-3 rounded-lg bg-primary/5 border border-primary/20">
                 <div className="flex items-center gap-2">
                   <Checkbox id="partialPay" checked={partialMode} onCheckedChange={(c) => {
@@ -478,16 +512,20 @@ export default function PayablesPage() {
                     if (checked && !partialAmount) setPartialAmount((payingTotal / 2).toFixed(2));
                     if (!checked) setPartialAmount('');
                   }} />
-                  <Label htmlFor="partialPay" className="cursor-pointer text-sm">Pagamento parcial</Label>
+                  <Label htmlFor="partialPay" className="cursor-pointer text-sm">
+                    Pagamento parcial{payingItems.length > 1 ? ` (${payingItems.length} itens · ${payingItems[0].supplier})` : ''}
+                  </Label>
                 </div>
                 {partialMode && (
                   <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">Valor pago agora</Label>
+                    <Label className="text-xs text-muted-foreground">
+                      {payingItems.length > 1 ? 'Valor total pago agora (será distribuído proporcionalmente)' : 'Valor pago agora'}
+                    </Label>
                     <Input type="number" step="0.01" min="0.01" max={payingTotal} value={partialAmount}
                       onChange={(e) => setPartialAmount(e.target.value)} placeholder="0,00" />
                     {partialAmount && parseFloat(partialAmount) > 0 && parseFloat(partialAmount) < payingTotal && (
                       <p className="text-xs text-muted-foreground">
-                        Saldo restante: <span className="font-semibold mono text-destructive">{fmt(payingTotal - parseFloat(partialAmount))}</span> — será criada uma nova conta pendente com os mesmos dados.
+                        Saldo restante: <span className="font-semibold mono text-destructive">{fmt(payingTotal - parseFloat(partialAmount))}</span> — {payingItems.length > 1 ? 'será criada uma nova conta pendente para cada item com o respectivo saldo restante.' : 'será criada uma nova conta pendente com os mesmos dados.'}
                       </p>
                     )}
                     {partialAmount && parseFloat(partialAmount) >= payingTotal && (
@@ -496,7 +534,8 @@ export default function PayablesPage() {
                   </div>
                 )}
               </div>
-            )}
+              );
+            })()}
             <Button className="w-full" disabled={!payAccountId || (partialMode && (!partialAmount || parseFloat(partialAmount) <= 0))} onClick={confirmPay}>
               <CheckCircle className="h-4 w-4 mr-2" />
               {partialMode ? 'Confirmar Pagamento Parcial' : 'Confirmar Pagamento'}

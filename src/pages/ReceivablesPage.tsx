@@ -123,10 +123,35 @@ export default function ReceivablesPage() {
     if (receivingIds.length === 0 || !receiveAccountId) return;
     const accName = data.accounts.find(a => a.id === receiveAccountId)?.name || '';
     const items = receivingIds.map(id => data.receivables.find(r => r.id === id)).filter(Boolean) as Receivable[];
-    if (partialMode && receivingIds.length === 1) {
+    let partialAmtUsed = 0;
+    if (partialMode) {
       const amt = parseFloat(partialAmount);
       if (!amt || amt <= 0) return;
-      await markReceivableReceivedPartial(receivingIds[0], receiveAccountId, amt);
+      partialAmtUsed = amt;
+      if (receivingIds.length === 1) {
+        await markReceivableReceivedPartial(receivingIds[0], receiveAccountId, amt);
+      } else {
+        const total = items.reduce((s, r) => s + r.amount, 0);
+        if (total <= 0) return;
+        const cap = Math.min(amt, total);
+        let allocated = 0;
+        for (let i = 0; i < items.length; i++) {
+          const r = items[i];
+          let pay: number;
+          if (i === items.length - 1) {
+            pay = Math.round((cap - allocated) * 100) / 100;
+          } else {
+            pay = Math.round((r.amount / total) * cap * 100) / 100;
+            allocated += pay;
+          }
+          if (pay <= 0) continue;
+          if (pay >= r.amount) {
+            await markReceivableReceived(r.id, receiveAccountId);
+          } else {
+            await markReceivableReceivedPartial(r.id, receiveAccountId, pay);
+          }
+        }
+      }
     } else {
       for (const id of receivingIds) {
         await markReceivableReceived(id, receiveAccountId);
@@ -136,7 +161,7 @@ export default function ReceivablesPage() {
     setSelectedIds(new Set());
     setReceivingIds([]);
     const wasPartial = partialMode;
-    const partialAmt = parseFloat(partialAmount) || 0;
+    const partialAmt = partialAmtUsed;
     setPartialMode(false);
     setPartialAmount('');
 
@@ -456,7 +481,11 @@ export default function ReceivablesPage() {
                 </p>
               )}
             </div>
-            {receivingIds.length === 1 && (
+            {(() => {
+              const recItems = receivingIds.map(id => data.receivables.find(r => r.id === id)).filter(Boolean) as Receivable[];
+              const sameClient = recItems.length > 0 && recItems.every(r => r.clientName === recItems[0].clientName);
+              const allowPartial = recItems.length === 1 || (recItems.length > 1 && sameClient);
+              return allowPartial && (
               <div className="space-y-2 p-3 rounded-lg bg-primary/5 border border-primary/20">
                 <div className="flex items-center gap-2">
                   <Checkbox id="partialReceive" checked={partialMode} onCheckedChange={(c) => {
@@ -465,16 +494,20 @@ export default function ReceivablesPage() {
                     if (checked && !partialAmount) setPartialAmount((receivingTotal / 2).toFixed(2));
                     if (!checked) setPartialAmount('');
                   }} />
-                  <Label htmlFor="partialReceive" className="cursor-pointer text-sm">Recebimento parcial</Label>
+                  <Label htmlFor="partialReceive" className="cursor-pointer text-sm">
+                    Recebimento parcial{recItems.length > 1 ? ` (${recItems.length} itens · ${recItems[0].clientName})` : ''}
+                  </Label>
                 </div>
                 {partialMode && (
                   <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">Valor recebido agora</Label>
+                    <Label className="text-xs text-muted-foreground">
+                      {recItems.length > 1 ? 'Valor total recebido agora (será distribuído proporcionalmente)' : 'Valor recebido agora'}
+                    </Label>
                     <Input type="number" step="0.01" min="0.01" max={receivingTotal} value={partialAmount}
                       onChange={(e) => setPartialAmount(e.target.value)} placeholder="0,00" />
                     {partialAmount && parseFloat(partialAmount) > 0 && parseFloat(partialAmount) < receivingTotal && (
                       <p className="text-xs text-muted-foreground">
-                        Saldo restante: <span className="font-semibold mono text-success">{fmt(receivingTotal - parseFloat(partialAmount))}</span> — será criado um novo recebível pendente com os mesmos dados.
+                        Saldo restante: <span className="font-semibold mono text-success">{fmt(receivingTotal - parseFloat(partialAmount))}</span> — {recItems.length > 1 ? 'será criado um novo recebível pendente para cada item com o respectivo saldo restante.' : 'será criado um novo recebível pendente com os mesmos dados.'}
                       </p>
                     )}
                     {partialAmount && parseFloat(partialAmount) >= receivingTotal && (
@@ -483,7 +516,8 @@ export default function ReceivablesPage() {
                   </div>
                 )}
               </div>
-            )}
+              );
+            })()}
             <Button className="w-full" disabled={!receiveAccountId || (partialMode && (!partialAmount || parseFloat(partialAmount) <= 0))} onClick={confirmReceive}>
               <CheckCircle className="h-4 w-4 mr-2" />
               {partialMode ? 'Confirmar Recebimento Parcial' : 'Confirmar Recebimento'}
