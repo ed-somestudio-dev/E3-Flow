@@ -14,10 +14,12 @@ interface FinanceContextType {
   updatePayable: (p: Payable) => Promise<void>;
   deletePayable: (id: string) => Promise<void>;
   markPayablePaid: (id: string, accountId?: string) => Promise<void>;
+  markPayablePaidPartial: (id: string, accountId: string, paidAmount: number) => Promise<void>;
   addReceivable: (r: Omit<Receivable, 'id'>, installments?: number) => Promise<void>;
   updateReceivable: (r: Receivable) => Promise<void>;
   deleteReceivable: (id: string) => Promise<void>;
   markReceivableReceived: (id: string, accountId?: string) => Promise<void>;
+  markReceivableReceivedPartial: (id: string, accountId: string, receivedAmount: number) => Promise<void>;
   addAccount: (a: Omit<FinancialAccount, 'id'>) => Promise<void>;
   updateAccount: (a: FinancialAccount) => Promise<void>;
   deleteAccount: (id: string) => Promise<void>;
