@@ -452,13 +452,41 @@ export default function ReceivablesPage() {
               </Select>
               {selectedReceiveAccount && (
                 <p className="text-xs text-muted-foreground">
-                  Saldo após recebimento: <span className="font-semibold mono">{fmt(selectedReceiveAccount.balance + receivingTotal)}</span>
+                  Saldo após recebimento: <span className="font-semibold mono">{fmt(selectedReceiveAccount.balance + (partialMode && partialAmount ? parseFloat(partialAmount) || 0 : receivingTotal))}</span>
                 </p>
               )}
             </div>
-            <Button className="w-full" disabled={!receiveAccountId} onClick={confirmReceive}>
+            {receivingIds.length === 1 && (
+              <div className="space-y-2 p-3 rounded-lg bg-primary/5 border border-primary/20">
+                <div className="flex items-center gap-2">
+                  <Checkbox id="partialReceive" checked={partialMode} onCheckedChange={(c) => {
+                    const checked = c === true;
+                    setPartialMode(checked);
+                    if (checked && !partialAmount) setPartialAmount((receivingTotal / 2).toFixed(2));
+                    if (!checked) setPartialAmount('');
+                  }} />
+                  <Label htmlFor="partialReceive" className="cursor-pointer text-sm">Recebimento parcial</Label>
+                </div>
+                {partialMode && (
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Valor recebido agora</Label>
+                    <Input type="number" step="0.01" min="0.01" max={receivingTotal} value={partialAmount}
+                      onChange={(e) => setPartialAmount(e.target.value)} placeholder="0,00" />
+                    {partialAmount && parseFloat(partialAmount) > 0 && parseFloat(partialAmount) < receivingTotal && (
+                      <p className="text-xs text-muted-foreground">
+                        Saldo restante: <span className="font-semibold mono text-success">{fmt(receivingTotal - parseFloat(partialAmount))}</span> — será criado um novo recebível pendente com os mesmos dados.
+                      </p>
+                    )}
+                    {partialAmount && parseFloat(partialAmount) >= receivingTotal && (
+                      <p className="text-xs text-warning">Valor igual ou maior que o total — será registrado como recebimento integral.</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+            <Button className="w-full" disabled={!receiveAccountId || (partialMode && (!partialAmount || parseFloat(partialAmount) <= 0))} onClick={confirmReceive}>
               <CheckCircle className="h-4 w-4 mr-2" />
-              Confirmar Recebimento
+              {partialMode ? 'Confirmar Recebimento Parcial' : 'Confirmar Recebimento'}
             </Button>
           </div>
         </DialogContent>
