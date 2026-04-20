@@ -158,7 +158,7 @@ function InvoiceMonthGroup({ monthKey, items, invoiceDueDate, invoiceStatus, mon
 }
 
 export default function PayablesPage() {
-  const { data, addPayable, updatePayable, deletePayable, markPayablePaid, getCategoryName, getAccountName } = useFinance();
+  const { data, addPayable, updatePayable, deletePayable, markPayablePaid, markPayablePaidPartial, getCategoryName, getAccountName } = useFinance();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [editingItem, setEditingItem] = useState<Payable | null>(null);
@@ -166,6 +166,8 @@ export default function PayablesPage() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [payDialogOpen, setPayDialogOpen] = useState(false);
   const [payAccountId, setPayAccountId] = useState('');
+  const [partialMode, setPartialMode] = useState(false);
+  const [partialAmount, setPartialAmount] = useState('');
   const [dateFrom, setDateFrom] = useState<Date | undefined>(startOfMonth(new Date()));
   const [dateTo, setDateTo] = useState<Date | undefined>(endOfMonth(new Date()));
 
@@ -222,6 +224,8 @@ export default function PayablesPage() {
     const payable = data.payables.find(p => p.id === id);
     setPayingIds([id]);
     setPayAccountId(payable?.accountId || data.accounts[0]?.id || '');
+    setPartialMode(false);
+    setPartialAmount('');
     setPayDialogOpen(true);
   };
 
@@ -229,6 +233,8 @@ export default function PayablesPage() {
     const first = data.payables.find(p => p.id === ids[0]);
     setPayingIds(ids);
     setPayAccountId(first?.accountId || data.accounts[0]?.id || '');
+    setPartialMode(false);
+    setPartialAmount('');
     setPayDialogOpen(true);
   };
 
@@ -240,12 +246,20 @@ export default function PayablesPage() {
 
   const confirmPay = async () => {
     if (payingIds.length > 0 && payAccountId) {
-      for (const id of payingIds) {
-        await markPayablePaid(id, payAccountId);
+      if (partialMode && payingIds.length === 1) {
+        const amt = parseFloat(partialAmount);
+        if (!amt || amt <= 0) return;
+        await markPayablePaidPartial(payingIds[0], payAccountId, amt);
+      } else {
+        for (const id of payingIds) {
+          await markPayablePaid(id, payAccountId);
+        }
       }
       setPayDialogOpen(false);
       setSelectedIds(new Set());
       setPayingIds([]);
+      setPartialMode(false);
+      setPartialAmount('');
     }
   };
 
