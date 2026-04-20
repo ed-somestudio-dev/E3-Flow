@@ -516,7 +516,7 @@ export default function ReceivablesPage() {
                       onChange={(e) => setPartialAmount(e.target.value)} placeholder="0,00" />
                     {partialAmount && parseFloat(partialAmount) > 0 && parseFloat(partialAmount) < receivingTotal && (
                       <p className="text-xs text-muted-foreground">
-                        Saldo restante: <span className="font-semibold mono text-success">{fmt(receivingTotal - parseFloat(partialAmount))}</span> — {recItems.length > 1 ? 'será criado um novo recebível pendente para cada item com o respectivo saldo restante.' : 'será criado um novo recebível pendente com os mesmos dados.'}
+                        Saldo restante: <span className="font-semibold mono text-success">{fmt(receivingTotal - parseFloat(partialAmount))}</span> — {recItems.length > 1 ? `os ${recItems.length} itens serão recebidos e será criado UM novo recebível pendente com o saldo restante.` : 'será criado um novo recebível pendente com os mesmos dados.'}
                       </p>
                     )}
                     {partialAmount && parseFloat(partialAmount) >= receivingTotal && (

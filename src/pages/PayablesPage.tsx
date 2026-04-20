@@ -532,7 +532,7 @@ export default function PayablesPage() {
                       onChange={(e) => setPartialAmount(e.target.value)} placeholder="0,00" />
                     {partialAmount && parseFloat(partialAmount) > 0 && parseFloat(partialAmount) < payingTotal && (
                       <p className="text-xs text-muted-foreground">
-                        Saldo restante: <span className="font-semibold mono text-destructive">{fmt(payingTotal - parseFloat(partialAmount))}</span> — {payingItems.length > 1 ? 'será criada uma nova conta pendente para cada item com o respectivo saldo restante.' : 'será criada uma nova conta pendente com os mesmos dados.'}
+                        Saldo restante: <span className="font-semibold mono text-destructive">{fmt(payingTotal - parseFloat(partialAmount))}</span> — {payingItems.length > 1 ? `os ${payingItems.length} itens serão quitados e será criada UMA nova conta pendente com o saldo restante.` : 'será criada uma nova conta pendente com os mesmos dados.'}
                       </p>
                     )}
                     {partialAmount && parseFloat(partialAmount) >= payingTotal && (
