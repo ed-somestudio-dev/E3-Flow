@@ -688,6 +688,61 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     await fetchAll();
   }, [user, data, fetchAll]);
 
+  const markReceivableReceivedPartial = useCallback(async (id: string, accountId: string, receivedAmount: number) => {
+    if (!user) return;
+    const receivable = data.receivables.find(x => x.id === id);
+    if (!receivable) { toast.error('Recebível não encontrado'); return; }
+    if (receivedAmount <= 0) { toast.error('Valor recebido deve ser maior que zero'); return; }
+    if (receivedAmount >= receivable.amount) {
+      await markReceivableReceived(id, accountId);
+      return;
+    }
+    const remaining = Math.round((receivable.amount - receivedAmount) * 100) / 100;
+    const today = new Date().toISOString().split('T')[0];
+
+    // 1) Marca o registro original como recebido com o valor parcial
+    const { error: updErr } = await supabase.from('receivables').update({
+      status: 'received',
+      payment_date: today,
+      account_id: accountId,
+      amount: receivedAmount,
+      notes: `${receivable.notes ? receivable.notes + ' | ' : ''}Recebimento parcial de ${receivable.amount.toFixed(2)}`,
+    }).eq('id', id).eq('user_id', user.id);
+    if (updErr) { console.error('partial receivable update error:', updErr); toast.error('Erro ao registrar recebimento parcial'); return; }
+
+    // 2) Cria novo registro pendente com o valor restante
+    const { error: insErr } = await supabase.from('receivables').insert({
+      user_id: user.id,
+      client_name: receivable.clientName,
+      description: `${receivable.description} (Saldo restante)`,
+      category_id: receivable.categoryId,
+      account_id: receivable.accountId || null,
+      amount: remaining,
+      due_date: receivable.dueDate,
+      status: 'pending',
+      notes: `${receivable.notes ? receivable.notes + ' | ' : ''}Saldo restante de recebimento parcial (original: ${receivable.amount.toFixed(2)}, recebido: ${receivedAmount.toFixed(2)})`,
+    });
+    if (insErr) { console.error('partial receivable insert error:', insErr); toast.error('Erro ao criar saldo restante'); return; }
+
+    // 3) Credita conta e cria transação
+    const { error: balErr } = await supabase.rpc('increment_account_balance' as any, { p_account_id: accountId, p_amount: receivedAmount });
+    if (balErr) console.error('increment balance error:', balErr);
+
+    await supabase.from('transactions').insert({
+      user_id: user.id,
+      type: 'income',
+      description: receivable.description,
+      category_id: receivable.categoryId,
+      amount: receivedAmount,
+      date: today,
+      account_id: accountId,
+      notes: `Recebimento parcial: ${receivable.clientName || ''}`.trim(),
+    });
+
+    toast.success(`Recebimento parcial registrado. Saldo restante: ${remaining.toFixed(2)}`);
+    await fetchAll();
+  }, [user, data, fetchAll, markReceivableReceived]);
+
   // --- Accounts ---
   const addAccount = useCallback(async (a: Omit<FinancialAccount, 'id'>) => {
     if (!user) return;
