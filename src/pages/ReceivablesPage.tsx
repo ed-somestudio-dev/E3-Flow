@@ -103,6 +103,8 @@ export default function ReceivablesPage() {
     const receivable = data.receivables.find(r => r.id === id);
     setReceivingIds([id]);
     setReceiveAccountId(receivable?.accountId || data.accounts[0]?.id || '');
+    setPartialMode(false);
+    setPartialAmount('');
     setReceiveDialogOpen(true);
   };
 
@@ -112,6 +114,8 @@ export default function ReceivablesPage() {
     const first = data.receivables.find(r => r.id === ids[0]);
     setReceivingIds(ids);
     setReceiveAccountId(first?.accountId || data.accounts[0]?.id || '');
+    setPartialMode(false);
+    setPartialAmount('');
     setReceiveDialogOpen(true);
   };
 
@@ -119,15 +123,25 @@ export default function ReceivablesPage() {
     if (receivingIds.length === 0 || !receiveAccountId) return;
     const accName = data.accounts.find(a => a.id === receiveAccountId)?.name || '';
     const items = receivingIds.map(id => data.receivables.find(r => r.id === id)).filter(Boolean) as Receivable[];
-    for (const id of receivingIds) {
-      await markReceivableReceived(id, receiveAccountId);
+    if (partialMode && receivingIds.length === 1) {
+      const amt = parseFloat(partialAmount);
+      if (!amt || amt <= 0) return;
+      await markReceivableReceivedPartial(receivingIds[0], receiveAccountId, amt);
+    } else {
+      for (const id of receivingIds) {
+        await markReceivableReceived(id, receiveAccountId);
+      }
     }
     setReceiveDialogOpen(false);
     setSelectedIds(new Set());
     setReceivingIds([]);
+    const wasPartial = partialMode;
+    const partialAmt = parseFloat(partialAmount) || 0;
+    setPartialMode(false);
+    setPartialAmount('');
 
     // Offer receipt generation
-    if (items.length === 1) {
+    if (items.length === 1 && !wasPartial) {
       const r = items[0];
       const today = format(new Date(), 'yyyy-MM-dd');
       openShare({
@@ -140,6 +154,21 @@ export default function ReceivablesPage() {
         generatePNG: () => generateReceiptPNG({
           id: r.id, clientName: r.clientName, description: r.description,
           amount: r.amount, receivedDate: today, accountName: accName,
+        }, isConfigured ? pixSettings : null),
+      });
+    } else if (items.length === 1 && wasPartial && partialAmt > 0 && partialAmt < items[0].amount) {
+      const r = items[0];
+      const today = format(new Date(), 'yyyy-MM-dd');
+      openShare({
+        title: 'Compartilhar Recibo (Parcial)',
+        filenameBase: `recibo-parcial-${r.clientName.replace(/\s+/g, '_')}-${today}`,
+        generatePDF: () => generateReceiptPDF({
+          id: r.id, clientName: r.clientName, description: `${r.description} (parcial)`,
+          amount: partialAmt, receivedDate: today, accountName: accName,
+        }, isConfigured ? pixSettings : null),
+        generatePNG: () => generateReceiptPNG({
+          id: r.id, clientName: r.clientName, description: `${r.description} (parcial)`,
+          amount: partialAmt, receivedDate: today, accountName: accName,
         }, isConfigured ? pixSettings : null),
       });
     } else if (items.length > 1) {
