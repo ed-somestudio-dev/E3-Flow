@@ -200,18 +200,24 @@ export default function ReceivablesPage() {
       // Aggregated receipt
       const today = format(new Date(), 'yyyy-MM-dd');
       const total = items.reduce((s, r) => s + r.amount, 0);
+      // Se foi recebimento parcial em lote, usa o valor efetivamente recebido (não o total das contas)
+      const receivedAmount = wasPartial && partialAmt > 0 ? Math.min(partialAmt, total) : total;
+      const isPartial = wasPartial && receivedAmount < total;
       const clientName = items.every(i => i.clientName === items[0].clientName) ? items[0].clientName : 'Diversos';
-      const description = `${items.length} recebimentos: ` + items.map(i => i.description).join(', ');
+      const baseDesc = `${items.length} recebimentos: ` + items.map(i => i.description).join(', ');
+      const description = isPartial
+        ? `${baseDesc} (parcial — saldo restante: ${(total - receivedAmount).toFixed(2)})`
+        : baseDesc;
       openShare({
-        title: 'Compartilhar Recibo',
-        filenameBase: `recibo-multiplo-${today}`,
+        title: isPartial ? 'Compartilhar Recibo (Parcial)' : 'Compartilhar Recibo',
+        filenameBase: `${isPartial ? 'recibo-parcial-multiplo' : 'recibo-multiplo'}-${today}`,
         generatePDF: () => generateReceiptPDF({
           id: items[0].id, clientName, description,
-          amount: total, receivedDate: today, accountName: accName,
+          amount: receivedAmount, receivedDate: today, accountName: accName,
         }, isConfigured ? pixSettings : null),
         generatePNG: () => generateReceiptPNG({
           id: items[0].id, clientName, description,
-          amount: total, receivedDate: today, accountName: accName,
+          amount: receivedAmount, receivedDate: today, accountName: accName,
         }, isConfigured ? pixSettings : null),
       });
     }
