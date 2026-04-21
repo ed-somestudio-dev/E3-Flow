@@ -34,7 +34,7 @@ export function OfflineBadge() {
 
   if (showSynced) {
     return (
-      <div className="flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+      <div className="flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-md bg-primary/10 text-primary">
         <Cloud className="h-3.5 w-3.5" />
         <span className="hidden sm:inline">Sincronizado</span>
       </div>
