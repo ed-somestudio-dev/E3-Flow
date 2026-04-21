@@ -253,37 +253,28 @@ export default function PayablesPage() {
         if (payingIds.length === 1) {
           await markPayablePaidPartial(payingIds[0], payAccountId, amt);
         } else {
-          // Múltiplos itens (mesmo fornecedor): dá baixa total em todos
-          // e cria UM único novo item com o saldo restante (total - pago).
-          const items = payingIds
+          // FIFO: paga itens mais antigos primeiro até esgotar o valor
+          const items = (payingIds
             .map(id => data.payables.find(x => x.id === id))
-            .filter(Boolean) as Payable[];
+            .filter(Boolean) as Payable[])
+            .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
           const total = items.reduce((s, p) => s + p.amount, 0);
           if (total <= 0) return;
           if (amt >= total) {
             for (const p of items) await markPayablePaid(p.id, payAccountId);
           } else {
-            const remaining = Math.round((total - amt) * 100) / 100;
-            // 1) Dá baixa total em cada item selecionado
-            for (const p of items) await markPayablePaid(p.id, payAccountId);
-            // 2) Cria um único novo lançamento com o saldo restante
-            const base = items[0];
-            const earliestDue = items.map(i => i.dueDate).sort()[0];
-            const { data: userRes } = await supabase.auth.getUser();
-            const uid = userRes.user?.id;
-            if (uid) {
-              const { error: insErr } = await supabase.from('payables').insert({
-                user_id: uid,
-                description: `Saldo restante de ${items.length} contas (${base.supplier})`,
-                supplier: base.supplier,
-                category_id: base.categoryId,
-                account_id: base.accountId || null,
-                amount: remaining,
-                due_date: earliestDue,
-                status: 'pending',
-                notes: `Saldo restante de pagamento parcial agrupado. Total original: ${total.toFixed(2)}, pago: ${amt.toFixed(2)}, itens: ${items.length}.`,
-              });
-              if (insErr) console.error('grouped partial insert error:', insErr);
+            let remaining = amt;
+            for (const p of items) {
+              if (remaining <= 0) break;
+              if (remaining >= p.amount - 0.005) {
+                // quita integralmente este item
+                await markPayablePaid(p.id, payAccountId);
+                remaining = Math.round((remaining - p.amount) * 100) / 100;
+              } else {
+                // pagamento parcial deste item — gera saldo restante individual
+                await markPayablePaidPartial(p.id, payAccountId, Math.round(remaining * 100) / 100);
+                remaining = 0;
+              }
             }
           }
         }
@@ -526,13 +517,13 @@ export default function PayablesPage() {
                 {partialMode && (
                   <div className="space-y-1">
                     <Label className="text-xs text-muted-foreground">
-                      {payingItems.length > 1 ? 'Valor total pago agora (será distribuído proporcionalmente)' : 'Valor pago agora'}
+                      {payingItems.length > 1 ? 'Valor pago agora (FIFO — quita as mais antigas primeiro)' : 'Valor pago agora'}
                     </Label>
                     <Input type="number" step="0.01" min="0.01" max={payingTotal} value={partialAmount}
                       onChange={(e) => setPartialAmount(e.target.value)} placeholder="0,00" />
                     {partialAmount && parseFloat(partialAmount) > 0 && parseFloat(partialAmount) < payingTotal && (
                       <p className="text-xs text-muted-foreground">
-                        Saldo restante: <span className="font-semibold mono text-destructive">{fmt(payingTotal - parseFloat(partialAmount))}</span> — {payingItems.length > 1 ? `os ${payingItems.length} itens serão quitados e será criada UMA nova conta pendente com o saldo restante.` : 'será criada uma nova conta pendente com os mesmos dados.'}
+                        Saldo restante: <span className="font-semibold mono text-destructive">{fmt(payingTotal - parseFloat(partialAmount))}</span> — {payingItems.length > 1 ? `as contas mais antigas serão quitadas integralmente; a próxima ficará parcial com saldo restante individual.` : 'será criada uma nova conta pendente com os mesmos dados.'}
                       </p>
                     )}
                     {partialAmount && parseFloat(partialAmount) >= payingTotal && (

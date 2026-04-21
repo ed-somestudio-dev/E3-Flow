@@ -122,6 +122,8 @@ export default function ReportsPage() {
     backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))',
     borderRadius: '8px', color: 'hsl(var(--foreground))',
   };
+  const tooltipItemStyle = { color: 'hsl(var(--foreground))' };
+  const tooltipLabelStyle = { color: 'hsl(var(--foreground))', fontWeight: 600 };
 
   const statusLabel = (s: string) => {
     if (s === 'paid') return 'Pago';
@@ -178,7 +180,7 @@ export default function ReportsPage() {
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis dataKey="name" tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }} />
                 <YAxis tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }} />
-                <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => fmt(value)} />
+                <Tooltip contentStyle={tooltipStyle} itemStyle={tooltipItemStyle} labelStyle={tooltipLabelStyle} formatter={(value: number) => fmt(value)} />
                 <Bar dataKey="receitas" name="Receitas" fill="hsl(var(--chart-income))" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="despesas" name="Despesas" fill="hsl(var(--chart-expense))" radius={[4, 4, 0, 0]} />
               </BarChart>
@@ -198,7 +200,7 @@ export default function ReportsPage() {
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis dataKey="name" tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }} />
                 <YAxis tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }} />
-                <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => fmt(value)} />
+                <Tooltip contentStyle={tooltipStyle} itemStyle={tooltipItemStyle} labelStyle={tooltipLabelStyle} formatter={(value: number) => fmt(value)} />
                 <Area type="monotone" dataKey="acumulado" name="Acumulado" stroke="hsl(var(--chart-4))" fill="url(#gradAcumulado)" strokeWidth={2.5} />
               </AreaChart>
             </ResponsiveContainer>
@@ -214,7 +216,7 @@ export default function ReportsPage() {
                       <Pie data={expenseByCategory} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={45} outerRadius={80} paddingAngle={3}>
                         {expenseByCategory.map((e, i) => <Cell key={i} fill={e.color} />)}
                       </Pie>
-                      <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => fmt(value)} />
+                      <Tooltip contentStyle={tooltipStyle} itemStyle={tooltipItemStyle} labelStyle={tooltipLabelStyle} formatter={(value: number) => fmt(value)} />
                     </PieChart>
                   </ResponsiveContainer>
                   <div className="space-y-1.5 mt-3">
@@ -240,7 +242,7 @@ export default function ReportsPage() {
                       <Pie data={incomeByCategory} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={45} outerRadius={80} paddingAngle={3}>
                         {incomeByCategory.map((e, i) => <Cell key={i} fill={e.color} />)}
                       </Pie>
-                      <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => fmt(value)} />
+                      <Tooltip contentStyle={tooltipStyle} itemStyle={tooltipItemStyle} labelStyle={tooltipLabelStyle} formatter={(value: number) => fmt(value)} />
                     </PieChart>
                   </ResponsiveContainer>
                   <div className="space-y-1.5 mt-3">
@@ -266,7 +268,7 @@ export default function ReportsPage() {
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis dataKey="name" tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }} />
                 <YAxis tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }} />
-                <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => fmt(value)} />
+                <Tooltip contentStyle={tooltipStyle} itemStyle={tooltipItemStyle} labelStyle={tooltipLabelStyle} formatter={(value: number) => fmt(value)} />
                 <Line type="monotone" dataKey="receitas" name="Receitas" stroke="hsl(var(--chart-income))" strokeWidth={2} dot={{ r: 3 }} />
                 <Line type="monotone" dataKey="despesas" name="Despesas" stroke="hsl(var(--chart-expense))" strokeWidth={2} dot={{ r: 3 }} />
                 <Line type="monotone" dataKey="saldo" name="Saldo" stroke="hsl(var(--chart-4))" strokeWidth={2.5} dot={{ r: 4 }} />

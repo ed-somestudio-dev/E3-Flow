@@ -132,32 +132,23 @@ export default function ReceivablesPage() {
       if (receivingIds.length === 1) {
         await markReceivableReceivedPartial(receivingIds[0], receiveAccountId, amt);
       } else {
-        const total = items.reduce((s, r) => s + r.amount, 0);
+        // FIFO: quita os mais antigos primeiro até esgotar o valor recebido
+        const sorted = [...items].sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+        const total = sorted.reduce((s, r) => s + r.amount, 0);
         if (total <= 0) return;
         if (amt >= total) {
-          for (const r of items) await markReceivableReceived(r.id, receiveAccountId);
+          for (const r of sorted) await markReceivableReceived(r.id, receiveAccountId);
         } else {
-          const remaining = Math.round((total - amt) * 100) / 100;
-          // 1) Dá baixa total em cada item selecionado
-          for (const r of items) await markReceivableReceived(r.id, receiveAccountId);
-          // 2) Cria um único novo recebível com o saldo restante
-          const base = items[0];
-          const earliestDue = items.map(i => i.dueDate).sort()[0];
-          const { data: userRes } = await supabase.auth.getUser();
-          const uid = userRes.user?.id;
-          if (uid) {
-            const { error: insErr } = await supabase.from('receivables').insert({
-              user_id: uid,
-              client_name: base.clientName,
-              description: `Saldo restante de ${items.length} recebíveis (${base.clientName})`,
-              category_id: base.categoryId,
-              account_id: base.accountId || null,
-              amount: remaining,
-              due_date: earliestDue,
-              status: 'pending',
-              notes: `Saldo restante de recebimento parcial agrupado. Total original: ${total.toFixed(2)}, recebido: ${amt.toFixed(2)}, itens: ${items.length}.`,
-            });
-            if (insErr) console.error('grouped partial insert error:', insErr);
+          let remaining = amt;
+          for (const r of sorted) {
+            if (remaining <= 0) break;
+            if (remaining >= r.amount - 0.005) {
+              await markReceivableReceived(r.id, receiveAccountId);
+              remaining = Math.round((remaining - r.amount) * 100) / 100;
+            } else {
+              await markReceivableReceivedPartial(r.id, receiveAccountId, Math.round(remaining * 100) / 100);
+              remaining = 0;
+            }
           }
         }
       }
@@ -510,13 +501,13 @@ export default function ReceivablesPage() {
                 {partialMode && (
                   <div className="space-y-1">
                     <Label className="text-xs text-muted-foreground">
-                      {recItems.length > 1 ? 'Valor total recebido agora (será distribuído proporcionalmente)' : 'Valor recebido agora'}
+                      {recItems.length > 1 ? 'Valor recebido agora (FIFO — quita os mais antigos primeiro)' : 'Valor recebido agora'}
                     </Label>
                     <Input type="number" step="0.01" min="0.01" max={receivingTotal} value={partialAmount}
                       onChange={(e) => setPartialAmount(e.target.value)} placeholder="0,00" />
                     {partialAmount && parseFloat(partialAmount) > 0 && parseFloat(partialAmount) < receivingTotal && (
                       <p className="text-xs text-muted-foreground">
-                        Saldo restante: <span className="font-semibold mono text-success">{fmt(receivingTotal - parseFloat(partialAmount))}</span> — {recItems.length > 1 ? `os ${recItems.length} itens serão recebidos e será criado UM novo recebível pendente com o saldo restante.` : 'será criado um novo recebível pendente com os mesmos dados.'}
+                        Saldo restante: <span className="font-semibold mono text-success">{fmt(receivingTotal - parseFloat(partialAmount))}</span> — {recItems.length > 1 ? `os recebíveis mais antigos serão quitados integralmente; o próximo ficará parcial com saldo restante individual.` : 'será criado um novo recebível pendente com os mesmos dados.'}
                       </p>
                     )}
                     {partialAmount && parseFloat(partialAmount) >= receivingTotal && (
