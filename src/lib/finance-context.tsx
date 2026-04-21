@@ -3,6 +3,7 @@ import { FinanceData, FinancialAccount, Transaction, Payable, Receivable, Budget
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './auth-context';
 import { toast } from 'sonner';
+import { saveSnapshot, loadSnapshot } from './offline-store';
 
 interface FinanceContextType {
   data: FinanceData;
@@ -129,6 +130,18 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
   const fetchAll = useCallback(async () => {
     if (!user) { setData(emptyData); setLoading(false); return; }
+
+    // Se estiver offline, restaura o último snapshot e encerra.
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      const snap = await loadSnapshot(user.id);
+      if (snap) {
+        setData(snap.data);
+        toast.info('Modo offline: exibindo dados salvos no dispositivo');
+      }
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     try {
       const [cats, accs, txs, pays, recs, buds] = await Promise.all([
@@ -196,23 +209,40 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      setData({
+      const fresh: FinanceData = {
         categories,
         accounts: (accs.data || []).map(mapAccount),
         transactions: (txs.data || []).map(mapTransaction),
         payables: (pays.data || []).map(mapPayable),
         receivables: (recs.data || []).map(mapReceivable),
         budgets: (buds.data || []).map(mapBudget),
-      });
+      };
+      setData(fresh);
+      // Salva snapshot para acesso offline
+      saveSnapshot(user.id, fresh).catch(() => {/* noop */});
     } catch (err) {
       console.error('Failed to fetch data:', err);
-      toast.error('Erro ao carregar dados');
+      // Sem internet ou servidor caiu — tenta restaurar snapshot offline
+      const snap = await loadSnapshot(user.id);
+      if (snap) {
+        setData(snap.data);
+        toast.info('Sem conexão: usando dados salvos no dispositivo');
+      } else {
+        toast.error('Erro ao carregar dados');
+      }
     } finally {
       setLoading(false);
     }
   }, [user]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  // Re-sincroniza quando a conexão voltar
+  useEffect(() => {
+    const onOnline = () => { fetchAll(); };
+    window.addEventListener('online', onOnline);
+    return () => window.removeEventListener('online', onOnline);
+  }, [fetchAll]);
 
   const queueTransactionAccountAdjustment = useCallback((
     adjustments: Record<string, AccountAdjustment>,
