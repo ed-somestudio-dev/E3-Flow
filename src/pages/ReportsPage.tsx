@@ -122,6 +122,8 @@ export default function ReportsPage() {
     backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))',
     borderRadius: '8px', color: 'hsl(var(--foreground))',
   };
+  const tooltipItemStyle = { color: 'hsl(var(--foreground))' };
+  const tooltipLabelStyle = { color: 'hsl(var(--foreground))', fontWeight: 600 };
 
   const statusLabel = (s: string) => {
     if (s === 'paid') return 'Pago';
@@ -178,7 +180,7 @@ export default function ReportsPage() {
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis dataKey="name" tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }} />
                 <YAxis tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }} />
-                <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => fmt(value)} />
+                <Tooltip contentStyle={tooltipStyle} itemStyle={tooltipItemStyle} labelStyle={tooltipLabelStyle} formatter={(value: number) => fmt(value)} />
                 <Bar dataKey="receitas" name="Receitas" fill="hsl(var(--chart-income))" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="despesas" name="Despesas" fill="hsl(var(--chart-expense))" radius={[4, 4, 0, 0]} />
               </BarChart>
