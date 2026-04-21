@@ -501,13 +501,13 @@ export default function ReceivablesPage() {
                 {partialMode && (
                   <div className="space-y-1">
                     <Label className="text-xs text-muted-foreground">
-                      {recItems.length > 1 ? 'Valor total recebido agora (será distribuído proporcionalmente)' : 'Valor recebido agora'}
+                      {recItems.length > 1 ? 'Valor recebido agora (FIFO — quita os mais antigos primeiro)' : 'Valor recebido agora'}
                     </Label>
                     <Input type="number" step="0.01" min="0.01" max={receivingTotal} value={partialAmount}
                       onChange={(e) => setPartialAmount(e.target.value)} placeholder="0,00" />
                     {partialAmount && parseFloat(partialAmount) > 0 && parseFloat(partialAmount) < receivingTotal && (
                       <p className="text-xs text-muted-foreground">
-                        Saldo restante: <span className="font-semibold mono text-success">{fmt(receivingTotal - parseFloat(partialAmount))}</span> — {recItems.length > 1 ? `os ${recItems.length} itens serão recebidos e será criado UM novo recebível pendente com o saldo restante.` : 'será criado um novo recebível pendente com os mesmos dados.'}
+                        Saldo restante: <span className="font-semibold mono text-success">{fmt(receivingTotal - parseFloat(partialAmount))}</span> — {recItems.length > 1 ? `os recebíveis mais antigos serão quitados integralmente; o próximo ficará parcial com saldo restante individual.` : 'será criado um novo recebível pendente com os mesmos dados.'}
                       </p>
                     )}
                     {partialAmount && parseFloat(partialAmount) >= receivingTotal && (
