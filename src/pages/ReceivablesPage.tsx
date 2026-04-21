@@ -132,32 +132,23 @@ export default function ReceivablesPage() {
       if (receivingIds.length === 1) {
         await markReceivableReceivedPartial(receivingIds[0], receiveAccountId, amt);
       } else {
-        const total = items.reduce((s, r) => s + r.amount, 0);
+        // FIFO: quita os mais antigos primeiro até esgotar o valor recebido
+        const sorted = [...items].sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+        const total = sorted.reduce((s, r) => s + r.amount, 0);
         if (total <= 0) return;
         if (amt >= total) {
-          for (const r of items) await markReceivableReceived(r.id, receiveAccountId);
+          for (const r of sorted) await markReceivableReceived(r.id, receiveAccountId);
         } else {
-          const remaining = Math.round((total - amt) * 100) / 100;
-          // 1) Dá baixa total em cada item selecionado
-          for (const r of items) await markReceivableReceived(r.id, receiveAccountId);
-          // 2) Cria um único novo recebível com o saldo restante
-          const base = items[0];
-          const earliestDue = items.map(i => i.dueDate).sort()[0];
-          const { data: userRes } = await supabase.auth.getUser();
-          const uid = userRes.user?.id;
-          if (uid) {
-            const { error: insErr } = await supabase.from('receivables').insert({
-              user_id: uid,
-              client_name: base.clientName,
-              description: `Saldo restante de ${items.length} recebíveis (${base.clientName})`,
-              category_id: base.categoryId,
-              account_id: base.accountId || null,
-              amount: remaining,
-              due_date: earliestDue,
-              status: 'pending',
-              notes: `Saldo restante de recebimento parcial agrupado. Total original: ${total.toFixed(2)}, recebido: ${amt.toFixed(2)}, itens: ${items.length}.`,
-            });
-            if (insErr) console.error('grouped partial insert error:', insErr);
+          let remaining = amt;
+          for (const r of sorted) {
+            if (remaining <= 0) break;
+            if (remaining >= r.amount - 0.005) {
+              await markReceivableReceived(r.id, receiveAccountId);
+              remaining = Math.round((remaining - r.amount) * 100) / 100;
+            } else {
+              await markReceivableReceivedPartial(r.id, receiveAccountId, Math.round(remaining * 100) / 100);
+              remaining = 0;
+            }
           }
         }
       }
