@@ -14,6 +14,7 @@ interface FinanceContextType {
   addPayable: (p: Omit<Payable, 'id'>, installments?: number, isCredit?: boolean, recurrence?: { frequency: 'weekly' | 'monthly' | 'yearly'; occurrences: number }) => Promise<void>;
   updatePayable: (p: Payable) => Promise<void>;
   deletePayable: (id: string) => Promise<void>;
+  deletePayableWithFuture: (id: string) => Promise<number>;
   markPayablePaid: (id: string, accountId?: string) => Promise<void>;
   markPayablePaidPartial: (id: string, accountId: string, paidAmount: number) => Promise<void>;
   addReceivable: (r: Omit<Receivable, 'id'>, installments?: number, recurrence?: { frequency: 'weekly' | 'monthly' | 'yearly'; occurrences: number }) => Promise<void>;
