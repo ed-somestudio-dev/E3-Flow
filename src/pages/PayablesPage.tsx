@@ -563,6 +563,7 @@ function PayableForm({ item, categories, accounts, onSave }: {
   const [notes, setNotes] = useState(item?.notes || '');
   const [recurring, setRecurring] = useState(item?.recurring || false);
   const [recurrenceFrequency, setRecurrenceFrequency] = useState<RecurrenceFrequency>(item?.recurrenceFrequency || 'monthly');
+  const [occurrences, setOccurrences] = useState<string>(''); // empty = indeterminado (1 ano)
   const [installments, setInstallments] = useState(1);
   const [useInstallments, setUseInstallments] = useState(false);
   const [inputMode, setInputMode] = useState<'total' | 'installment'>('total');
