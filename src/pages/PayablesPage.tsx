@@ -28,12 +28,13 @@ function StatusBadge({ status }: { status: PayableStatus }) {
   return <span className={cls}>{statusLabels[status]}</span>;
 }
 
-function CreditCardInvoiceCard({ accName, invoicesByMonth, onMarkPaid, onPayAll, onDelete }: {
+function CreditCardInvoiceCard({ accName, invoicesByMonth, onMarkPaid, onPayAll, onDelete, onEdit }: {
   accName: string;
   invoicesByMonth: Record<string, Payable[]>;
   onMarkPaid: (id: string) => void;
   onPayAll: (ids: string[]) => void;
   onDelete: (id: string) => void;
+  onEdit: (p: Payable) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const allInvoices = Object.values(invoicesByMonth).flat();
@@ -83,6 +84,7 @@ function CreditCardInvoiceCard({ accName, invoicesByMonth, onMarkPaid, onPayAll,
                 pendingIds={pendingIds}
                 onPayAll={onPayAll}
                 onDelete={onDelete}
+                onEdit={onEdit}
               />
             );
           })}
