@@ -14,6 +14,7 @@ interface FinanceContextType {
   addPayable: (p: Omit<Payable, 'id'>, installments?: number, isCredit?: boolean, recurrence?: { frequency: 'weekly' | 'monthly' | 'yearly'; occurrences: number }) => Promise<void>;
   updatePayable: (p: Payable) => Promise<void>;
   deletePayable: (id: string) => Promise<void>;
+  deletePayableWithFuture: (id: string) => Promise<number>;
   markPayablePaid: (id: string, accountId?: string) => Promise<void>;
   markPayablePaidPartial: (id: string, accountId: string, paidAmount: number) => Promise<void>;
   addReceivable: (r: Omit<Receivable, 'id'>, installments?: number, recurrence?: { frequency: 'weekly' | 'monthly' | 'yearly'; occurrences: number }) => Promise<void>;
@@ -589,6 +590,33 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     await fetchAll();
   }, [user, fetchAll]);
 
+  // Exclui esta conta + todas as futuras vinculadas (mesma série recorrente).
+  // Vínculo detectado por: mesmo supplier, mesma category, recurring=true, e
+  // descrição base equivalente (ignorando o sufixo "(i/N)" gerado na expansão).
+  // Considera "futuras" as contas com due_date >= due_date da atual.
+  const deletePayableWithFuture = useCallback(async (id: string): Promise<number> => {
+    if (!user) return 0;
+    const target = data.payables.find(p => p.id === id);
+    if (!target) return 0;
+    const stripSuffix = (s: string) => s.replace(/\s*\(\d+\/\d+\)\s*$/, '').trim().toLowerCase();
+    const baseDesc = stripSuffix(target.description);
+    const ids = data.payables
+      .filter(p =>
+        p.recurring &&
+        p.supplier === target.supplier &&
+        p.categoryId === target.categoryId &&
+        p.dueDate >= target.dueDate &&
+        stripSuffix(p.description) === baseDesc &&
+        p.status !== 'paid'
+      )
+      .map(p => p.id);
+    const allIds = Array.from(new Set([id, ...ids]));
+    const { error } = await supabase.from('payables').delete().in('id', allIds).eq('user_id', user.id);
+    if (error) { console.error('deletePayableWithFuture error:', error); toast.error('Erro ao excluir contas vinculadas'); return 0; }
+    await fetchAll();
+    return allIds.length;
+  }, [user, data.payables, fetchAll]);
+
   const markPayablePaid = useCallback(async (id: string, accountId?: string) => {
     if (!user) return;
     const payable = data.payables.find(x => x.id === id);
@@ -1071,7 +1099,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     <FinanceContext.Provider value={{
       data, loading,
       addTransaction, updateTransaction, deleteTransaction,
-      addPayable, updatePayable, deletePayable, markPayablePaid, markPayablePaidPartial,
+      addPayable, updatePayable, deletePayable, deletePayableWithFuture, markPayablePaid, markPayablePaidPartial,
       addReceivable, updateReceivable, deleteReceivable, markReceivableReceived, markReceivableReceivedPartial,
       addAccount, updateAccount, deleteAccount, transferBetweenAccounts,
       addBudget, updateBudget, deleteBudget,

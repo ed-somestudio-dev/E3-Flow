@@ -6,6 +6,10 @@ import { Plus, Trash2, Edit2, CheckCircle, Search, RefreshCw, CreditCard, Wallet
 import { CalculatorInput } from '@/components/CalculatorInput';
 import { ContactAutocomplete } from '@/components/ContactAutocomplete';
 import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog';
+import {
+  AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -20,6 +24,7 @@ import { SAFE_LABELS } from '@/lib/safe-labels';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
 const statusLabels: Record<PayableStatus, string> = { pending: 'Pendente', paid: 'Pago', overdue: 'Vencida' };
 
@@ -28,12 +33,13 @@ function StatusBadge({ status }: { status: PayableStatus }) {
   return <span className={cls}>{statusLabels[status]}</span>;
 }
 
-function CreditCardInvoiceCard({ accName, invoicesByMonth, onMarkPaid, onPayAll, onDelete }: {
+function CreditCardInvoiceCard({ accName, invoicesByMonth, onMarkPaid, onPayAll, onDelete, onEdit }: {
   accName: string;
   invoicesByMonth: Record<string, Payable[]>;
   onMarkPaid: (id: string) => void;
   onPayAll: (ids: string[]) => void;
   onDelete: (id: string) => void;
+  onEdit: (p: Payable) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const allInvoices = Object.values(invoicesByMonth).flat();
@@ -83,6 +89,7 @@ function CreditCardInvoiceCard({ accName, invoicesByMonth, onMarkPaid, onPayAll,
                 pendingIds={pendingIds}
                 onPayAll={onPayAll}
                 onDelete={onDelete}
+                onEdit={onEdit}
               />
             );
           })}
@@ -92,7 +99,7 @@ function CreditCardInvoiceCard({ accName, invoicesByMonth, onMarkPaid, onPayAll,
   );
 }
 
-function InvoiceMonthGroup({ monthKey, items, invoiceDueDate, invoiceStatus, monthTotal, hasPending, pendingIds, onPayAll, onDelete }: {
+function InvoiceMonthGroup({ monthKey, items, invoiceDueDate, invoiceStatus, monthTotal, hasPending, pendingIds, onPayAll, onDelete, onEdit }: {
   monthKey: string;
   items: Payable[];
   invoiceDueDate: string;
@@ -102,6 +109,7 @@ function InvoiceMonthGroup({ monthKey, items, invoiceDueDate, invoiceStatus, mon
   pendingIds: string[];
   onPayAll: (ids: string[]) => void;
   onDelete: (id: string) => void;
+  onEdit: (p: Payable) => void;
 }) {
   const [open, setOpen] = useState(true);
   const [y, m] = monthKey.split('-');
@@ -146,7 +154,10 @@ function InvoiceMonthGroup({ monthKey, items, invoiceDueDate, invoiceStatus, mon
                   <td className="py-2 px-4 font-medium">{p.description}</td>
                   <td className="py-2 px-4 text-right mono font-semibold text-destructive whitespace-nowrap">{fmt(p.amount)}</td>
                   <td className="py-2 px-4 text-right">
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); onDelete(p.id); }}><Trash2 className="h-3.5 w-3.5" /></Button>
+                    <div className="flex items-center justify-end gap-0.5">
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); onEdit(p); }} aria-label="Editar"><Edit2 className="h-3.5 w-3.5" /></Button>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); onDelete(p.id); }} aria-label="Excluir"><Trash2 className="h-3.5 w-3.5" /></Button>
+                    </div>
                   </td>
                 </motion.tr>
               ))}
@@ -159,7 +170,7 @@ function InvoiceMonthGroup({ monthKey, items, invoiceDueDate, invoiceStatus, mon
 }
 
 export default function PayablesPage() {
-  const { data, addPayable, updatePayable, deletePayable, markPayablePaid, markPayablePaidPartial, getCategoryName, getAccountName } = useFinance();
+  const { data, addPayable, updatePayable, deletePayable, deletePayableWithFuture, markPayablePaid, markPayablePaidPartial, getCategoryName, getAccountName } = useFinance();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [editingItem, setEditingItem] = useState<Payable | null>(null);
@@ -463,6 +474,7 @@ export default function PayablesPage() {
                 onMarkPaid={handleMarkPaid}
                 onPayAll={handlePayAll}
                 onDelete={(id) => setDeleteId(id)}
+                onEdit={(p) => { setEditingItem(p); setDialogOpen(true); }}
               />
             );
           })}
@@ -541,9 +553,68 @@ export default function PayablesPage() {
           </div>
         </DialogContent>
       </Dialog>
-      <ConfirmDeleteDialog open={!!deleteId} onOpenChange={(o) => { if (!o) setDeleteId(null); }}
-        onConfirm={() => { if (deleteId) { deletePayable(deleteId); setDeleteId(null); } }}
-        title="Excluir conta a pagar?" description="Tem certeza que deseja excluir esta conta a pagar? Esta ação não pode ser desfeita." />
+      {(() => {
+        const target = deleteId ? data.payables.find(p => p.id === deleteId) : null;
+        if (!target) {
+          return (
+            <ConfirmDeleteDialog open={!!deleteId} onOpenChange={(o) => { if (!o) setDeleteId(null); }}
+              onConfirm={() => { if (deleteId) { deletePayable(deleteId); setDeleteId(null); } }}
+              title="Excluir conta a pagar?" description="Tem certeza que deseja excluir esta conta a pagar? Esta ação não pode ser desfeita." />
+          );
+        }
+        const stripSuffix = (s: string) => s.replace(/\s*\(\d+\/\d+\)\s*$/, '').trim().toLowerCase();
+        const baseDesc = stripSuffix(target.description);
+        const linkedFuture = target.recurring
+          ? data.payables.filter(p =>
+              p.id !== target.id &&
+              p.recurring &&
+              p.supplier === target.supplier &&
+              p.categoryId === target.categoryId &&
+              p.dueDate >= target.dueDate &&
+              stripSuffix(p.description) === baseDesc &&
+              p.status !== 'paid'
+            )
+          : [];
+        const hasFuture = linkedFuture.length > 0;
+        if (!hasFuture) {
+          return (
+            <ConfirmDeleteDialog open={!!deleteId} onOpenChange={(o) => { if (!o) setDeleteId(null); }}
+              onConfirm={() => { deletePayable(target.id); setDeleteId(null); }}
+              title="Excluir conta a pagar?" description="Tem certeza que deseja excluir esta conta a pagar? Esta ação não pode ser desfeita." />
+          );
+        }
+        return (
+          <AlertDialog open={!!deleteId} onOpenChange={(o) => { if (!o) setDeleteId(null); }}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Excluir conta recorrente?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Esta conta faz parte de uma série recorrente. Existem <strong>{linkedFuture.length}</strong> ocorrência(s) futura(s) pendente(s) vinculada(s). O que deseja excluir?
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+                <AlertDialogCancel className="mt-0">Cancelar</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                  onClick={() => { deletePayable(target.id); setDeleteId(null); }}
+                >
+                  Apenas esta
+                </AlertDialogAction>
+                <AlertDialogAction
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  onClick={async () => {
+                    const n = await deletePayableWithFuture(target.id);
+                    setDeleteId(null);
+                    if (n > 1) toast.success(`${n} contas vinculadas excluídas`);
+                  }}
+                >
+                  Esta e {linkedFuture.length} futura(s)
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        );
+      })()}
     </div>
   );
 }
