@@ -732,7 +732,7 @@ function ReceivableForm({ item, categories, accounts, onSave }: {
           if (isRecurring) {
             const parsed = parseInt(occurrences);
             const occ = (!occurrences || isNaN(parsed) || parsed < 1)
-+              ? (recurrenceFrequency === 'weekly' ? 52 : recurrenceFrequency === 'monthly' ? 12 : 1)
+              ? (recurrenceFrequency === 'weekly' ? 52 : recurrenceFrequency === 'monthly' ? 12 : 1)
               : Math.min(120, parsed);
             recurrencePayload = { frequency: recurrenceFrequency, occurrences: occ };
           }
