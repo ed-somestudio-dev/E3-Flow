@@ -94,7 +94,7 @@ function CreditCardInvoiceCard({ accName, invoicesByMonth, onMarkPaid, onPayAll,
   );
 }
 
-function InvoiceMonthGroup({ monthKey, items, invoiceDueDate, invoiceStatus, monthTotal, hasPending, pendingIds, onPayAll, onDelete }: {
+function InvoiceMonthGroup({ monthKey, items, invoiceDueDate, invoiceStatus, monthTotal, hasPending, pendingIds, onPayAll, onDelete, onEdit }: {
   monthKey: string;
   items: Payable[];
   invoiceDueDate: string;
@@ -104,6 +104,7 @@ function InvoiceMonthGroup({ monthKey, items, invoiceDueDate, invoiceStatus, mon
   pendingIds: string[];
   onPayAll: (ids: string[]) => void;
   onDelete: (id: string) => void;
+  onEdit: (p: Payable) => void;
 }) {
   const [open, setOpen] = useState(true);
   const [y, m] = monthKey.split('-');
@@ -148,7 +149,10 @@ function InvoiceMonthGroup({ monthKey, items, invoiceDueDate, invoiceStatus, mon
                   <td className="py-2 px-4 font-medium">{p.description}</td>
                   <td className="py-2 px-4 text-right mono font-semibold text-destructive whitespace-nowrap">{fmt(p.amount)}</td>
                   <td className="py-2 px-4 text-right">
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); onDelete(p.id); }}><Trash2 className="h-3.5 w-3.5" /></Button>
+                    <div className="flex items-center justify-end gap-0.5">
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); onEdit(p); }} aria-label="Editar"><Edit2 className="h-3.5 w-3.5" /></Button>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); onDelete(p.id); }} aria-label="Excluir"><Trash2 className="h-3.5 w-3.5" /></Button>
+                    </div>
                   </td>
                 </motion.tr>
               ))}
