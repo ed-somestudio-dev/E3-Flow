@@ -258,6 +258,23 @@ export default function ReceivablesPage() {
     });
   };
 
+  const handleShareReceipt = (r: Receivable) => {
+    const accName = r.accountId ? (data.accounts.find(a => a.id === r.accountId)?.name || '') : '';
+    const receivedDate = r.paymentDate || format(new Date(), 'yyyy-MM-dd');
+    openShare({
+      title: 'Compartilhar Recibo',
+      filenameBase: `recibo-${r.clientName.replace(/\s+/g, '_')}-${receivedDate}`,
+      generatePDF: () => generateReceiptPDF({
+        id: r.id, clientName: r.clientName, description: r.description,
+        amount: r.amount, receivedDate, accountName: accName,
+      }, isConfigured ? pixSettings : null),
+      generatePNG: () => generateReceiptPNG({
+        id: r.id, clientName: r.clientName, description: r.description,
+        amount: r.amount, receivedDate, accountName: accName,
+      }, isConfigured ? pixSettings : null),
+    });
+  };
+
   const handleGenerateChargesSelected = () => {
     if (!isConfigured) { setPixWarningOpen(true); return; }
     const items = Array.from(selectedIds).map(id => data.receivables.find(r => r.id === id)).filter(Boolean) as Receivable[];
