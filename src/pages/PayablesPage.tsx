@@ -469,6 +469,7 @@ export default function PayablesPage() {
                 onMarkPaid={handleMarkPaid}
                 onPayAll={handlePayAll}
                 onDelete={(id) => setDeleteId(id)}
+                onEdit={(p) => { setEditingItem(p); setDialogOpen(true); }}
               />
             );
           })}
