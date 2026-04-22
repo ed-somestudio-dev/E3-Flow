@@ -687,8 +687,31 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   }, [user, data, fetchAll, markPayablePaid]);
 
   // --- Receivables ---
-  const addReceivable = useCallback(async (r: Omit<Receivable, 'id'>, installments?: number) => {
+  const addReceivable = useCallback(async (r: Omit<Receivable, 'id'>, installments?: number, recurrence?: { frequency: 'weekly' | 'monthly' | 'yearly'; occurrences: number }) => {
     if (!user) return;
+
+    // Recurring expansion — generates N concrete records visible in calculations and reports
+    if (recurrence && recurrence.occurrences > 1) {
+      const baseDate = new Date(r.dueDate + 'T12:00:00');
+      for (let i = 0; i < recurrence.occurrences; i++) {
+        const d = new Date(baseDate);
+        if (recurrence.frequency === 'weekly') d.setDate(d.getDate() + 7 * i);
+        else if (recurrence.frequency === 'monthly') d.setMonth(d.getMonth() + i);
+        else d.setFullYear(d.getFullYear() + i);
+        const dueStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        const desc = `${r.description} (${i + 1}/${recurrence.occurrences})`;
+        await supabase.from('receivables').insert({
+          user_id: user.id, client_name: r.clientName, description: desc,
+          category_id: r.categoryId, account_id: r.accountId || null,
+          amount: r.amount, due_date: dueStr, status: 'pending',
+          notes: r.notes || null,
+          recurring: true,
+          recurrence_frequency: recurrence.frequency,
+        });
+      }
+      await fetchAll();
+      return;
+    }
 
     if (installments && installments > 1) {
       const installmentAmount = Math.round((r.amount / installments) * 100) / 100;
