@@ -699,15 +699,26 @@ function ReceivableForm({ item, categories, accounts, onSave }: {
             </Label>
           </div>
           {recurring && (
-            <div><Label>Frequência</Label>
-              <Select value={recurrenceFrequency} onValueChange={v => setRecurrenceFrequency(v as RecurrenceFrequency)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="weekly">Semanal</SelectItem>
-                  <SelectItem value="monthly">Mensal</SelectItem>
-                  <SelectItem value="yearly">Anual</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Frequência</Label>
+                <Select value={recurrenceFrequency} onValueChange={v => setRecurrenceFrequency(v as RecurrenceFrequency)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="weekly">Semanal</SelectItem>
+                    <SelectItem value="monthly">Mensal</SelectItem>
+                    <SelectItem value="yearly">Anual</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Nº de ocorrências</Label>
+                <Input type="number" min="1" max="120" placeholder="Indeterminado (1 ano)" value={occurrences}
+                  onChange={e => setOccurrences(e.target.value)} />
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Vazio = 1 ano ({recurrenceFrequency === 'weekly' ? '52 semanas' : recurrenceFrequency === 'monthly' ? '12 meses' : '1 ano'})
+                </p>
+              </div>
             </div>
           )}
         </>
@@ -715,14 +726,26 @@ function ReceivableForm({ item, categories, accounts, onSave }: {
 
       <div><Label>Notas (opcional)</Label><Input value={notes} onChange={e => setNotes(e.target.value)} /></div>
       <Button className="w-full" disabled={!clientName || !description || !categoryId || !amount || !dueDate}
-        onClick={() => onSave({
-          clientName, description, categoryId, accountId: accountId || undefined,
-          amount: parseFloat(amount), dueDate, status: item?.status || 'pending',
-          notes: notes || undefined,
-          recurring: (!useInstallments && recurring) || undefined,
-          recurrenceFrequency: (!useInstallments && recurring) ? recurrenceFrequency : undefined,
-          installments: (useInstallments && installments > 1) ? installments : undefined,
-        })}>
+        onClick={() => {
+          const isRecurring = !useInstallments && recurring;
+          let recurrencePayload: { frequency: RecurrenceFrequency; occurrences: number } | undefined;
+          if (isRecurring) {
+            const parsed = parseInt(occurrences);
+            const occ = (!occurrences || isNaN(parsed) || parsed < 1)
++              ? (recurrenceFrequency === 'weekly' ? 52 : recurrenceFrequency === 'monthly' ? 12 : 1)
+              : Math.min(120, parsed);
+            recurrencePayload = { frequency: recurrenceFrequency, occurrences: occ };
+          }
+          onSave({
+            clientName, description, categoryId, accountId: accountId || undefined,
+            amount: parseFloat(amount), dueDate, status: item?.status || 'pending',
+            notes: notes || undefined,
+            recurring: isRecurring || undefined,
+            recurrenceFrequency: isRecurring ? recurrenceFrequency : undefined,
+            installments: (useInstallments && installments > 1) ? installments : undefined,
+            recurrence: recurrencePayload,
+          });
+        }}>
         {item ? 'Atualizar' : 'Criar'} Recebível
       </Button>
     </div>
