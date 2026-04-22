@@ -165,7 +165,7 @@ function InvoiceMonthGroup({ monthKey, items, invoiceDueDate, invoiceStatus, mon
 }
 
 export default function PayablesPage() {
-  const { data, addPayable, updatePayable, deletePayable, markPayablePaid, markPayablePaidPartial, getCategoryName, getAccountName } = useFinance();
+  const { data, addPayable, updatePayable, deletePayable, deletePayableWithFuture, markPayablePaid, markPayablePaidPartial, getCategoryName, getAccountName } = useFinance();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [editingItem, setEditingItem] = useState<Payable | null>(null);
