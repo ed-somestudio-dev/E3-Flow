@@ -194,6 +194,7 @@ export default function DashboardPage() {
               <XAxis dataKey="name" tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }} />
               <YAxis tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }} />
               <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', color: 'hsl(var(--foreground))' }}
+                itemStyle={{ color: 'hsl(var(--foreground))' }} labelStyle={{ color: 'hsl(var(--foreground))' }}
                 formatter={(value: number) => fmt(value)} />
               <Bar dataKey="receitas" name="Receitas" fill="hsl(var(--chart-income))" radius={[4, 4, 0, 0]} />
               <Bar dataKey="despesas" name="Despesas" fill="hsl(var(--chart-expense))" radius={[4, 4, 0, 0]} />
@@ -209,6 +210,7 @@ export default function DashboardPage() {
                   {expenseByCategory.map((entry, i) => <Cell key={i} fill={entry.color} />)}
                 </Pie>
                 <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', color: 'hsl(var(--foreground))' }}
+                  itemStyle={{ color: 'hsl(var(--foreground))' }} labelStyle={{ color: 'hsl(var(--foreground))' }}
                   formatter={(value: number) => fmt(value)} />
               </PieChart>
             </ResponsiveContainer>
@@ -245,6 +247,7 @@ export default function DashboardPage() {
               <XAxis dataKey="date" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
               <YAxis tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
               <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', color: 'hsl(var(--foreground))' }}
+                itemStyle={{ color: 'hsl(var(--foreground))' }} labelStyle={{ color: 'hsl(var(--foreground))' }}
                 formatter={(value: number) => fmt(value)} />
               <Area type="monotone" dataKey="saldo" name="Saldo" stroke="hsl(var(--chart-1))" fill="url(#gradSaldo)" strokeWidth={2} />
             </AreaChart>
@@ -260,6 +263,7 @@ export default function DashboardPage() {
                     {incomeByCategory.map((entry, i) => <Cell key={i} fill={entry.color} />)}
                   </Pie>
                   <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', color: 'hsl(var(--foreground))' }}
+                    itemStyle={{ color: 'hsl(var(--foreground))' }} labelStyle={{ color: 'hsl(var(--foreground))' }}
                     formatter={(value: number) => fmt(value)} />
                 </PieChart>
               </ResponsiveContainer>
@@ -290,6 +294,7 @@ export default function DashboardPage() {
             <XAxis dataKey="name" tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }} />
             <YAxis tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }} />
             <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', color: 'hsl(var(--foreground))' }}
+              itemStyle={{ color: 'hsl(var(--foreground))' }} labelStyle={{ color: 'hsl(var(--foreground))' }}
               formatter={(value: number) => fmt(value)} />
             <Line type="monotone" dataKey="saldo" name="Saldo" stroke="hsl(var(--chart-4))" strokeWidth={2.5} dot={{ r: 4, fill: 'hsl(var(--chart-4))' }} />
           </LineChart>

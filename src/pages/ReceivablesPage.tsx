@@ -258,6 +258,23 @@ export default function ReceivablesPage() {
     });
   };
 
+  const handleShareReceipt = (r: Receivable) => {
+    const accName = r.accountId ? (data.accounts.find(a => a.id === r.accountId)?.name || '') : '';
+    const receivedDate = r.paymentDate || format(new Date(), 'yyyy-MM-dd');
+    openShare({
+      title: 'Compartilhar Recibo',
+      filenameBase: `recibo-${r.clientName.replace(/\s+/g, '_')}-${receivedDate}`,
+      generatePDF: () => generateReceiptPDF({
+        id: r.id, clientName: r.clientName, description: r.description,
+        amount: r.amount, receivedDate, accountName: accName,
+      }, isConfigured ? pixSettings : null),
+      generatePNG: () => generateReceiptPNG({
+        id: r.id, clientName: r.clientName, description: r.description,
+        amount: r.amount, receivedDate, accountName: accName,
+      }, isConfigured ? pixSettings : null),
+    });
+  };
+
   const handleGenerateChargesSelected = () => {
     if (!isConfigured) { setPixWarningOpen(true); return; }
     const items = Array.from(selectedIds).map(id => data.receivables.find(r => r.id === id)).filter(Boolean) as Receivable[];
@@ -315,7 +332,7 @@ export default function ReceivablesPage() {
           <DialogContent className="max-h-[90vh] overflow-y-auto">
             <DialogHeader><DialogTitle>{editingItem ? 'Editar' : 'Novo'} Recebível</DialogTitle></DialogHeader>
             <ReceivableForm item={editingItem} categories={data.categories.filter(c => c.type === 'income')} accounts={data.accounts}
-              onSave={(r) => { const { installments, ...receivable } = r; if (editingItem) updateReceivable({ ...receivable, id: editingItem.id } as Receivable); else addReceivable(receivable, installments); setDialogOpen(false); setEditingItem(null); }} />
+              onSave={(r) => { const { installments, recurrence, ...receivable } = r; if (editingItem) updateReceivable({ ...receivable, id: editingItem.id } as Receivable); else addReceivable(receivable, installments, recurrence); setDialogOpen(false); setEditingItem(null); }} />
           </DialogContent>
         </Dialog>
       </div>
@@ -447,6 +464,11 @@ export default function ReceivablesPage() {
                           </Button>
                         </>
                       )}
+                      {r.status === 'received' && (
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-primary hover:text-primary" onClick={() => handleShareReceipt(r)} title="Compartilhar recibo">
+                          <Receipt className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
                       <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setEditingItem(r); setDialogOpen(true); }}><Edit2 className="h-3.5 w-3.5" /></Button>
                       <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => setDeleteId(r.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
                     </div>
@@ -569,7 +591,7 @@ export default function ReceivablesPage() {
 function ReceivableForm({ item, categories, accounts, onSave }: {
   item: Receivable | null; categories: { id: string; name: string }[];
   accounts: { id: string; name: string }[];
-  onSave: (r: Omit<Receivable, 'id'> & { installments?: number }) => void;
+  onSave: (r: Omit<Receivable, 'id'> & { installments?: number; recurrence?: { frequency: RecurrenceFrequency; occurrences: number } }) => void;
 }) {
   const [clientName, setClientName] = useState(item?.clientName || '');
   const [description, setDescription] = useState(item?.description || '');
@@ -584,6 +606,7 @@ function ReceivableForm({ item, categories, accounts, onSave }: {
   const [installmentValue, setInstallmentValue] = useState('');
   const [recurring, setRecurring] = useState(item?.recurring || false);
   const [recurrenceFrequency, setRecurrenceFrequency] = useState<RecurrenceFrequency>(item?.recurrenceFrequency || 'monthly');
+  const [occurrences, setOccurrences] = useState<string>('');
 
   const installmentAmount = amount ? (parseFloat(amount) / installments) : 0;
 
@@ -676,15 +699,26 @@ function ReceivableForm({ item, categories, accounts, onSave }: {
             </Label>
           </div>
           {recurring && (
-            <div><Label>Frequência</Label>
-              <Select value={recurrenceFrequency} onValueChange={v => setRecurrenceFrequency(v as RecurrenceFrequency)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="weekly">Semanal</SelectItem>
-                  <SelectItem value="monthly">Mensal</SelectItem>
-                  <SelectItem value="yearly">Anual</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Frequência</Label>
+                <Select value={recurrenceFrequency} onValueChange={v => setRecurrenceFrequency(v as RecurrenceFrequency)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="weekly">Semanal</SelectItem>
+                    <SelectItem value="monthly">Mensal</SelectItem>
+                    <SelectItem value="yearly">Anual</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Nº de ocorrências</Label>
+                <Input type="number" min="1" max="120" placeholder="Indeterminado (1 ano)" value={occurrences}
+                  onChange={e => setOccurrences(e.target.value)} />
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Vazio = 1 ano ({recurrenceFrequency === 'weekly' ? '52 semanas' : recurrenceFrequency === 'monthly' ? '12 meses' : '1 ano'})
+                </p>
+              </div>
             </div>
           )}
         </>
@@ -692,14 +726,26 @@ function ReceivableForm({ item, categories, accounts, onSave }: {
 
       <div><Label>Notas (opcional)</Label><Input value={notes} onChange={e => setNotes(e.target.value)} /></div>
       <Button className="w-full" disabled={!clientName || !description || !categoryId || !amount || !dueDate}
-        onClick={() => onSave({
-          clientName, description, categoryId, accountId: accountId || undefined,
-          amount: parseFloat(amount), dueDate, status: item?.status || 'pending',
-          notes: notes || undefined,
-          recurring: (!useInstallments && recurring) || undefined,
-          recurrenceFrequency: (!useInstallments && recurring) ? recurrenceFrequency : undefined,
-          installments: (useInstallments && installments > 1) ? installments : undefined,
-        })}>
+        onClick={() => {
+          const isRecurring = !useInstallments && recurring;
+          let recurrencePayload: { frequency: RecurrenceFrequency; occurrences: number } | undefined;
+          if (isRecurring) {
+            const parsed = parseInt(occurrences);
+            const occ = (!occurrences || isNaN(parsed) || parsed < 1)
+              ? (recurrenceFrequency === 'weekly' ? 52 : recurrenceFrequency === 'monthly' ? 12 : 1)
+              : Math.min(120, parsed);
+            recurrencePayload = { frequency: recurrenceFrequency, occurrences: occ };
+          }
+          onSave({
+            clientName, description, categoryId, accountId: accountId || undefined,
+            amount: parseFloat(amount), dueDate, status: item?.status || 'pending',
+            notes: notes || undefined,
+            recurring: isRecurring || undefined,
+            recurrenceFrequency: isRecurring ? recurrenceFrequency : undefined,
+            installments: (useInstallments && installments > 1) ? installments : undefined,
+            recurrence: recurrencePayload,
+          });
+        }}>
         {item ? 'Atualizar' : 'Criar'} Recebível
       </Button>
     </div>

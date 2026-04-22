@@ -11,12 +11,12 @@ interface FinanceContextType {
   addTransaction: (tx: Omit<Transaction, 'id'>) => Promise<void>;
   updateTransaction: (tx: Transaction) => Promise<void>;
   deleteTransaction: (id: string) => Promise<void>;
-  addPayable: (p: Omit<Payable, 'id'>, installments?: number, isCredit?: boolean) => Promise<void>;
+  addPayable: (p: Omit<Payable, 'id'>, installments?: number, isCredit?: boolean, recurrence?: { frequency: 'weekly' | 'monthly' | 'yearly'; occurrences: number }) => Promise<void>;
   updatePayable: (p: Payable) => Promise<void>;
   deletePayable: (id: string) => Promise<void>;
   markPayablePaid: (id: string, accountId?: string) => Promise<void>;
   markPayablePaidPartial: (id: string, accountId: string, paidAmount: number) => Promise<void>;
-  addReceivable: (r: Omit<Receivable, 'id'>, installments?: number) => Promise<void>;
+  addReceivable: (r: Omit<Receivable, 'id'>, installments?: number, recurrence?: { frequency: 'weekly' | 'monthly' | 'yearly'; occurrences: number }) => Promise<void>;
   updateReceivable: (r: Receivable) => Promise<void>;
   deleteReceivable: (id: string) => Promise<void>;
   markReceivableReceived: (id: string, accountId?: string) => Promise<void>;
@@ -419,8 +419,66 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   }, [user, data.transactions, data.accounts, fetchAll, persistAccountAdjustments, queueTransactionAccountAdjustment, adjustCreditCardInvoice]);
 
   // --- Payables ---
-  const addPayable = useCallback(async (p: Omit<Payable, 'id'>, installments?: number, isCredit?: boolean) => {
+  const addPayable = useCallback(async (p: Omit<Payable, 'id'>, installments?: number, isCredit?: boolean, recurrence?: { frequency: 'weekly' | 'monthly' | 'yearly'; occurrences: number }) => {
     if (!user) return;
+
+    // Recurring expansion (independent of installments) — generates N concrete records
+    if (recurrence && recurrence.occurrences > 1) {
+      const acc = p.accountId ? data.accounts.find(a => a.id === p.accountId) : undefined;
+      const isCC = isCredit && acc?.type?.includes('credit_card');
+      const closeDay = acc?.billingCloseDay || 1;
+      const dDay = acc?.dueDay || 10;
+      const baseDate = new Date(p.dueDate + 'T12:00:00');
+      const basePurchase = (p as any).purchaseDate ? new Date((p as any).purchaseDate + 'T12:00:00') : null;
+
+      for (let i = 0; i < recurrence.occurrences; i++) {
+        let dueStr: string;
+        let purchaseStr: string | null = null;
+
+        if (isCC && basePurchase) {
+          const vp = new Date(basePurchase);
+          if (recurrence.frequency === 'weekly') vp.setDate(vp.getDate() + 7 * i);
+          else if (recurrence.frequency === 'monthly') vp.setMonth(vp.getMonth() + i);
+          else vp.setFullYear(vp.getFullYear() + i);
+          purchaseStr = `${vp.getFullYear()}-${String(vp.getMonth() + 1).padStart(2, '0')}-${String(vp.getDate()).padStart(2, '0')}`;
+
+          let dueMonth = vp.getMonth();
+          let dueYear = vp.getFullYear();
+          if (vp.getDate() > closeDay) {
+            dueMonth += 1;
+            if (dueMonth > 11) { dueMonth = 0; dueYear += 1; }
+          }
+          if (closeDay >= dDay) {
+            dueMonth += 1;
+            if (dueMonth > 11) { dueMonth = 0; dueYear += 1; }
+          }
+          const lastDay = new Date(dueYear, dueMonth + 1, 0).getDate();
+          const finalDay = Math.min(dDay, lastDay);
+          dueStr = `${dueYear}-${String(dueMonth + 1).padStart(2, '0')}-${String(finalDay).padStart(2, '0')}`;
+        } else {
+          const d = new Date(baseDate);
+          if (recurrence.frequency === 'weekly') d.setDate(d.getDate() + 7 * i);
+          else if (recurrence.frequency === 'monthly') d.setMonth(d.getMonth() + i);
+          else d.setFullYear(d.getFullYear() + i);
+          dueStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        }
+
+        const desc = `${p.description} (${i + 1}/${recurrence.occurrences})`;
+        const supplier = isCC && acc ? `cartao:${acc.id}` : p.supplier;
+
+        await supabase.from('payables').insert({
+          user_id: user.id, description: desc, supplier,
+          category_id: p.categoryId, account_id: p.accountId || null,
+          amount: p.amount, due_date: dueStr, status: 'pending',
+          notes: p.notes || null,
+          recurring: true,
+          recurrence_frequency: recurrence.frequency,
+          purchase_date: purchaseStr,
+        });
+      }
+      await fetchAll();
+      return;
+    }
 
     if (installments && installments > 1) {
       const installmentAmount = Math.round((p.amount / installments) * 100) / 100;
@@ -629,8 +687,31 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   }, [user, data, fetchAll, markPayablePaid]);
 
   // --- Receivables ---
-  const addReceivable = useCallback(async (r: Omit<Receivable, 'id'>, installments?: number) => {
+  const addReceivable = useCallback(async (r: Omit<Receivable, 'id'>, installments?: number, recurrence?: { frequency: 'weekly' | 'monthly' | 'yearly'; occurrences: number }) => {
     if (!user) return;
+
+    // Recurring expansion — generates N concrete records visible in calculations and reports
+    if (recurrence && recurrence.occurrences > 1) {
+      const baseDate = new Date(r.dueDate + 'T12:00:00');
+      for (let i = 0; i < recurrence.occurrences; i++) {
+        const d = new Date(baseDate);
+        if (recurrence.frequency === 'weekly') d.setDate(d.getDate() + 7 * i);
+        else if (recurrence.frequency === 'monthly') d.setMonth(d.getMonth() + i);
+        else d.setFullYear(d.getFullYear() + i);
+        const dueStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        const desc = `${r.description} (${i + 1}/${recurrence.occurrences})`;
+        await supabase.from('receivables').insert({
+          user_id: user.id, client_name: r.clientName, description: desc,
+          category_id: r.categoryId, account_id: r.accountId || null,
+          amount: r.amount, due_date: dueStr, status: 'pending',
+          notes: r.notes || null,
+          recurring: true,
+          recurrence_frequency: recurrence.frequency,
+        });
+      }
+      await fetchAll();
+      return;
+    }
 
     if (installments && installments > 1) {
       const installmentAmount = Math.round((r.amount / installments) * 100) / 100;
