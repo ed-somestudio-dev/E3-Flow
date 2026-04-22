@@ -419,8 +419,66 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   }, [user, data.transactions, data.accounts, fetchAll, persistAccountAdjustments, queueTransactionAccountAdjustment, adjustCreditCardInvoice]);
 
   // --- Payables ---
-  const addPayable = useCallback(async (p: Omit<Payable, 'id'>, installments?: number, isCredit?: boolean) => {
+  const addPayable = useCallback(async (p: Omit<Payable, 'id'>, installments?: number, isCredit?: boolean, recurrence?: { frequency: 'weekly' | 'monthly' | 'yearly'; occurrences: number }) => {
     if (!user) return;
+
+    // Recurring expansion (independent of installments) — generates N concrete records
+    if (recurrence && recurrence.occurrences > 1) {
+      const acc = p.accountId ? data.accounts.find(a => a.id === p.accountId) : undefined;
+      const isCC = isCredit && acc?.type?.includes('credit_card');
+      const closeDay = acc?.billingCloseDay || 1;
+      const dDay = acc?.dueDay || 10;
+      const baseDate = new Date(p.dueDate + 'T12:00:00');
+      const basePurchase = (p as any).purchaseDate ? new Date((p as any).purchaseDate + 'T12:00:00') : null;
+
+      for (let i = 0; i < recurrence.occurrences; i++) {
+        let dueStr: string;
+        let purchaseStr: string | null = null;
+
+        if (isCC && basePurchase) {
+          const vp = new Date(basePurchase);
+          if (recurrence.frequency === 'weekly') vp.setDate(vp.getDate() + 7 * i);
+          else if (recurrence.frequency === 'monthly') vp.setMonth(vp.getMonth() + i);
+          else vp.setFullYear(vp.getFullYear() + i);
+          purchaseStr = `${vp.getFullYear()}-${String(vp.getMonth() + 1).padStart(2, '0')}-${String(vp.getDate()).padStart(2, '0')}`;
+
+          let dueMonth = vp.getMonth();
+          let dueYear = vp.getFullYear();
+          if (vp.getDate() > closeDay) {
+            dueMonth += 1;
+            if (dueMonth > 11) { dueMonth = 0; dueYear += 1; }
+          }
+          if (closeDay >= dDay) {
+            dueMonth += 1;
+            if (dueMonth > 11) { dueMonth = 0; dueYear += 1; }
+          }
+          const lastDay = new Date(dueYear, dueMonth + 1, 0).getDate();
+          const finalDay = Math.min(dDay, lastDay);
+          dueStr = `${dueYear}-${String(dueMonth + 1).padStart(2, '0')}-${String(finalDay).padStart(2, '0')}`;
+        } else {
+          const d = new Date(baseDate);
+          if (recurrence.frequency === 'weekly') d.setDate(d.getDate() + 7 * i);
+          else if (recurrence.frequency === 'monthly') d.setMonth(d.getMonth() + i);
+          else d.setFullYear(d.getFullYear() + i);
+          dueStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        }
+
+        const desc = `${p.description} (${i + 1}/${recurrence.occurrences})`;
+        const supplier = isCC && acc ? `cartao:${acc.id}` : p.supplier;
+
+        await supabase.from('payables').insert({
+          user_id: user.id, description: desc, supplier,
+          category_id: p.categoryId, account_id: p.accountId || null,
+          amount: p.amount, due_date: dueStr, status: 'pending',
+          notes: p.notes || null,
+          recurring: true,
+          recurrence_frequency: recurrence.frequency,
+          purchase_date: purchaseStr,
+        });
+      }
+      await fetchAll();
+      return;
+    }
 
     if (installments && installments > 1) {
       const installmentAmount = Math.round((p.amount / installments) * 100) / 100;
