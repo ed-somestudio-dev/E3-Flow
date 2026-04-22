@@ -332,7 +332,7 @@ export default function ReceivablesPage() {
           <DialogContent className="max-h-[90vh] overflow-y-auto">
             <DialogHeader><DialogTitle>{editingItem ? 'Editar' : 'Novo'} Recebível</DialogTitle></DialogHeader>
             <ReceivableForm item={editingItem} categories={data.categories.filter(c => c.type === 'income')} accounts={data.accounts}
-              onSave={(r) => { const { installments, ...receivable } = r; if (editingItem) updateReceivable({ ...receivable, id: editingItem.id } as Receivable); else addReceivable(receivable, installments); setDialogOpen(false); setEditingItem(null); }} />
+              onSave={(r) => { const { installments, recurrence, ...receivable } = r; if (editingItem) updateReceivable({ ...receivable, id: editingItem.id } as Receivable); else addReceivable(receivable, installments, recurrence); setDialogOpen(false); setEditingItem(null); }} />
           </DialogContent>
         </Dialog>
       </div>
@@ -591,7 +591,7 @@ export default function ReceivablesPage() {
 function ReceivableForm({ item, categories, accounts, onSave }: {
   item: Receivable | null; categories: { id: string; name: string }[];
   accounts: { id: string; name: string }[];
-  onSave: (r: Omit<Receivable, 'id'> & { installments?: number }) => void;
+  onSave: (r: Omit<Receivable, 'id'> & { installments?: number; recurrence?: { frequency: RecurrenceFrequency; occurrences: number } }) => void;
 }) {
   const [clientName, setClientName] = useState(item?.clientName || '');
   const [description, setDescription] = useState(item?.description || '');
@@ -606,6 +606,7 @@ function ReceivableForm({ item, categories, accounts, onSave }: {
   const [installmentValue, setInstallmentValue] = useState('');
   const [recurring, setRecurring] = useState(item?.recurring || false);
   const [recurrenceFrequency, setRecurrenceFrequency] = useState<RecurrenceFrequency>(item?.recurrenceFrequency || 'monthly');
+  const [occurrences, setOccurrences] = useState<string>('');
 
   const installmentAmount = amount ? (parseFloat(amount) / installments) : 0;
 
