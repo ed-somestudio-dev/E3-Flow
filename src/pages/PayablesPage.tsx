@@ -552,9 +552,68 @@ export default function PayablesPage() {
           </div>
         </DialogContent>
       </Dialog>
-      <ConfirmDeleteDialog open={!!deleteId} onOpenChange={(o) => { if (!o) setDeleteId(null); }}
-        onConfirm={() => { if (deleteId) { deletePayable(deleteId); setDeleteId(null); } }}
-        title="Excluir conta a pagar?" description="Tem certeza que deseja excluir esta conta a pagar? Esta ação não pode ser desfeita." />
+      {(() => {
+        const target = deleteId ? data.payables.find(p => p.id === deleteId) : null;
+        if (!target) {
+          return (
+            <ConfirmDeleteDialog open={!!deleteId} onOpenChange={(o) => { if (!o) setDeleteId(null); }}
+              onConfirm={() => { if (deleteId) { deletePayable(deleteId); setDeleteId(null); } }}
+              title="Excluir conta a pagar?" description="Tem certeza que deseja excluir esta conta a pagar? Esta ação não pode ser desfeita." />
+          );
+        }
+        const stripSuffix = (s: string) => s.replace(/\s*\(\d+\/\d+\)\s*$/, '').trim().toLowerCase();
+        const baseDesc = stripSuffix(target.description);
+        const linkedFuture = target.recurring
+          ? data.payables.filter(p =>
+              p.id !== target.id &&
+              p.recurring &&
+              p.supplier === target.supplier &&
+              p.categoryId === target.categoryId &&
+              p.dueDate >= target.dueDate &&
+              stripSuffix(p.description) === baseDesc &&
+              p.status !== 'paid'
+            )
+          : [];
+        const hasFuture = linkedFuture.length > 0;
+        if (!hasFuture) {
+          return (
+            <ConfirmDeleteDialog open={!!deleteId} onOpenChange={(o) => { if (!o) setDeleteId(null); }}
+              onConfirm={() => { deletePayable(target.id); setDeleteId(null); }}
+              title="Excluir conta a pagar?" description="Tem certeza que deseja excluir esta conta a pagar? Esta ação não pode ser desfeita." />
+          );
+        }
+        return (
+          <AlertDialog open={!!deleteId} onOpenChange={(o) => { if (!o) setDeleteId(null); }}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Excluir conta recorrente?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Esta conta faz parte de uma série recorrente. Existem <strong>{linkedFuture.length}</strong> ocorrência(s) futura(s) pendente(s) vinculada(s). O que deseja excluir?
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+                <AlertDialogCancel className="mt-0">Cancelar</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                  onClick={() => { deletePayable(target.id); setDeleteId(null); }}
+                >
+                  Apenas esta
+                </AlertDialogAction>
+                <AlertDialogAction
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  onClick={async () => {
+                    const n = await deletePayableWithFuture(target.id);
+                    setDeleteId(null);
+                    if (n > 1) toast.success(`${n} contas vinculadas excluídas`);
+                  }}
+                >
+                  Esta e {linkedFuture.length} futura(s)
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        );
+      })()}
     </div>
   );
 }
