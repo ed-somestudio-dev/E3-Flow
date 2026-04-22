@@ -796,25 +796,39 @@ function PayableForm({ item, categories, accounts, onSave }: {
         </div>
       )}
 
-      {!useInstallments && !isCreditCard && (
-        <>
+      {!useInstallments && (
+        <div className="space-y-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
           <div className="flex items-center gap-2">
             <Checkbox id="recurring" checked={recurring} onCheckedChange={(c) => setRecurring(c === true)} />
-            <Label htmlFor="recurring" className="cursor-pointer">Conta recorrente</Label>
+            <Label htmlFor="recurring" className="cursor-pointer flex items-center gap-1.5">
+              <RefreshCw className="h-3.5 w-3.5 text-primary" />
+              Conta recorrente
+            </Label>
           </div>
           {recurring && (
-            <div><Label>Frequência</Label>
-              <Select value={recurrenceFrequency} onValueChange={v => setRecurrenceFrequency(v as RecurrenceFrequency)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="weekly">Semanal</SelectItem>
-                  <SelectItem value="monthly">Mensal</SelectItem>
-                  <SelectItem value="yearly">Anual</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Frequência</Label>
+                <Select value={recurrenceFrequency} onValueChange={v => setRecurrenceFrequency(v as RecurrenceFrequency)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="weekly">Semanal</SelectItem>
+                    <SelectItem value="monthly">Mensal</SelectItem>
+                    <SelectItem value="yearly">Anual</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Nº de ocorrências</Label>
+                <Input type="number" min="1" max="120" placeholder="Indeterminado (1 ano)" value={occurrences}
+                  onChange={e => setOccurrences(e.target.value)} />
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Vazio = 1 ano ({recurrenceFrequency === 'weekly' ? '52 semanas' : recurrenceFrequency === 'monthly' ? '12 meses' : '1 ano'})
+                </p>
+              </div>
             </div>
           )}
-        </>
+        </div>
       )}
 
       <div><Label>Notas (opcional)</Label><Input value={notes} onChange={e => setNotes(e.target.value)} /></div>
@@ -822,14 +836,24 @@ function PayableForm({ item, categories, accounts, onSave }: {
         onClick={() => {
           const isCredit = isCreditCard && paymentMode === 'credit';
           const finalDueDate = isCredit && !dueDate ? purchaseDate : dueDate;
+          const isRecurring = !useInstallments && recurring;
+          let recurrencePayload: { frequency: RecurrenceFrequency; occurrences: number } | undefined;
+          if (isRecurring) {
+            const parsed = parseInt(occurrences);
+            const occ = (!occurrences || isNaN(parsed) || parsed < 1)
+              ? (recurrenceFrequency === 'weekly' ? 52 : recurrenceFrequency === 'monthly' ? 12 : 1)
+              : Math.min(120, parsed);
+            recurrencePayload = { frequency: recurrenceFrequency, occurrences: occ };
+          }
           onSave({
             description, supplier, categoryId, accountId: accountId || undefined, amount: parseFloat(amount),
             dueDate: finalDueDate, purchaseDate: isCredit ? purchaseDate : undefined,
             status: item?.status || 'pending', notes: notes || undefined,
-            recurring: (!isCredit && !useInstallments && recurring) || undefined,
-            recurrenceFrequency: (!isCredit && !useInstallments && recurring) ? recurrenceFrequency : undefined,
+            recurring: isRecurring || undefined,
+            recurrenceFrequency: isRecurring ? recurrenceFrequency : undefined,
             installments: (useInstallments && installments > 1) ? installments : undefined,
             isCredit,
+            recurrence: recurrencePayload,
           });
         }}>
         {item ? 'Atualizar' : 'Criar'} Conta
