@@ -315,7 +315,7 @@ export default function PayablesPage() {
           <DialogContent className="max-h-[90vh] overflow-y-auto">
             <DialogHeader><DialogTitle>{editingItem ? 'Editar' : 'Nova'} {SAFE_LABELS.payable}</DialogTitle></DialogHeader>
             <PayableForm item={editingItem} categories={data.categories.filter(c => c.type === 'expense')} accounts={data.accounts}
-              onSave={(p) => { const { installments, isCredit, ...payable } = p; if (editingItem) updatePayable({ ...payable, id: editingItem.id } as Payable); else addPayable(payable, installments, isCredit); setDialogOpen(false); setEditingItem(null); }} />
+              onSave={(p) => { const { installments, isCredit, recurrence, ...payable } = p; if (editingItem) updatePayable({ ...payable, id: editingItem.id } as Payable); else addPayable(payable, installments, isCredit, recurrence); setDialogOpen(false); setEditingItem(null); }} />
           </DialogContent>
         </Dialog>
       </div>
@@ -551,7 +551,7 @@ export default function PayablesPage() {
 function PayableForm({ item, categories, accounts, onSave }: {
   item: Payable | null; categories: { id: string; name: string }[];
   accounts: { id: string; name: string; type?: string; billingCloseDay?: number; dueDay?: number }[];
-  onSave: (p: Omit<Payable, 'id'> & { installments?: number; isCredit?: boolean }) => void;
+  onSave: (p: Omit<Payable, 'id'> & { installments?: number; isCredit?: boolean; recurrence?: { frequency: RecurrenceFrequency; occurrences: number } }) => void;
 }) {
   const [description, setDescription] = useState(item?.description || '');
   const [supplier, setSupplier] = useState(item?.supplier || '');
