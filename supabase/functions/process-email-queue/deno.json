@@ -1,1 +1,7 @@
-{}
+{
+  "nodeModulesDir": "auto",
+  "imports": {
+    "@lovable.dev/email-js": "npm:@lovable.dev/email-js",
+    "@supabase/supabase-js": "npm:@supabase/supabase-js@2"
+  }
+}
