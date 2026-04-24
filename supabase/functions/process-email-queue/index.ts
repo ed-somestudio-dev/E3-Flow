@@ -7,6 +7,55 @@ const DEFAULT_SEND_DELAY_MS = 200
 const DEFAULT_AUTH_TTL_MINUTES = 15
 const DEFAULT_TRANSACTIONAL_TTL_MINUTES = 60
 
+type EmailPayload = {
+  run_id?: string
+  to?: string
+  from?: string
+  sender_domain?: string
+  subject?: string
+  html?: string
+  text?: string
+  purpose?: string
+  label?: string
+  idempotency_key?: string
+  unsubscribe_token?: string
+  message_id?: string
+  queued_at?: string
+}
+
+type QueueMessage = {
+  msg_id: number
+  read_ct?: number
+  enqueued_at?: string
+  message: EmailPayload
+}
+
+function getRequiredSendPayload(payload: EmailPayload): {
+  to: string
+  from: string
+  subject: string
+  html: string
+  text: string
+} | null {
+  if (
+    typeof payload.to !== 'string' ||
+    typeof payload.from !== 'string' ||
+    typeof payload.subject !== 'string' ||
+    typeof payload.html !== 'string' ||
+    typeof payload.text !== 'string'
+  ) {
+    return null
+  }
+
+  return {
+    to: payload.to,
+    from: payload.from,
+    subject: payload.subject,
+    html: payload.html,
+    text: payload.text,
+  }
+}
+
 // Check if an error is a rate-limit (429) response.
 // Uses EmailAPIError.status when available (email-js >=0.x with structured errors),
 // falls back to parsing the error message for older versions.
@@ -56,7 +105,7 @@ function parseJwtClaims(token: string): Record<string, unknown> | null {
 async function moveToDlq(
   supabase: any,
   queue: string,
-  msg: { msg_id: number; message: Record<string, unknown> },
+  msg: QueueMessage,
   reason: string
 ): Promise<void> {
   const payload = msg.message
@@ -148,20 +197,22 @@ Deno.serve(async (req) => {
       continue
     }
 
-    if (!messages?.length) continue
+    const queueMessages = (messages ?? []) as QueueMessage[]
+
+    if (!queueMessages.length) continue
 
     // Retry budget is based on real send failures, not pgmq read_ct.
     // read_ct increments for every message in a claimed batch, including
     // messages not attempted when a 429 stops processing early.
     const messageIds = Array.from(
       new Set(
-        messages
-          .map((msg: any) =>
+          queueMessages
+            .map((msg: QueueMessage) =>
             msg?.message?.message_id && typeof msg.message.message_id === 'string'
               ? msg.message.message_id
               : null
           )
-          .filter((id: string | null): id is string => Boolean(id))
+            .filter((id: string | null): id is string => Boolean(id))
       )
     )
     const failedAttemptsByMessageId = new Map<string, number>()
@@ -189,8 +240,8 @@ Deno.serve(async (req) => {
       }
     }
 
-    for (let i = 0; i < messages.length; i++) {
-      const msg = messages[i]
+    for (let i = 0; i < queueMessages.length; i++) {
+      const msg = queueMessages[i]
       const payload = msg.message
       const failedAttempts =
         payload?.message_id && typeof payload.message_id === 'string'
@@ -248,16 +299,22 @@ Deno.serve(async (req) => {
         }
       }
 
+      const requiredSendPayload = getRequiredSendPayload(payload)
+      if (!requiredSendPayload) {
+        await moveToDlq(supabase, queue, msg, 'Missing required email payload fields')
+        continue
+      }
+
       try {
         await sendLovableEmail(
           {
             run_id: payload.run_id,
-            to: payload.to,
-            from: payload.from,
+            to: requiredSendPayload.to,
+            from: requiredSendPayload.from,
             sender_domain: payload.sender_domain,
-            subject: payload.subject,
-            html: payload.html,
-            text: payload.text,
+            subject: requiredSendPayload.subject,
+            html: requiredSendPayload.html,
+            text: requiredSendPayload.text,
             purpose: payload.purpose,
             label: payload.label,
             idempotency_key: payload.idempotency_key,
@@ -350,7 +407,7 @@ Deno.serve(async (req) => {
       }
 
       // Small delay between sends to smooth bursts
-      if (i < messages.length - 1) {
+      if (i < queueMessages.length - 1) {
         await new Promise((r) => setTimeout(r, sendDelayMs))
       }
     }
