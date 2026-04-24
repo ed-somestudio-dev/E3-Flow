@@ -30,6 +30,32 @@ type QueueMessage = {
   message: EmailPayload
 }
 
+function getRequiredSendPayload(payload: EmailPayload): {
+  to: string
+  from: string
+  subject: string
+  html: string
+  text: string
+} | null {
+  if (
+    typeof payload.to !== 'string' ||
+    typeof payload.from !== 'string' ||
+    typeof payload.subject !== 'string' ||
+    typeof payload.html !== 'string' ||
+    typeof payload.text !== 'string'
+  ) {
+    return null
+  }
+
+  return {
+    to: payload.to,
+    from: payload.from,
+    subject: payload.subject,
+    html: payload.html,
+    text: payload.text,
+  }
+}
+
 // Check if an error is a rate-limit (429) response.
 // Uses EmailAPIError.status when available (email-js >=0.x with structured errors),
 // falls back to parsing the error message for older versions.
@@ -273,16 +299,22 @@ Deno.serve(async (req) => {
         }
       }
 
+      const requiredSendPayload = getRequiredSendPayload(payload)
+      if (!requiredSendPayload) {
+        await moveToDlq(supabase, queue, msg, 'Missing required email payload fields')
+        continue
+      }
+
       try {
         await sendLovableEmail(
           {
             run_id: payload.run_id,
-            to: payload.to,
-            from: payload.from,
+            to: requiredSendPayload.to,
+            from: requiredSendPayload.from,
             sender_domain: payload.sender_domain,
-            subject: payload.subject,
-            html: payload.html,
-            text: payload.text,
+            subject: requiredSendPayload.subject,
+            html: requiredSendPayload.html,
+            text: requiredSendPayload.text,
             purpose: payload.purpose,
             label: payload.label,
             idempotency_key: payload.idempotency_key,
