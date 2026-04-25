@@ -16,6 +16,7 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
+import { MonthYearPicker } from '@/components/MonthYearPicker';
 import { motion } from 'framer-motion';
 import { fmt, fmtDate } from '@/lib/format';
 import { SAFE_LABELS } from '@/lib/safe-labels';
@@ -366,9 +367,11 @@ export default function ReceivablesPage() {
         </Select>
       </div>
       <div className="flex items-center gap-3 flex-wrap">
-        <Button variant={dateFrom && dateTo && format(dateFrom, 'yyyy-MM') === format(new Date(), 'yyyy-MM') && format(dateTo, 'yyyy-MM') === format(new Date(), 'yyyy-MM') ? 'default' : 'outline'} size="sm" onClick={setCurrentMonth}>
-          <CalendarIcon className="h-4 w-4 mr-2" />Mês Atual
-        </Button>
+        <MonthYearPicker
+          value={dateFrom && dateTo && format(dateFrom, 'yyyy-MM') === format(dateTo, 'yyyy-MM') ? dateFrom : undefined}
+          onChange={(from, to) => { setDateFrom(from); setDateTo(to); }}
+          active={!!(dateFrom && dateTo && format(dateFrom, 'yyyy-MM') === format(new Date(), 'yyyy-MM') && format(dateTo, 'yyyy-MM') === format(new Date(), 'yyyy-MM'))}
+        />
         <Popover>
           <PopoverTrigger asChild>
             <Button variant="outline" size="sm" className={cn("justify-start text-left font-normal", !dateFrom && "text-muted-foreground")}>
