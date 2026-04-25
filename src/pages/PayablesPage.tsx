@@ -172,7 +172,7 @@ function InvoiceMonthGroup({ monthKey, items, invoiceDueDate, invoiceStatus, mon
 export default function PayablesPage() {
   const { data, addPayable, updatePayable, deletePayable, deletePayableWithFuture, markPayablePaid, markPayablePaidPartial, getCategoryName, getAccountName } = useFinance();
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('pending_overdue');
   const [editingItem, setEditingItem] = useState<Payable | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -194,7 +194,11 @@ export default function PayablesPage() {
   };
 
   const allFiltered = data.payables
-    .filter(p => statusFilter === 'all' || p.status === statusFilter)
+    .filter(p => {
+      if (statusFilter === 'all') return true;
+      if (statusFilter === 'pending_overdue') return p.status === 'pending' || p.status === 'overdue';
+      return p.status === statusFilter;
+    })
     .filter(p => p.description.toLowerCase().includes(search.toLowerCase()) || p.supplier.toLowerCase().includes(search.toLowerCase()))
     .filter(p => {
       if (dateFrom && p.dueDate < format(dateFrom, 'yyyy-MM-dd')) return false;
@@ -339,6 +343,7 @@ export default function PayablesPage() {
           <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos</SelectItem>
+            <SelectItem value="pending_overdue">Pendente/Atrasado</SelectItem>
             <SelectItem value="pending">Pendente</SelectItem>
             <SelectItem value="paid">Pago</SelectItem>
             <SelectItem value="overdue">Atrasado</SelectItem>

@@ -40,7 +40,7 @@ export default function ReceivablesPage() {
   const { data, addReceivable, updateReceivable, deleteReceivable, markReceivableReceived, markReceivableReceivedPartial, getCategoryName, getAccountName } = useFinance();
   const { settings: pixSettings, isConfigured } = usePixSettings();
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('pending_overdue');
   const [editingItem, setEditingItem] = useState<Receivable | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -71,7 +71,11 @@ export default function ReceivablesPage() {
   const clearDateFilter = () => { setDateFrom(undefined); setDateTo(undefined); };
 
   const filtered = data.receivables
-    .filter(r => statusFilter === 'all' || r.status === statusFilter)
+    .filter(r => {
+      if (statusFilter === 'all') return true;
+      if (statusFilter === 'pending_overdue') return r.status === 'pending' || r.status === 'overdue';
+      return r.status === statusFilter;
+    })
     .filter(r => r.description.toLowerCase().includes(search.toLowerCase()) || r.clientName.toLowerCase().includes(search.toLowerCase()))
     .filter(r => {
       if (dateFrom && r.dueDate < format(dateFrom, 'yyyy-MM-dd')) return false;
@@ -354,6 +358,7 @@ export default function ReceivablesPage() {
           <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos</SelectItem>
+            <SelectItem value="pending_overdue">Pendente/Atrasado</SelectItem>
             <SelectItem value="pending">Pendente</SelectItem>
             <SelectItem value="received">Recebido</SelectItem>
             <SelectItem value="overdue">Atrasado</SelectItem>
