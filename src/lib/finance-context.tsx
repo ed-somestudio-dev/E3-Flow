@@ -445,7 +445,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
           let dueMonth = vp.getMonth();
           let dueYear = vp.getFullYear();
-          if (vp.getDate() > closeDay) {
+          if (vp.getDate() >= closeDay) {
             dueMonth += 1;
             if (dueMonth > 11) { dueMonth = 0; dueYear += 1; }
           }
@@ -500,7 +500,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
           // Before close day: current month's invoice; after: next month's
           let dueMonth = virtualPurchase.getMonth(); // 0-based
           let dueYear = virtualPurchase.getFullYear();
-          if (virtualPurchase.getDate() > closeDay) {
+          if (virtualPurchase.getDate() >= closeDay) {
             dueMonth += 1;
             if (dueMonth > 11) { dueMonth = 0; dueYear += 1; }
           }
