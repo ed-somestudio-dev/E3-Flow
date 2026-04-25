@@ -22,5 +22,35 @@
       "type": "image/png",
       "purpose": "any maskable"
     }
+  ],
+  "shortcuts": [
+    {
+      "name": "Dashboard",
+      "short_name": "Dashboard",
+      "description": "Visão geral das finanças",
+      "url": "/",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Contas a Pagar",
+      "short_name": "A Pagar",
+      "description": "Gerenciar contas a pagar",
+      "url": "/payables",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Contas a Receber",
+      "short_name": "A Receber",
+      "description": "Gerenciar contas a receber",
+      "url": "/receivables",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Lançamentos",
+      "short_name": "Lançar",
+      "description": "Registrar movimentações",
+      "url": "/transactions",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    }
   ]
 }

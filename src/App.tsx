@@ -19,6 +19,7 @@ import ReportsPage from "@/pages/ReportsPage";
 import CategoriesPage from "@/pages/CategoriesPage";
 import SettingsPage from "@/pages/SettingsPage";
 import ContactsPage from "@/pages/ContactsPage";
+import InstallPage from "@/pages/InstallPage";
 import AuthPage from "@/pages/AuthPage";
 import NotFound from "@/pages/NotFound";
 import logoFluxoPro from '@/assets/Logo_FluxoPro.png';
@@ -57,6 +58,7 @@ function ProtectedRoutes() {
               <Route path="/reports" element={<ReportsPage />} />
               <Route path="/categories" element={<CategoriesPage />} />
               <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/instalar" element={<InstallPage />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </AppLayout>
