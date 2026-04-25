@@ -317,7 +317,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     // Before close day: current month; after close day: next month
     let invoiceMonth = d.getMonth() + 1; // 1-based
     let invoiceYear = d.getFullYear();
-    if (d.getDate() > closeDay) {
+    if (d.getDate() >= closeDay) {
       invoiceMonth += 1;
       if (invoiceMonth > 12) { invoiceMonth = 1; invoiceYear++; }
     }
