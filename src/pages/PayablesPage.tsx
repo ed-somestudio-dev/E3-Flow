@@ -661,7 +661,7 @@ function PayableForm({ item, categories, accounts, onSave }: {
     // After close day: next month's invoice (due in next month)
     let dueMonth = purchase.getMonth(); // 0-based
     let dueYear = purchase.getFullYear();
-    if (purchase.getDate() > closeDay) {
+    if (purchase.getDate() >= closeDay) {
       dueMonth += 1;
       if (dueMonth > 11) { dueMonth = 0; dueYear += 1; }
     }
