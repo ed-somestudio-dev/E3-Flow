@@ -34,8 +34,9 @@ function StatusBadge({ status }: { status: PayableStatus }) {
   return <span className={cls}>{statusLabels[status]}</span>;
 }
 
-function CreditCardInvoiceCard({ accName, invoicesByMonth, onMarkPaid, onPayAll, onDelete, onEdit }: {
+function CreditCardInvoiceCard({ accName, accColor, invoicesByMonth, onMarkPaid, onPayAll, onDelete, onEdit }: {
   accName: string;
+  accColor?: string;
   invoicesByMonth: Record<string, Payable[]>;
   onMarkPaid: (id: string) => void;
   onPayAll: (ids: string[]) => void;
@@ -50,14 +51,18 @@ function CreditCardInvoiceCard({ accName, invoicesByMonth, onMarkPaid, onPayAll,
   const sortedMonths = Object.keys(invoicesByMonth).sort();
 
   return (
-    <div className="finance-card p-0 overflow-hidden">
+    <div
+      className="finance-card p-0 overflow-hidden border-l-4"
+      style={accColor ? { borderLeftColor: accColor } : undefined}
+    >
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center justify-between px-4 py-3 bg-primary/5 border-b border-border hover:bg-primary/10 transition-colors cursor-pointer"
+        className="w-full flex items-center justify-between px-4 py-3 border-b border-border hover:bg-muted/40 transition-colors cursor-pointer"
+        style={accColor ? { backgroundColor: `${accColor}1A` } : undefined}
       >
         <div className="flex items-center gap-2">
-          {expanded ? <ChevronDown className="h-4 w-4 text-primary" /> : <ChevronRight className="h-4 w-4 text-primary" />}
-          <CreditCard className="h-4 w-4 text-primary" />
+          {expanded ? <ChevronDown className="h-4 w-4" style={accColor ? { color: accColor } : undefined} /> : <ChevronRight className="h-4 w-4" style={accColor ? { color: accColor } : undefined} />}
+          <CreditCard className="h-4 w-4" style={accColor ? { color: accColor } : undefined} />
           <span className="font-semibold">{accName}</span>
           <span className="text-xs text-muted-foreground">({pendingCount} pendente{pendingCount !== 1 ? 's' : ''})</span>
         </div>
