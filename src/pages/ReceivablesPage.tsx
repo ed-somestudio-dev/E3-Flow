@@ -449,8 +449,8 @@ export default function ReceivablesPage() {
                     )}
                   </td>
                   <td className="py-3 px-4 mono text-muted-foreground">{fmtDate(r.dueDate)}</td>
-                  <td className="py-3 px-4 font-medium">{r.clientName}</td>
-                  <td className="py-3 px-4 text-muted-foreground">
+                  <td className={`py-3 px-4 font-medium ${r.status === 'overdue' ? 'text-destructive' : r.status === 'received' ? 'text-success' : 'text-warning'}`}>{r.clientName}</td>
+                  <td className={r.status === 'overdue' ? 'py-3 px-4 text-destructive' : r.status === 'received' ? 'py-3 px-4 text-success' : 'py-3 px-4 text-warning'}>
                     <div className="flex items-center gap-1.5">
                       {r.description}
                       {r.recurring && <RefreshCw className="h-3 w-3 text-primary" />}

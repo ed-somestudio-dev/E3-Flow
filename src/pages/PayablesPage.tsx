@@ -433,7 +433,7 @@ export default function PayablesPage() {
                     )}
                   </td>
                   <td className="py-3 px-4 mono text-muted-foreground">{fmtDate(p.dueDate)}</td>
-                  <td className="py-3 px-4 font-medium">
+                  <td className={`py-3 px-4 font-medium ${p.status === 'overdue' ? 'text-destructive' : p.status === 'paid' ? 'text-success' : 'text-warning'}`}>
                     <div className="flex items-center gap-1.5">
                       {p.description}
                       {p.recurring && <RefreshCw className="h-3 w-3 text-primary" />}
