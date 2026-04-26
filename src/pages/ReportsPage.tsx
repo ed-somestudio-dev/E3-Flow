@@ -7,6 +7,8 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { SAFE_LABELS } from '@/lib/safe-labels';
 import { consolidatePayables } from '@/lib/consolidate-payables';
+import { MonthYearPicker } from '@/components/MonthYearPicker';
+import { format as fmtFn, startOfMonth, endOfMonth } from 'date-fns';
 
 export default function ReportsPage() {
   const { data, getCategoryName, getCategoryColor, getAccountName } = useFinance();
@@ -280,6 +282,25 @@ export default function ReportsPage() {
         {/* === ABA CONTAS A PAGAR/RECEBER === */}
         <TabsContent value="bills" className="space-y-6 mt-4">
           <div className="flex items-end gap-4 flex-wrap">
+            <div className="flex flex-col gap-1">
+              <Label className="text-xs text-muted-foreground">Mês</Label>
+              <MonthYearPicker
+                value={(() => {
+                  const s = startOfMonth(new Date(startDate + 'T00:00:00'));
+                  const e = endOfMonth(s);
+                  return fmtFn(s, 'yyyy-MM-dd') === startDate && fmtFn(e, 'yyyy-MM-dd') === endDate ? s : undefined;
+                })()}
+                onChange={(from, to) => {
+                  setStartDate(fmtFn(from, 'yyyy-MM-dd'));
+                  setEndDate(fmtFn(to, 'yyyy-MM-dd'));
+                }}
+                active={(() => {
+                  const s = startOfMonth(new Date(startDate + 'T00:00:00'));
+                  const e = endOfMonth(s);
+                  return fmtFn(s, 'yyyy-MM-dd') === startDate && fmtFn(e, 'yyyy-MM-dd') === endDate;
+                })()}
+              />
+            </div>
             <div>
               <Label className="text-xs text-muted-foreground">Data Início</Label>
               <Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-[160px]" />
@@ -409,8 +430,27 @@ export default function ReportsPage() {
         {/* === ABA PREVISÃO === */}
         <TabsContent value="forecast" className="space-y-6 mt-4">
           <div className="flex items-end gap-4 flex-wrap">
+            <div className="flex flex-col gap-1">
+              <Label className="text-xs text-muted-foreground">Até o fim do mês</Label>
+              <MonthYearPicker
+                value={(() => {
+                  const d = new Date(forecastDate + 'T00:00:00');
+                  const s = startOfMonth(d);
+                  const e = endOfMonth(d);
+                  return fmtFn(e, 'yyyy-MM-dd') === forecastDate ? s : undefined;
+                })()}
+                onChange={(_from, to) => {
+                  setForecastDate(fmtFn(to, 'yyyy-MM-dd'));
+                }}
+                active={(() => {
+                  const d = new Date(forecastDate + 'T00:00:00');
+                  const e = endOfMonth(d);
+                  return fmtFn(e, 'yyyy-MM-dd') === forecastDate;
+                })()}
+              />
+            </div>
             <div>
-              <Label className="text-xs text-muted-foreground">Previsão até</Label>
+              <Label className="text-xs text-muted-foreground">Previsão até (data exata)</Label>
               <Input type="date" value={forecastDate} onChange={e => setForecastDate(e.target.value)}
                 min={todayStr} className="w-[180px]" />
             </div>
