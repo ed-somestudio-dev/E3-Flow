@@ -727,6 +727,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   // --- Receivables ---
   const addReceivable = useCallback(async (r: Omit<Receivable, 'id'>, installments?: number, recurrence?: { frequency: 'weekly' | 'monthly' | 'yearly'; occurrences: number }) => {
     if (!user) return;
+    if (!assertOnline()) return;
 
     // Recurring expansion — generates N concrete records visible in calculations and reports
     if (recurrence && recurrence.occurrences > 1) {
