@@ -472,6 +472,7 @@ export default function PayablesPage() {
           </h2>
           {Object.entries(creditByAccount).map(([accountId, invoices]) => {
             const accName = getAccountName(accountId);
+            const accColor = data.accounts.find(a => a.id === accountId)?.color;
             // Group by invoice month (dueDate year-month)
             const byMonth = invoices.reduce<Record<string, Payable[]>>((acc, p) => {
               const key = p.dueDate.substring(0, 7); // YYYY-MM
@@ -483,6 +484,7 @@ export default function PayablesPage() {
               <CreditCardInvoiceCard
                 key={accountId}
                 accName={accName}
+                accColor={accColor}
                 invoicesByMonth={byMonth}
                 onMarkPaid={handleMarkPaid}
                 onPayAll={handlePayAll}
