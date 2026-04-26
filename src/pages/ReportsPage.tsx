@@ -360,7 +360,7 @@ export default function ReportsPage() {
                           </span>
                         ) : p.supplier}
                       </td>
-                      <td className={`py-2 px-3 font-medium ${p.status === 'overdue' ? 'text-destructive' : p.status === 'paid' ? 'text-success' : 'text-muted-foreground'}`}>
+                      <td className={`py-2 px-3 font-medium ${p.status === 'overdue' ? 'text-destructive' : p.status === 'paid' ? 'text-success' : 'text-warning'}`}>
                         {statusLabel(p.status)}
                       </td>
                       <td className="py-2 px-3 text-right mono font-semibold text-destructive">{fmt(p.amount)}</td>
@@ -412,7 +412,7 @@ export default function ReportsPage() {
                       <td className="py-2 px-3 mono text-muted-foreground">{fmtDate(r.dueDate)}</td>
                       <td className="py-2 px-3 font-medium">{r.description}</td>
                       <td className="py-2 px-3 text-muted-foreground">{r.clientName}</td>
-                      <td className={`py-2 px-3 font-medium ${r.status === 'overdue' ? 'text-destructive' : r.status === 'received' ? 'text-success' : 'text-muted-foreground'}`}>
+                      <td className={`py-2 px-3 font-medium ${r.status === 'overdue' ? 'text-destructive' : r.status === 'received' ? 'text-success' : 'text-warning'}`}>
                         {statusLabel(r.status)}
                       </td>
                       <td className="py-2 px-3 text-right mono font-semibold text-success">{fmt(r.amount)}</td>
