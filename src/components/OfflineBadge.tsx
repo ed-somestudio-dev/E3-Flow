@@ -43,3 +43,20 @@ export function OfflineBadge() {
 
   return null;
 }
+
+/**
+ * Banner full-width abaixo do header avisando que cadastros/edições estão
+ * desabilitados enquanto offline. Aparece somente quando navigator.onLine === false.
+ */
+export function OfflineBanner() {
+  const online = useOnlineStatus();
+  if (online) return null;
+  return (
+    <div className="flex items-start gap-2 px-4 py-2 bg-destructive/10 text-destructive text-xs sm:text-sm border-b border-destructive/20">
+      <CloudOff className="h-4 w-4 shrink-0 mt-0.5" />
+      <div>
+        <strong>Modo offline.</strong> Você pode visualizar os últimos dados sincronizados, mas cadastrar, editar e excluir está desabilitado até a conexão voltar.
+      </div>
+    </div>
+  );
+}

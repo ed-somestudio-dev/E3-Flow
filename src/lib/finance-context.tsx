@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './auth-context';
 import { toast } from 'sonner';
 import { saveSnapshot, loadSnapshot } from './offline-store';
+import { assertOnline } from './online-guard';
 
 interface FinanceContextType {
   data: FinanceData;
@@ -286,6 +287,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
   // --- Transactions ---
   const addTransaction = useCallback(async (tx: Omit<Transaction, 'id'>) => {
+    if (!assertOnline()) return;
     if (!user) return;
     const { error } = await supabase.from('transactions').insert({
       user_id: user.id, type: tx.type, description: tx.description,
@@ -366,6 +368,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   }, [user, data.categories]);
 
   const updateTransaction = useCallback(async (tx: Transaction) => {
+    if (!assertOnline()) return;
     if (!user) return;
     const old = data.transactions.find(t => t.id === tx.id);
     const { error } = await supabase.from('transactions').update({
@@ -398,6 +401,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   }, [user, data.transactions, data.accounts, fetchAll, persistAccountAdjustments, queueTransactionAccountAdjustment, adjustCreditCardInvoice]);
 
   const deleteTransaction = useCallback(async (id: string) => {
+    if (!assertOnline()) return;
     if (!user) return;
     const tx = data.transactions.find(t => t.id === id);
     const { error } = await supabase.from('transactions').delete().eq('id', id);
@@ -422,6 +426,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   // --- Payables ---
   const addPayable = useCallback(async (p: Omit<Payable, 'id'>, installments?: number, isCredit?: boolean, recurrence?: { frequency: 'weekly' | 'monthly' | 'yearly'; occurrences: number }) => {
     if (!user) return;
+    if (!assertOnline()) return;
 
     // Recurring expansion (independent of installments) — generates N concrete records
     if (recurrence && recurrence.occurrences > 1) {
@@ -570,6 +575,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   }, [user, data, fetchAll, adjustCreditCardInvoice]);
 
   const updatePayable = useCallback(async (p: Payable) => {
+    if (!assertOnline()) return;
     if (!user) return;
     const { error } = await supabase.from('payables').update({
       description: p.description, supplier: p.supplier,
@@ -584,6 +590,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   }, [user, fetchAll]);
 
   const deletePayable = useCallback(async (id: string) => {
+    if (!assertOnline()) return;
     if (!user) return;
     const { error } = await supabase.from('payables').delete().eq('id', id).eq('user_id', user.id);
     if (error) { console.error('deletePayable error:', error); toast.error('Erro ao excluir conta a pagar'); return; }
@@ -595,6 +602,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   // descrição base equivalente (ignorando o sufixo "(i/N)" gerado na expansão).
   // Considera "futuras" as contas com due_date >= due_date da atual.
   const deletePayableWithFuture = useCallback(async (id: string): Promise<number> => {
+    if (!assertOnline()) return 0;
     if (!user) return 0;
     const target = data.payables.find(p => p.id === id);
     if (!target) return 0;
@@ -618,6 +626,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   }, [user, data.payables, fetchAll]);
 
   const markPayablePaid = useCallback(async (id: string, accountId?: string) => {
+    if (!assertOnline()) return;
     if (!user) return;
     const payable = data.payables.find(x => x.id === id);
     const targetAccountId = accountId || payable?.accountId;
@@ -653,6 +662,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   }, [user, data, fetchAll]);
 
   const markPayablePaidPartial = useCallback(async (id: string, accountId: string, paidAmount: number) => {
+    if (!assertOnline()) return;
     if (!user) return;
     const payable = data.payables.find(x => x.id === id);
     if (!payable) { toast.error('Conta não encontrada'); return; }
@@ -717,6 +727,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   // --- Receivables ---
   const addReceivable = useCallback(async (r: Omit<Receivable, 'id'>, installments?: number, recurrence?: { frequency: 'weekly' | 'monthly' | 'yearly'; occurrences: number }) => {
     if (!user) return;
+    if (!assertOnline()) return;
 
     // Recurring expansion — generates N concrete records visible in calculations and reports
     if (recurrence && recurrence.occurrences > 1) {
@@ -776,6 +787,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   }, [user, fetchAll]);
 
   const updateReceivable = useCallback(async (r: Receivable) => {
+    if (!assertOnline()) return;
     if (!user) return;
     const { error } = await supabase.from('receivables').update({
       client_name: r.clientName, description: r.description,
@@ -791,6 +803,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   }, [user, fetchAll]);
 
   const deleteReceivable = useCallback(async (id: string) => {
+    if (!assertOnline()) return;
     if (!user) return;
     const { error } = await supabase.from('receivables').delete().eq('id', id).eq('user_id', user.id);
     if (error) { console.error('deleteReceivable error:', error); toast.error('Erro ao excluir conta a receber'); return; }
@@ -798,6 +811,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   }, [user, fetchAll]);
 
   const markReceivableReceived = useCallback(async (id: string, accountId?: string) => {
+    if (!assertOnline()) return;
     if (!user) return;
     const receivable = data.receivables.find(x => x.id === id);
     const targetAccountId = accountId || receivable?.accountId;
@@ -828,6 +842,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   }, [user, data, fetchAll]);
 
   const markReceivableReceivedPartial = useCallback(async (id: string, accountId: string, receivedAmount: number) => {
+    if (!assertOnline()) return;
     if (!user) return;
     const receivable = data.receivables.find(x => x.id === id);
     if (!receivable) { toast.error('Recebível não encontrado'); return; }
@@ -884,6 +899,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
   // --- Accounts ---
   const addAccount = useCallback(async (a: Omit<FinancialAccount, 'id'>) => {
+    if (!assertOnline()) return;
     if (!user) return;
     const { error } = await supabase.from('financial_accounts').insert({
       user_id: user.id, name: a.name, type: a.type, balance: a.balance,
@@ -896,6 +912,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   }, [user, fetchAll]);
 
   const updateAccount = useCallback(async (a: FinancialAccount) => {
+    if (!assertOnline()) return;
     if (!user) return;
     const { error } = await supabase.from('financial_accounts').update({
       name: a.name, type: a.type, balance: a.balance,
@@ -908,6 +925,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   }, [user, fetchAll]);
 
   const deleteAccount = useCallback(async (id: string) => {
+    if (!assertOnline()) return;
     if (!user) return;
     const { error } = await supabase.from('financial_accounts').delete().eq('id', id).eq('user_id', user.id);
     if (error) { console.error('deleteAccount error:', error); toast.error('Não é possível excluir conta com transações vinculadas'); return; }
@@ -915,6 +933,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   }, [user, fetchAll]);
 
   const transferBetweenAccounts = useCallback(async (fromId: string, toId: string, amount: number) => {
+    if (!assertOnline()) return;
     if (!user) return;
     const fromAcc = data.accounts.find(a => a.id === fromId);
     const toAcc = data.accounts.find(a => a.id === toId);
@@ -928,6 +947,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
   // --- Budgets ---
   const addBudget = useCallback(async (b: Omit<Budget, 'id'>) => {
+    if (!assertOnline()) return;
     if (!user) return;
     const { error } = await supabase.from('budgets').insert({
       user_id: user.id, category_id: b.categoryId, amount: b.amount, month: b.month,
@@ -937,6 +957,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   }, [user, fetchAll]);
 
   const updateBudget = useCallback(async (b: Budget) => {
+    if (!assertOnline()) return;
     if (!user) return;
     const { error } = await supabase.from('budgets').update({ category_id: b.categoryId, amount: b.amount, month: b.month }).eq('id', b.id).eq('user_id', user.id);
     if (error) { console.error('updateBudget error:', error); toast.error('Erro ao atualizar orçamento'); return; }
@@ -944,6 +965,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   }, [user, fetchAll]);
 
   const deleteBudget = useCallback(async (id: string) => {
+    if (!assertOnline()) return;
     if (!user) return;
     const { error } = await supabase.from('budgets').delete().eq('id', id).eq('user_id', user.id);
     if (error) { console.error('deleteBudget error:', error); toast.error('Erro ao excluir orçamento'); return; }
@@ -952,6 +974,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
   // --- Categories ---
   const addCategory = useCallback(async (c: Omit<Category, 'id'>) => {
+    if (!assertOnline()) return;
     if (!user) return;
     const { error } = await supabase.from('categories').insert({
       user_id: user.id, name: c.name, type: c.type, icon: c.icon, color: c.color,
@@ -961,6 +984,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   }, [user, fetchAll]);
 
   const updateCategory = useCallback(async (c: Category) => {
+    if (!assertOnline()) return;
     if (!user) return;
     const { error } = await supabase.from('categories').update({
       name: c.name, type: c.type, icon: c.icon, color: c.color,
@@ -970,6 +994,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   }, [user, fetchAll]);
 
   const deleteCategory = useCallback(async (id: string) => {
+    if (!assertOnline()) return;
     if (!user) return;
     const { error } = await supabase.from('categories').delete().eq('id', id).eq('user_id', user.id);
     if (error) { toast.error('Não é possível excluir categoria com dados vinculados'); return; }
@@ -981,6 +1006,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   const getCategoryColor = useCallback((id: string) => data.categories.find(c => c.id === id)?.color || '#888', [data.categories]);
 
   const resetAllData = useCallback(async () => {
+    if (!assertOnline()) return;
     if (!user) return;
     // Delete in order to respect foreign keys: transactions first, then payables/receivables/budgets, then accounts/categories
     await supabase.from('transactions').delete().eq('user_id', user.id);
@@ -1010,6 +1036,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   }, [data]);
 
   const importBackup = useCallback(async (file: File) => {
+    if (!assertOnline()) return;
     if (!user) return;
     try {
       const text = await file.text();
