@@ -7,6 +7,7 @@ import { Plus, Trash2, Edit2, CheckCircle, CreditCard, CalendarIcon, X, RefreshC
 import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog';
 import { CalculatorInput } from '@/components/CalculatorInput';
 import { ContactAutocomplete } from '@/components/ContactAutocomplete';
+import { SearchAutocomplete } from '@/components/SearchAutocomplete';
 import { ShareDocumentDialog } from '@/components/ShareDocumentDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
