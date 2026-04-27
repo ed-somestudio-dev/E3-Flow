@@ -464,7 +464,7 @@ export default function PayablesPage() {
                       {p.recurring && <RefreshCw className="h-3 w-3 text-primary" />}
                     </div>
                   </td>
-                  <td className="py-3 px-4 text-muted-foreground">{p.supplier}</td>
+                  <td className={`py-3 px-4 ${p.status === 'overdue' ? 'text-destructive' : p.status === 'paid' ? 'text-success' : 'text-warning'}`}>{p.supplier}</td>
                   <td className="py-3 px-4 text-muted-foreground">{getCategoryName(p.categoryId)}</td>
                   <td className="py-3 px-4 text-muted-foreground">{p.accountId ? getAccountName(p.accountId) : '—'}</td>
                   <td className="py-3 px-4"><StatusBadge status={p.status} /></td>
