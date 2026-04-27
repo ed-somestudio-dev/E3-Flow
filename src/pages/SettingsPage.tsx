@@ -4,7 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { QrCode, Save, Stamp, Upload, Trash2 } from 'lucide-react';
+import { QrCode, Save, Stamp, Upload, Trash2, Bell } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 
 export default function SettingsPage() {
@@ -155,6 +156,48 @@ export default function SettingsPage() {
           className="hidden"
           onChange={handleStampPick}
         />
+      </div>
+
+      <div className="finance-card p-6 space-y-4">
+        <div className="flex items-center gap-2 pb-2 border-b border-border">
+          <Bell className="h-5 w-5 text-primary" />
+          <h2 className="font-semibold">Lembretes de Contas</h2>
+        </div>
+
+        <p className="text-sm text-muted-foreground">
+          Mostra um aviso no topo do app quando houver contas a pagar ou receber vencidas
+          ou próximas do vencimento.
+        </p>
+
+        <div className="flex items-center justify-between gap-4 p-3 rounded-md bg-secondary/30 border border-border">
+          <div>
+            <Label className="text-sm font-medium">Ativar lembretes</Label>
+            <p className="text-xs text-muted-foreground">Banner no topo do app</p>
+          </div>
+          <Switch
+            checked={form.remindersEnabled}
+            onCheckedChange={(v) => setForm({ ...form, remindersEnabled: v })}
+          />
+        </div>
+
+        <div>
+          <Label>Antecedência (dias antes do vencimento)</Label>
+          <Input
+            type="number" min={0} max={30}
+            value={form.reminderDaysBefore}
+            onChange={e => setForm({ ...form, reminderDaysBefore: Math.max(0, Math.min(30, parseInt(e.target.value) || 0)) })}
+            disabled={!form.remindersEnabled}
+            placeholder="3"
+          />
+          <p className="text-xs text-muted-foreground mt-1">
+            Contas que vencem nos próximos {form.reminderDaysBefore} dia{form.reminderDaysBefore !== 1 ? 's' : ''} aparecerão como aviso. Vencidas sempre aparecem.
+          </p>
+        </div>
+
+        <Button onClick={handleSave} disabled={saving} className="w-full sm:w-auto">
+          <Save className="h-4 w-4 mr-2" />
+          {saving ? 'Salvando...' : 'Salvar lembretes'}
+        </Button>
       </div>
     </div>
   );
