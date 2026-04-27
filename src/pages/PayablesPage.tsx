@@ -2,7 +2,7 @@ import { useState, useCallback, useMemo } from 'react';
 import { useFinance } from '@/lib/finance-context';
 import { supabase } from '@/integrations/supabase/client';
 import { Payable, PayableStatus, RecurrenceFrequency } from '@/lib/types';
-import { Plus, Trash2, Edit2, CheckCircle, Search, RefreshCw, CreditCard, Wallet, ChevronDown, ChevronRight, CalendarIcon, X } from 'lucide-react';
+import { Plus, Trash2, Edit2, CheckCircle, RefreshCw, CreditCard, Wallet, ChevronDown, ChevronRight, CalendarIcon, X } from 'lucide-react';
 import { CalculatorInput } from '@/components/CalculatorInput';
 import { ContactAutocomplete } from '@/components/ContactAutocomplete';
 import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog';
@@ -179,7 +179,6 @@ export default function PayablesPage() {
   const { data, addPayable, updatePayable, deletePayable, deletePayableWithFuture, markPayablePaid, markPayablePaidPartial, getCategoryName, getAccountName } = useFinance();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('pending_overdue');
-  const [supplierFilter, setSupplierFilter] = useState<string>('all');
   const [editingItem, setEditingItem] = useState<Payable | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -208,7 +207,6 @@ export default function PayablesPage() {
       if (statusFilter === 'pending_overdue') return p.status === 'pending' || p.status === 'overdue';
       return p.status === statusFilter;
     })
-    .filter(p => supplierFilter === 'all' || p.supplier === supplierFilter)
     .filter(p => p.description.toLowerCase().includes(search.toLowerCase()) || p.supplier.toLowerCase().includes(search.toLowerCase()))
     .filter(p => {
       if (dateFrom && p.dueDate < format(dateFrom, 'yyyy-MM-dd')) return false;
@@ -217,7 +215,7 @@ export default function PayablesPage() {
     })
     .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
 
-  // Lista única de fornecedores para o filtro (exclui faturas de cartão internas)
+  // Lista única de fornecedores para sugestões de busca (exclui faturas de cartão internas)
   const supplierOptions = useMemo(() => {
     const set = new Set<string>();
     data.payables.forEach(p => {
@@ -358,10 +356,13 @@ export default function PayablesPage() {
         </Dialog>
       </div>
       <div className="flex items-center gap-3 flex-wrap">
-        <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Buscar contas..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
-        </div>
+        <SearchAutocomplete
+          value={search}
+          onChange={setSearch}
+          options={supplierOptions}
+          placeholder="Buscar fornecedor ou descrição..."
+          className="flex-1 min-w-[200px]"
+        />
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
           <SelectContent>
@@ -372,17 +373,6 @@ export default function PayablesPage() {
             <SelectItem value="overdue">Atrasado</SelectItem>
           </SelectContent>
         </Select>
-        {supplierOptions.length > 0 && (
-          <Select value={supplierFilter} onValueChange={setSupplierFilter}>
-            <SelectTrigger className="w-[180px]"><SelectValue placeholder="Fornecedor" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos os fornecedores</SelectItem>
-              {supplierOptions.map(s => (
-                <SelectItem key={s} value={s}>{s}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
       </div>
       <div className="flex items-center gap-3 flex-wrap">
         <MonthYearPicker
