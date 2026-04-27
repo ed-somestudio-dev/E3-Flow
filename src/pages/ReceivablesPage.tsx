@@ -520,6 +520,34 @@ export default function ReceivablesPage() {
               <span className="text-sm text-muted-foreground">{receivingIds.length > 1 ? `${receivingIds.length} itens` : 'Valor'}</span>
               <span className="text-lg font-bold text-success mono">{fmt(receivingTotal)}</span>
             </div>
+            {receivingIds.length > 1 && (() => {
+              const items = receivingIds.map(id => data.receivables.find(r => r.id === id)).filter(Boolean) as Receivable[];
+              return (
+                <div className="rounded-md border border-border overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setShowReceiveItems(v => !v)}
+                    className="w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-muted/40 transition-colors"
+                  >
+                    <span className="flex items-center gap-1.5 text-muted-foreground">
+                      {showReceiveItems ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                      Ver descrição dos recebíveis ({items.length})
+                    </span>
+                  </button>
+                  {showReceiveItems && (
+                    <div className="max-h-48 overflow-y-auto divide-y divide-border border-t border-border">
+                      {items.map(it => (
+                        <div key={it.id} className="flex items-center justify-between gap-3 px-3 py-1.5 text-xs">
+                          <span className="text-muted-foreground mono whitespace-nowrap">{fmtDate(it.dueDate)}</span>
+                          <span className="flex-1 truncate">{it.description}</span>
+                          <span className="mono font-medium text-success whitespace-nowrap">{fmt(it.amount)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
             <div className="space-y-2">
               <Label>Conta para crédito</Label>
               <Select value={receiveAccountId} onValueChange={setReceiveAccountId}>
