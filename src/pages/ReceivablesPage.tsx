@@ -3,7 +3,7 @@ import { useFinance } from '@/lib/finance-context';
 import { supabase } from '@/integrations/supabase/client';
 import { usePixSettings } from '@/lib/pix-settings-context';
 import { Receivable, ReceivableStatus, RecurrenceFrequency } from '@/lib/types';
-import { Plus, Trash2, Edit2, CheckCircle, Search, CreditCard, CalendarIcon, X, RefreshCw, QrCode, Receipt, AlertTriangle, ChevronDown, ChevronRight } from 'lucide-react';
+import { Plus, Trash2, Edit2, CheckCircle, CreditCard, CalendarIcon, X, RefreshCw, QrCode, Receipt, AlertTriangle, ChevronDown, ChevronRight } from 'lucide-react';
 import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog';
 import { CalculatorInput } from '@/components/CalculatorInput';
 import { ContactAutocomplete } from '@/components/ContactAutocomplete';
@@ -42,7 +42,6 @@ export default function ReceivablesPage() {
   const { settings: pixSettings, isConfigured } = usePixSettings();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('pending_overdue');
-  const [clientFilter, setClientFilter] = useState<string>('all');
   const [editingItem, setEditingItem] = useState<Receivable | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -79,7 +78,6 @@ export default function ReceivablesPage() {
       if (statusFilter === 'pending_overdue') return r.status === 'pending' || r.status === 'overdue';
       return r.status === statusFilter;
     })
-    .filter(r => clientFilter === 'all' || r.clientName === clientFilter)
     .filter(r => r.description.toLowerCase().includes(search.toLowerCase()) || r.clientName.toLowerCase().includes(search.toLowerCase()))
     .filter(r => {
       if (dateFrom && r.dueDate < format(dateFrom, 'yyyy-MM-dd')) return false;
@@ -362,10 +360,13 @@ export default function ReceivablesPage() {
       )}
 
       <div className="flex items-center gap-3 flex-wrap">
-        <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Buscar recebíveis..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
-        </div>
+        <SearchAutocomplete
+          value={search}
+          onChange={setSearch}
+          options={clientOptions}
+          placeholder="Buscar cliente ou descrição..."
+          className="flex-1 min-w-[200px]"
+        />
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
           <SelectContent>
@@ -376,17 +377,6 @@ export default function ReceivablesPage() {
             <SelectItem value="overdue">Atrasado</SelectItem>
           </SelectContent>
         </Select>
-        {clientOptions.length > 0 && (
-          <Select value={clientFilter} onValueChange={setClientFilter}>
-            <SelectTrigger className="w-[180px]"><SelectValue placeholder="Cliente" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos os clientes</SelectItem>
-              {clientOptions.map(c => (
-                <SelectItem key={c} value={c}>{c}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
       </div>
       <div className="flex items-center gap-3 flex-wrap">
         <MonthYearPicker
