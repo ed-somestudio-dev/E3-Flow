@@ -584,7 +584,9 @@ export default function PayablesPage() {
               const payingItems = payingIds.map(id => data.payables.find(x => x.id === id)).filter(Boolean) as Payable[];
               const sameSupplier = payingItems.length > 0 && payingItems.every(p => p.supplier === payingItems[0].supplier);
               const allowPartial = payingItems.length === 1 || (payingItems.length > 1 && sameSupplier);
-              return allowPartial && (
+              const isInvoice = payingItems.length > 1 && payingItems.every(p => p.supplier?.startsWith('cartao:'));
+              if (!allowPartial) return null;
+              const partialBlock = (
               <div className="space-y-2 p-3 rounded-lg bg-primary/5 border border-primary/20">
                 <div className="flex items-center gap-2">
                   <Checkbox id="partialPay" checked={partialMode} onCheckedChange={(c) => {
@@ -616,6 +618,26 @@ export default function PayablesPage() {
                 )}
               </div>
               );
+              if (isInvoice) {
+                return (
+                  <div className="rounded-md border border-border overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => setShowMorePayOptions(v => !v)}
+                      className="w-full flex items-center gap-1.5 px-3 py-2 text-sm text-muted-foreground hover:bg-muted/40 transition-colors"
+                    >
+                      {showMorePayOptions ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                      Mais opções de pagamento
+                    </button>
+                    {showMorePayOptions && (
+                      <div className="p-3 border-t border-border">
+                        {partialBlock}
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+              return partialBlock;
             })()}
             <Button className="w-full" disabled={!payAccountId || (partialMode && (!partialAmount || parseFloat(partialAmount) <= 0))} onClick={confirmPay}>
               <CheckCircle className="h-4 w-4 mr-2" />
