@@ -179,6 +179,7 @@ export default function PayablesPage() {
   const { data, addPayable, updatePayable, deletePayable, deletePayableWithFuture, markPayablePaid, markPayablePaidPartial, getCategoryName, getAccountName } = useFinance();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('pending_overdue');
+  const [supplierFilter, setSupplierFilter] = useState<string>('all');
   const [editingItem, setEditingItem] = useState<Payable | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -186,6 +187,7 @@ export default function PayablesPage() {
   const [payAccountId, setPayAccountId] = useState('');
   const [partialMode, setPartialMode] = useState(false);
   const [partialAmount, setPartialAmount] = useState('');
+  const [showPayItems, setShowPayItems] = useState(false);
   const [dateFrom, setDateFrom] = useState<Date | undefined>(startOfMonth(new Date()));
   const [dateTo, setDateTo] = useState<Date | undefined>(endOfMonth(new Date()));
 
@@ -205,6 +207,7 @@ export default function PayablesPage() {
       if (statusFilter === 'pending_overdue') return p.status === 'pending' || p.status === 'overdue';
       return p.status === statusFilter;
     })
+    .filter(p => supplierFilter === 'all' || p.supplier === supplierFilter)
     .filter(p => p.description.toLowerCase().includes(search.toLowerCase()) || p.supplier.toLowerCase().includes(search.toLowerCase()))
     .filter(p => {
       if (dateFrom && p.dueDate < format(dateFrom, 'yyyy-MM-dd')) return false;
@@ -212,6 +215,15 @@ export default function PayablesPage() {
       return true;
     })
     .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+
+  // Lista única de fornecedores para o filtro (exclui faturas de cartão internas)
+  const supplierOptions = useMemo(() => {
+    const set = new Set<string>();
+    data.payables.forEach(p => {
+      if (p.supplier && !p.supplier.startsWith('cartao:')) set.add(p.supplier);
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [data.payables]);
 
   const regularPayables = allFiltered.filter(p => !p.supplier?.startsWith('cartao:'));
   const creditPayables = allFiltered.filter(p => p.supplier?.startsWith('cartao:'));
@@ -248,6 +260,7 @@ export default function PayablesPage() {
     setPayAccountId(payable?.accountId || data.accounts[0]?.id || '');
     setPartialMode(false);
     setPartialAmount('');
+    setShowPayItems(false);
     setPayDialogOpen(true);
   };
 
@@ -257,6 +270,7 @@ export default function PayablesPage() {
     setPayAccountId(first?.accountId || data.accounts[0]?.id || '');
     setPartialMode(false);
     setPartialAmount('');
+    setShowPayItems(false);
     setPayDialogOpen(true);
   };
 
@@ -355,6 +369,17 @@ export default function PayablesPage() {
             <SelectItem value="overdue">Atrasado</SelectItem>
           </SelectContent>
         </Select>
+        {supplierOptions.length > 0 && (
+          <Select value={supplierFilter} onValueChange={setSupplierFilter}>
+            <SelectTrigger className="w-[180px]"><SelectValue placeholder="Fornecedor" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os fornecedores</SelectItem>
+              {supplierOptions.map(s => (
+                <SelectItem key={s} value={s}>{s}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </div>
       <div className="flex items-center gap-3 flex-wrap">
         <MonthYearPicker
@@ -439,7 +464,7 @@ export default function PayablesPage() {
                       {p.recurring && <RefreshCw className="h-3 w-3 text-primary" />}
                     </div>
                   </td>
-                  <td className="py-3 px-4 text-muted-foreground">{p.supplier}</td>
+                  <td className={`py-3 px-4 ${p.status === 'overdue' ? 'text-destructive' : p.status === 'paid' ? 'text-success' : 'text-warning'}`}>{p.supplier}</td>
                   <td className="py-3 px-4 text-muted-foreground">{getCategoryName(p.categoryId)}</td>
                   <td className="py-3 px-4 text-muted-foreground">{p.accountId ? getAccountName(p.accountId) : '—'}</td>
                   <td className="py-3 px-4"><StatusBadge status={p.status} /></td>
@@ -505,6 +530,34 @@ export default function PayablesPage() {
               <span className="text-sm text-muted-foreground">{payingIds.length > 1 ? `${payingIds.length} itens` : 'Valor'}</span>
               <span className="text-lg font-bold text-destructive mono">{fmt(payingTotal)}</span>
             </div>
+            {payingIds.length > 1 && (() => {
+              const items = payingIds.map(id => data.payables.find(x => x.id === id)).filter(Boolean) as Payable[];
+              return (
+                <div className="rounded-md border border-border overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setShowPayItems(v => !v)}
+                    className="w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-muted/40 transition-colors"
+                  >
+                    <span className="flex items-center gap-1.5 text-muted-foreground">
+                      {showPayItems ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                      Ver descrição das contas ({items.length})
+                    </span>
+                  </button>
+                  {showPayItems && (
+                    <div className="max-h-48 overflow-y-auto divide-y divide-border border-t border-border">
+                      {items.map(it => (
+                        <div key={it.id} className="flex items-center justify-between gap-3 px-3 py-1.5 text-xs">
+                          <span className="text-muted-foreground mono whitespace-nowrap">{fmtDate(it.dueDate)}</span>
+                          <span className="flex-1 truncate">{it.description}</span>
+                          <span className="mono font-medium text-destructive whitespace-nowrap">{fmt(it.amount)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
             <div className="space-y-2">
               <Label>Conta para débito</Label>
               <Select value={payAccountId} onValueChange={setPayAccountId}>
