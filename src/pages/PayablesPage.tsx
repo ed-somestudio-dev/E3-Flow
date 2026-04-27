@@ -5,6 +5,7 @@ import { Payable, PayableStatus, RecurrenceFrequency } from '@/lib/types';
 import { Plus, Trash2, Edit2, CheckCircle, RefreshCw, CreditCard, Wallet, ChevronDown, ChevronRight, CalendarIcon, X } from 'lucide-react';
 import { CalculatorInput } from '@/components/CalculatorInput';
 import { ContactAutocomplete } from '@/components/ContactAutocomplete';
+import { SearchAutocomplete } from '@/components/SearchAutocomplete';
 import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog';
 import {
   AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle,
