@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useFinance } from '@/lib/finance-context';
 import { supabase } from '@/integrations/supabase/client';
 import { usePixSettings } from '@/lib/pix-settings-context';
 import { Receivable, ReceivableStatus, RecurrenceFrequency } from '@/lib/types';
-import { Plus, Trash2, Edit2, CheckCircle, Search, CreditCard, CalendarIcon, X, RefreshCw, QrCode, Receipt, AlertTriangle } from 'lucide-react';
+import { Plus, Trash2, Edit2, CheckCircle, Search, CreditCard, CalendarIcon, X, RefreshCw, QrCode, Receipt, AlertTriangle, ChevronDown, ChevronRight } from 'lucide-react';
 import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog';
 import { CalculatorInput } from '@/components/CalculatorInput';
 import { ContactAutocomplete } from '@/components/ContactAutocomplete';
@@ -42,6 +42,7 @@ export default function ReceivablesPage() {
   const { settings: pixSettings, isConfigured } = usePixSettings();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('pending_overdue');
+  const [clientFilter, setClientFilter] = useState<string>('all');
   const [editingItem, setEditingItem] = useState<Receivable | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -50,6 +51,7 @@ export default function ReceivablesPage() {
   const [receiveAccountId, setReceiveAccountId] = useState('');
   const [partialMode, setPartialMode] = useState(false);
   const [partialAmount, setPartialAmount] = useState('');
+  const [showReceiveItems, setShowReceiveItems] = useState(false);
   const [dateFrom, setDateFrom] = useState<Date | undefined>(startOfMonth(new Date()));
   const [dateTo, setDateTo] = useState<Date | undefined>(endOfMonth(new Date()));
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -77,6 +79,7 @@ export default function ReceivablesPage() {
       if (statusFilter === 'pending_overdue') return r.status === 'pending' || r.status === 'overdue';
       return r.status === statusFilter;
     })
+    .filter(r => clientFilter === 'all' || r.clientName === clientFilter)
     .filter(r => r.description.toLowerCase().includes(search.toLowerCase()) || r.clientName.toLowerCase().includes(search.toLowerCase()))
     .filter(r => {
       if (dateFrom && r.dueDate < format(dateFrom, 'yyyy-MM-dd')) return false;
@@ -84,6 +87,12 @@ export default function ReceivablesPage() {
       return true;
     })
     .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+
+  const clientOptions = useMemo(() => {
+    const set = new Set<string>();
+    data.receivables.forEach(r => { if (r.clientName) set.add(r.clientName); });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [data.receivables]);
 
   const totalFiltered = filtered.reduce((sum, r) => sum + r.amount, 0);
   const selectableReceivables = filtered.filter(r => r.status !== 'received');
@@ -111,6 +120,7 @@ export default function ReceivablesPage() {
     setReceiveAccountId(receivable?.accountId || data.accounts[0]?.id || '');
     setPartialMode(false);
     setPartialAmount('');
+    setShowReceiveItems(false);
     setReceiveDialogOpen(true);
   };
 
@@ -122,6 +132,7 @@ export default function ReceivablesPage() {
     setReceiveAccountId(first?.accountId || data.accounts[0]?.id || '');
     setPartialMode(false);
     setPartialAmount('');
+    setShowReceiveItems(false);
     setReceiveDialogOpen(true);
   };
 
