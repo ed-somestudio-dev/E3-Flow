@@ -179,6 +179,7 @@ export default function PayablesPage() {
   const { data, addPayable, updatePayable, deletePayable, deletePayableWithFuture, markPayablePaid, markPayablePaidPartial, getCategoryName, getAccountName } = useFinance();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('pending_overdue');
+  const [supplierFilter, setSupplierFilter] = useState<string>('all');
   const [editingItem, setEditingItem] = useState<Payable | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -186,6 +187,7 @@ export default function PayablesPage() {
   const [payAccountId, setPayAccountId] = useState('');
   const [partialMode, setPartialMode] = useState(false);
   const [partialAmount, setPartialAmount] = useState('');
+  const [showPayItems, setShowPayItems] = useState(false);
   const [dateFrom, setDateFrom] = useState<Date | undefined>(startOfMonth(new Date()));
   const [dateTo, setDateTo] = useState<Date | undefined>(endOfMonth(new Date()));
 
@@ -205,6 +207,7 @@ export default function PayablesPage() {
       if (statusFilter === 'pending_overdue') return p.status === 'pending' || p.status === 'overdue';
       return p.status === statusFilter;
     })
+    .filter(p => supplierFilter === 'all' || p.supplier === supplierFilter)
     .filter(p => p.description.toLowerCase().includes(search.toLowerCase()) || p.supplier.toLowerCase().includes(search.toLowerCase()))
     .filter(p => {
       if (dateFrom && p.dueDate < format(dateFrom, 'yyyy-MM-dd')) return false;
@@ -212,6 +215,15 @@ export default function PayablesPage() {
       return true;
     })
     .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+
+  // Lista única de fornecedores para o filtro (exclui faturas de cartão internas)
+  const supplierOptions = useMemo(() => {
+    const set = new Set<string>();
+    data.payables.forEach(p => {
+      if (p.supplier && !p.supplier.startsWith('cartao:')) set.add(p.supplier);
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [data.payables]);
 
   const regularPayables = allFiltered.filter(p => !p.supplier?.startsWith('cartao:'));
   const creditPayables = allFiltered.filter(p => p.supplier?.startsWith('cartao:'));
@@ -248,6 +260,7 @@ export default function PayablesPage() {
     setPayAccountId(payable?.accountId || data.accounts[0]?.id || '');
     setPartialMode(false);
     setPartialAmount('');
+    setShowPayItems(false);
     setPayDialogOpen(true);
   };
 
@@ -257,6 +270,7 @@ export default function PayablesPage() {
     setPayAccountId(first?.accountId || data.accounts[0]?.id || '');
     setPartialMode(false);
     setPartialAmount('');
+    setShowPayItems(false);
     setPayDialogOpen(true);
   };
 
