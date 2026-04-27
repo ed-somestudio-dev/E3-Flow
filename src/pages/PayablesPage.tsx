@@ -188,6 +188,7 @@ export default function PayablesPage() {
   const [partialMode, setPartialMode] = useState(false);
   const [partialAmount, setPartialAmount] = useState('');
   const [showPayItems, setShowPayItems] = useState(false);
+  const [showMorePayOptions, setShowMorePayOptions] = useState(false);
   const [dateFrom, setDateFrom] = useState<Date | undefined>(startOfMonth(new Date()));
   const [dateTo, setDateTo] = useState<Date | undefined>(endOfMonth(new Date()));
 
@@ -261,6 +262,7 @@ export default function PayablesPage() {
     setPartialMode(false);
     setPartialAmount('');
     setShowPayItems(false);
+    setShowMorePayOptions(false);
     setPayDialogOpen(true);
   };
 
@@ -271,6 +273,7 @@ export default function PayablesPage() {
     setPartialMode(false);
     setPartialAmount('');
     setShowPayItems(false);
+    setShowMorePayOptions(false);
     setPayDialogOpen(true);
   };
 
