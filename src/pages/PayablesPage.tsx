@@ -530,6 +530,34 @@ export default function PayablesPage() {
               <span className="text-sm text-muted-foreground">{payingIds.length > 1 ? `${payingIds.length} itens` : 'Valor'}</span>
               <span className="text-lg font-bold text-destructive mono">{fmt(payingTotal)}</span>
             </div>
+            {payingIds.length > 1 && (() => {
+              const items = payingIds.map(id => data.payables.find(x => x.id === id)).filter(Boolean) as Payable[];
+              return (
+                <div className="rounded-md border border-border overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setShowPayItems(v => !v)}
+                    className="w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-muted/40 transition-colors"
+                  >
+                    <span className="flex items-center gap-1.5 text-muted-foreground">
+                      {showPayItems ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                      Ver descrição das contas ({items.length})
+                    </span>
+                  </button>
+                  {showPayItems && (
+                    <div className="max-h-48 overflow-y-auto divide-y divide-border border-t border-border">
+                      {items.map(it => (
+                        <div key={it.id} className="flex items-center justify-between gap-3 px-3 py-1.5 text-xs">
+                          <span className="text-muted-foreground mono whitespace-nowrap">{fmtDate(it.dueDate)}</span>
+                          <span className="flex-1 truncate">{it.description}</span>
+                          <span className="mono font-medium text-destructive whitespace-nowrap">{fmt(it.amount)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
             <div className="space-y-2">
               <Label>Conta para débito</Label>
               <Select value={payAccountId} onValueChange={setPayAccountId}>
