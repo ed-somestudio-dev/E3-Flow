@@ -40,6 +40,10 @@ export default function TransactionsPage() {
     })
     .sort((a, b) => b.date.localeCompare(a.date));
 
+  const totalIncome = filtered.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+  const totalExpense = filtered.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+  const balance = totalIncome - totalExpense;
+
   return (
     <div className="space-y-6 max-w-5xl">
       <div className="flex items-center justify-between flex-wrap gap-4">
@@ -106,6 +110,24 @@ export default function TransactionsPage() {
             <X className="h-4 w-4 mr-1" />Limpar
           </Button>
         )}
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="finance-card p-3">
+          <div className="text-xs text-muted-foreground">Exibidos</div>
+          <div className="mono font-semibold">{filtered.length}</div>
+        </div>
+        <div className="finance-card p-3">
+          <div className="text-xs text-muted-foreground">Receitas</div>
+          <div className="mono font-semibold text-success">{fmt(totalIncome)}</div>
+        </div>
+        <div className="finance-card p-3">
+          <div className="text-xs text-muted-foreground">Despesas</div>
+          <div className="mono font-semibold text-destructive">{fmt(totalExpense)}</div>
+        </div>
+        <div className="finance-card p-3">
+          <div className="text-xs text-muted-foreground">Saldo</div>
+          <div className={`mono font-semibold ${balance >= 0 ? 'text-success' : 'text-destructive'}`}>{fmt(balance)}</div>
+        </div>
       </div>
       <div className="finance-card p-0 overflow-hidden">
         <div className="overflow-x-auto">
