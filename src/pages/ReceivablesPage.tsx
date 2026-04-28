@@ -202,7 +202,6 @@ export default function ReceivablesPage() {
       });
     } else if (items.length > 1) {
       // Aggregated receipt
-      const today = format(new Date(), 'yyyy-MM-dd');
       const total = items.reduce((s, r) => s + r.amount, 0);
       // Se foi recebimento parcial em lote, usa o valor efetivamente recebido (não o total das contas)
       const receivedAmount = wasPartial && partialAmt > 0 ? Math.min(partialAmt, total) : total;
