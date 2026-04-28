@@ -142,10 +142,10 @@ export default function ReportsPage() {
       </div>
 
       <Tabs defaultValue="general" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 h-auto">
-          <TabsTrigger value="general" className="py-2">Geral</TabsTrigger>
-          <TabsTrigger value="bills" className="py-2 whitespace-normal text-center leading-tight">{SAFE_LABELS.payablesAndReceivables}</TabsTrigger>
-          <TabsTrigger value="forecast" className="py-2">Previsão</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-3 h-auto items-stretch">
+          <TabsTrigger value="general" className="h-full py-2">Geral</TabsTrigger>
+          <TabsTrigger value="bills" className="h-full py-2 whitespace-normal text-center leading-tight">{SAFE_LABELS.payablesAndReceivables}</TabsTrigger>
+          <TabsTrigger value="forecast" className="h-full py-2">Previsão</TabsTrigger>
         </TabsList>
 
         {/* === ABA GERAL === */}
