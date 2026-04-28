@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useFinance } from '@/lib/finance-context';
 import { Transaction, TransactionType } from '@/lib/types';
-import { Plus, Trash2, Edit2, Search } from 'lucide-react';
+import { Plus, Trash2, Edit2, Search, CalendarIcon, X } from 'lucide-react';
 import { CalculatorInput } from '@/components/CalculatorInput';
 import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog';
 import { Button } from '@/components/ui/button';
@@ -9,7 +9,12 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { MonthYearPicker } from '@/components/MonthYearPicker';
+import { format, startOfMonth, endOfMonth } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import { fmt, fmtDate } from '@/lib/format';
 
@@ -20,10 +25,19 @@ export default function TransactionsPage() {
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [dateFrom, setDateFrom] = useState<Date | undefined>(startOfMonth(new Date()));
+  const [dateTo, setDateTo] = useState<Date | undefined>(endOfMonth(new Date()));
+
+  const clearDateFilter = () => { setDateFrom(undefined); setDateTo(undefined); };
 
   const filtered = data.transactions
     .filter(t => typeFilter === 'all' || t.type === typeFilter)
     .filter(t => t.description.toLowerCase().includes(search.toLowerCase()))
+    .filter(t => {
+      if (dateFrom && t.date < format(dateFrom, 'yyyy-MM-dd')) return false;
+      if (dateTo && t.date > format(dateTo, 'yyyy-MM-dd')) return false;
+      return true;
+    })
     .sort((a, b) => b.date.localeCompare(a.date));
 
   return (
@@ -57,6 +71,41 @@ export default function TransactionsPage() {
             <SelectItem value="expense">Despesas</SelectItem>
           </SelectContent>
         </Select>
+      </div>
+      <div className="flex items-center gap-3 flex-wrap">
+        <MonthYearPicker
+          value={dateFrom && dateTo && format(dateFrom, 'yyyy-MM') === format(dateTo, 'yyyy-MM') ? dateFrom : undefined}
+          onChange={(from, to) => { setDateFrom(from); setDateTo(to); }}
+          active={!!(dateFrom && dateTo && format(dateFrom, 'yyyy-MM') === format(new Date(), 'yyyy-MM') && format(dateTo, 'yyyy-MM') === format(new Date(), 'yyyy-MM'))}
+        />
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" size="sm" className={cn("justify-start text-left font-normal", !dateFrom && "text-muted-foreground")}>
+              <CalendarIcon className="h-4 w-4 mr-2" />
+              {dateFrom ? format(dateFrom, "dd/MM/yyyy") : "Data inicial"}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <Calendar mode="single" selected={dateFrom} onSelect={setDateFrom} initialFocus className="p-3 pointer-events-auto" locale={ptBR} />
+          </PopoverContent>
+        </Popover>
+        <span className="text-muted-foreground text-sm">até</span>
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" size="sm" className={cn("justify-start text-left font-normal", !dateTo && "text-muted-foreground")}>
+              <CalendarIcon className="h-4 w-4 mr-2" />
+              {dateTo ? format(dateTo, "dd/MM/yyyy") : "Data final"}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <Calendar mode="single" selected={dateTo} onSelect={setDateTo} initialFocus className="p-3 pointer-events-auto" locale={ptBR} />
+          </PopoverContent>
+        </Popover>
+        {(dateFrom || dateTo) && (
+          <Button variant="ghost" size="sm" onClick={clearDateFilter}>
+            <X className="h-4 w-4 mr-1" />Limpar
+          </Button>
+        )}
       </div>
       <div className="finance-card p-0 overflow-hidden">
         <div className="overflow-x-auto">
