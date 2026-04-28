@@ -90,7 +90,24 @@ export default function AccountsPage() {
           const hasSavings = types.includes('savings');
           const hasCash = types.includes('cash');
           const invoices = cardInvoices[acc.id] || { pending: [], paid: [] };
-          const usedFromPayables = hasCreditCard ? invoices.pending.reduce((s, p) => s + p.amount, 0) : 0;
+          // Recorrências futuras no crédito só ocupam limite após o fechamento do ciclo correspondente.
+          // Calcula próximo fechamento; compras com purchaseDate (ou dueDate como fallback) posteriores a ele
+          // ainda não impactam o limite disponível.
+          let nextCloseDate: Date | null = null;
+          if (hasCreditCard && acc.billingCloseDay) {
+            const today = new Date();
+            nextCloseDate = new Date(today.getFullYear(), today.getMonth(), acc.billingCloseDay);
+            if (nextCloseDate < today) {
+              nextCloseDate = new Date(today.getFullYear(), today.getMonth() + 1, acc.billingCloseDay);
+            }
+          }
+          const usedFromPayables = hasCreditCard ? invoices.pending.reduce((s, p) => {
+            if (nextCloseDate) {
+              const ref = p.purchaseDate || p.dueDate;
+              if (ref && new Date(ref) > nextCloseDate) return s; // recorrência futura
+            }
+            return s + p.amount;
+          }, 0) : 0;
           const usedInitial = hasCreditCard ? (acc.creditUsed || 0) : 0;
           const usedAmount = usedFromPayables + usedInitial;
           const totalLimit = hasCreditCard && acc.creditLimit ? acc.creditLimit : 0;
