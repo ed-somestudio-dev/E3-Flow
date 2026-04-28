@@ -118,7 +118,8 @@ function InvoiceMonthGroup({ monthKey, items, invoiceDueDate, invoiceStatus, mon
   onDelete: (id: string) => void;
   onEdit: (p: Payable) => void;
 }) {
-  const [open, setOpen] = useState(true);
+  // Inicia recolhido — usuário expande para ver as compras da fatura
+  const [open, setOpen] = useState(false);
   const [y, m] = monthKey.split('-');
   const monthLabel = `${m}/${y}`;
 
