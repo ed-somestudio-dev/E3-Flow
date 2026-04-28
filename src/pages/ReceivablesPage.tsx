@@ -180,35 +180,24 @@ export default function ReceivablesPage() {
     setPartialMode(false);
     setPartialAmount('');
 
-    // Offer receipt generation
-    if (items.length === 1 && !wasPartial) {
+    // Sempre oferecer recibo após registrar o recebimento
+    const today = format(new Date(), 'yyyy-MM-dd');
+    if (items.length === 1) {
       const r = items[0];
-      const today = format(new Date(), 'yyyy-MM-dd');
+      const isPartial = wasPartial && partialAmt > 0 && partialAmt < r.amount;
+      const receivedAmt = wasPartial && partialAmt > 0 ? Math.min(partialAmt, r.amount) : r.amount;
       openShare({
-        title: 'Compartilhar Recibo',
-        filenameBase: `recibo-${r.clientName.replace(/\s+/g, '_')}-${today}`,
+        title: isPartial ? 'Compartilhar Recibo (Parcial)' : 'Compartilhar Recibo',
+        filenameBase: `${isPartial ? 'recibo-parcial' : 'recibo'}-${r.clientName.replace(/\s+/g, '_')}-${today}`,
         generatePDF: () => generateReceiptPDF({
-          id: r.id, clientName: r.clientName, description: r.description,
-          amount: r.amount, receivedDate: today, accountName: accName,
+          id: r.id, clientName: r.clientName,
+          description: isPartial ? `${r.description} (parcial)` : r.description,
+          amount: receivedAmt, receivedDate: today, accountName: accName,
         }, isConfigured ? pixSettings : null),
         generatePNG: () => generateReceiptPNG({
-          id: r.id, clientName: r.clientName, description: r.description,
-          amount: r.amount, receivedDate: today, accountName: accName,
-        }, isConfigured ? pixSettings : null),
-      });
-    } else if (items.length === 1 && wasPartial && partialAmt > 0 && partialAmt < items[0].amount) {
-      const r = items[0];
-      const today = format(new Date(), 'yyyy-MM-dd');
-      openShare({
-        title: 'Compartilhar Recibo (Parcial)',
-        filenameBase: `recibo-parcial-${r.clientName.replace(/\s+/g, '_')}-${today}`,
-        generatePDF: () => generateReceiptPDF({
-          id: r.id, clientName: r.clientName, description: `${r.description} (parcial)`,
-          amount: partialAmt, receivedDate: today, accountName: accName,
-        }, isConfigured ? pixSettings : null),
-        generatePNG: () => generateReceiptPNG({
-          id: r.id, clientName: r.clientName, description: `${r.description} (parcial)`,
-          amount: partialAmt, receivedDate: today, accountName: accName,
+          id: r.id, clientName: r.clientName,
+          description: isPartial ? `${r.description} (parcial)` : r.description,
+          amount: receivedAmt, receivedDate: today, accountName: accName,
         }, isConfigured ? pixSettings : null),
       });
     } else if (items.length > 1) {
