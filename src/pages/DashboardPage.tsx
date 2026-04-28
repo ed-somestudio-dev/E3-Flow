@@ -6,6 +6,7 @@ import { motion } from 'framer-motion';
 import { fmt, fmtDate } from '@/lib/format';
 import { SAFE_LABELS } from '@/lib/safe-labels';
 import { consolidatePayables } from '@/lib/consolidate-payables';
+import { APP_VERSION, APP_VERSION_DATE } from '@/lib/version';
 
 function StatCard({ label, value, icon: Icon, trend, color }: {
   label: string; value: string; icon: React.ElementType; trend?: 'up' | 'down'; color?: string;
@@ -109,9 +110,18 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6 max-w-7xl">
-      <div>
-        <h1 className="text-2xl font-bold">Painel</h1>
-        <p className="text-muted-foreground text-sm">Sua visão financeira geral</p>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold">Painel</h1>
+          <p className="text-muted-foreground text-sm">Sua visão financeira geral</p>
+        </div>
+        <div className="text-right">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10 text-primary text-xs font-medium border border-primary/20">
+            <span className="w-1.5 h-1.5 rounded-full bg-primary"></span>
+            {APP_VERSION}
+          </span>
+          <p className="text-[10px] text-muted-foreground mt-1">Atualizado em {APP_VERSION_DATE}</p>
+        </div>
       </div>
 
       {/* Alertas */}
