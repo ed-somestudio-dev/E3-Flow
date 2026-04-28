@@ -6,7 +6,7 @@
 // na ativação e os clients abertos são recarregados (essencial para iOS Safari,
 // que costuma ficar preso em uma versão antiga apontando para assets removidos).
 
-const CACHE = 'fluxopro-v3';
+const CACHE = 'fluxopro-v4';
 // Apenas assets estáveis (sem hash) entram no precache. NÃO incluímos
 // '/' nem '/index.html' aqui — eles devem ser sempre buscados via network-first
 // para que o HTML referencie as URLs de bundle atuais.
