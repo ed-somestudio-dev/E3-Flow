@@ -87,6 +87,15 @@ export interface Budget {
   month: string;
 }
 
+export interface Contact {
+  id: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  document?: string;
+  notes?: string;
+}
+
 export interface FinanceData {
   accounts: FinancialAccount[];
   categories: Category[];
@@ -94,4 +103,5 @@ export interface FinanceData {
   payables: Payable[];
   receivables: Receivable[];
   budgets: Budget[];
+  contacts: Contact[];
 }

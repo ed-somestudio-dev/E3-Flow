@@ -52,10 +52,10 @@ export function OfflineBanner() {
   const online = useOnlineStatus();
   if (online) return null;
   return (
-    <div className="flex items-start gap-2 px-4 py-2 bg-destructive/10 text-destructive text-xs sm:text-sm border-b border-destructive/20">
+    <div className="flex items-start gap-2 px-4 py-2 bg-amber-500/10 text-amber-600 text-xs sm:text-sm border-b border-amber-500/20">
       <CloudOff className="h-4 w-4 shrink-0 mt-0.5" />
       <div>
-        <strong>Modo offline.</strong> Você pode visualizar os últimos dados sincronizados, mas cadastrar, editar e excluir está desabilitado até a conexão voltar.
+        <strong>Modo offline.</strong> Você pode visualizar, cadastrar, editar e excluir dados. Suas alterações serão salvas no dispositivo e sincronizadas automaticamente quando a conexão voltar.
       </div>
     </div>
   );

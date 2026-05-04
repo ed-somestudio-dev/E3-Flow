@@ -27,6 +27,8 @@ interface Ctx {
   save: (s: PixSettingsRow) => Promise<void>;
   uploadStamp: (file: File) => Promise<string>;
   removeStamp: () => Promise<void>;
+  refresh: () => Promise<void>;
+  uploadStampFromBase64: (base64: string) => Promise<string>;
 }
 
 const PixSettingsContext = createContext<Ctx | null>(null);
@@ -36,30 +38,34 @@ export function PixSettingsProvider({ children }: { children: React.ReactNode })
   const [settings, setSettings] = useState<PixSettingsRow>(empty);
   const [loaded, setLoaded] = useState(false);
 
-  useEffect(() => {
+  const refresh = useCallback(async () => {
     if (!user) { setSettings(empty); setLoaded(true); return; }
-    (async () => {
-      const { data, error } = await supabase
-        .from('user_settings')
-        .select('*')
-        .eq('user_id', user.id)
-        .maybeSingle();
-      if (error) console.error(error);
-      if (data) {
-        setSettings({
-          pixKey: data.pix_key || '',
-          pixKeyType: data.pix_key_type || 'cpf',
-          beneficiaryName: data.beneficiary_name || '',
-          beneficiaryCity: data.beneficiary_city || '',
-          beneficiaryDocument: data.beneficiary_document || '',
-          receiptStampUrl: (data as any).receipt_stamp_url || '',
-          remindersEnabled: (data as any).reminders_enabled ?? true,
-          reminderDaysBefore: (data as any).reminder_days_before ?? 3,
-        });
-      }
-      setLoaded(true);
-    })();
+    const { data, error } = await supabase
+      .from('user_settings')
+      .select('*')
+      .eq('user_id', user.id)
+      .maybeSingle();
+    if (error) console.error(error);
+    if (data) {
+      setSettings({
+        pixKey: data.pix_key || '',
+        pixKeyType: data.pix_key_type || 'cpf',
+        beneficiaryName: data.beneficiary_name || '',
+        beneficiaryCity: data.beneficiary_city || '',
+        beneficiaryDocument: data.beneficiary_document || '',
+        receiptStampUrl: (data as any).receipt_stamp_url || '',
+        remindersEnabled: (data as any).reminders_enabled ?? true,
+        reminderDaysBefore: (data as any).reminder_days_before ?? 3,
+      });
+    } else {
+      setSettings(empty);
+    }
+    setLoaded(true);
   }, [user]);
+
+  useEffect(() => {
+    refresh();
+  }, [user, refresh]);
 
   const save = useCallback(async (s: PixSettingsRow) => {
     if (!user) return;
@@ -94,6 +100,27 @@ export function PixSettingsProvider({ children }: { children: React.ReactNode })
     return url;
   }, [user, settings, save]);
 
+  const uploadStampFromBase64 = useCallback(async (base64: string): Promise<string> => {
+    if (!user) throw new Error('Usuário não autenticado');
+    
+    // Convert Base64 to Blob
+    const res = await fetch(base64);
+    const blob = await res.blob();
+    const ext = blob.type.split('/')[1] || 'png';
+    
+    const path = `${user.id}/stamp-${Date.now()}.${ext}`;
+    const { error } = await supabase.storage.from('receipt-stamps').upload(path, blob, {
+      cacheControl: '3600', upsert: true, contentType: blob.type,
+    });
+    
+    if (error) throw error;
+    const { data } = supabase.storage.from('receipt-stamps').getPublicUrl(path);
+    const url = data.publicUrl;
+    
+    // We don't call save() here because the caller (importBackup) will call savePix with all settings
+    return url;
+  }, [user]);
+
   const removeStamp = useCallback(async () => {
     if (!user) return;
     await save({ ...settings, receiptStampUrl: '' });
@@ -102,7 +129,7 @@ export function PixSettingsProvider({ children }: { children: React.ReactNode })
   const isConfigured = !!(settings.pixKey && settings.beneficiaryName && settings.beneficiaryCity);
 
   return (
-    <PixSettingsContext.Provider value={{ settings, loaded, isConfigured, save, uploadStamp, removeStamp }}>
+    <PixSettingsContext.Provider value={{ settings, loaded, isConfigured, save, uploadStamp, removeStamp, refresh, uploadStampFromBase64 }}>
       {children}
     </PixSettingsContext.Provider>
   );

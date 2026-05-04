@@ -43,8 +43,8 @@ function ProtectedRoutes() {
   if (!user) return <Navigate to="/auth" replace />;
 
   return (
-    <FinanceProvider>
-      <PixSettingsProvider>
+    <PixSettingsProvider>
+      <FinanceProvider>
         <ContactsProvider>
           <AppLayout>
             <Routes>
@@ -63,8 +63,8 @@ function ProtectedRoutes() {
             </Routes>
           </AppLayout>
         </ContactsProvider>
-      </PixSettingsProvider>
-    </FinanceProvider>
+      </FinanceProvider>
+    </PixSettingsProvider>
   );
 }
 

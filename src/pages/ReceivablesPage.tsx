@@ -193,12 +193,12 @@ export default function ReceivablesPage() {
           id: r.id, clientName: r.clientName,
           description: isPartial ? `${r.description} (parcial)` : r.description,
           amount: receivedAmt, receivedDate: today, accountName: accName,
-        }, isConfigured ? pixSettings : null),
+        }, pixSettings),
         generatePNG: () => generateReceiptPNG({
           id: r.id, clientName: r.clientName,
           description: isPartial ? `${r.description} (parcial)` : r.description,
           amount: receivedAmt, receivedDate: today, accountName: accName,
-        }, isConfigured ? pixSettings : null),
+        }, pixSettings),
       });
     } else if (items.length > 1) {
       // Aggregated receipt
@@ -217,11 +217,11 @@ export default function ReceivablesPage() {
         generatePDF: () => generateReceiptPDF({
           id: items[0].id, clientName, description,
           amount: receivedAmount, receivedDate: today, accountName: accName,
-        }, isConfigured ? pixSettings : null),
+        }, pixSettings),
         generatePNG: () => generateReceiptPNG({
           id: items[0].id, clientName, description,
           amount: receivedAmount, receivedDate: today, accountName: accName,
-        }, isConfigured ? pixSettings : null),
+        }, pixSettings),
       });
     }
   };
@@ -270,11 +270,11 @@ export default function ReceivablesPage() {
       generatePDF: () => generateReceiptPDF({
         id: r.id, clientName: r.clientName, description: r.description,
         amount: r.amount, receivedDate, accountName: accName,
-      }, isConfigured ? pixSettings : null),
+      }, pixSettings),
       generatePNG: () => generateReceiptPNG({
         id: r.id, clientName: r.clientName, description: r.description,
         amount: r.amount, receivedDate, accountName: accName,
-      }, isConfigured ? pixSettings : null),
+      }, pixSettings),
     });
   };
 

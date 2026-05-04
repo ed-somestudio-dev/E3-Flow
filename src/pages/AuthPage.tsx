@@ -17,11 +17,16 @@ export default function AuthPage() {
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    const { Capacitor } = await import('@capacitor/core');
+    const redirectUri = Capacitor.isNativePlatform() 
+      ? 'com.somestudio.fluxopro://login-callback' 
+      : window.location.origin;
+
     try {
       if (isSignUp) {
         const { error } = await supabase.auth.signUp({
           email, password,
-          options: { emailRedirectTo: window.location.origin }
+          options: { emailRedirectTo: redirectUri }
         });
         if (error) throw error;
         toast.success('Conta criada! Verifique seu email para confirmar.');
@@ -37,8 +42,17 @@ export default function AuthPage() {
   };
 
   const handleGoogleLogin = async () => {
-    const { error } = await lovable.auth.signInWithOAuth('google', {
-      redirect_uri: window.location.origin,
+    const { Capacitor } = await import('@capacitor/core');
+    const redirectUri = Capacitor.isNativePlatform() 
+      ? 'com.somestudio.fluxopro://login-callback' 
+      : window.location.origin;
+
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: redirectUri,
+        skipBrowserRedirect: false,
+      }
     });
     if (error) toast.error('Erro ao entrar com Google');
   };

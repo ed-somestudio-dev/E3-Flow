@@ -145,7 +145,7 @@ export function AppSidebar() {
           <AlertDialogHeader>
             <AlertDialogTitle>Reiniciar todos os dados?</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta ação irá apagar permanentemente todas as suas transações, {SAFE_LABELS.lowerPayables}, {SAFE_LABELS.lowerReceivables}, contas financeiras, orçamentos e categorias. Esta ação não pode ser desfeita.
+              Esta ação irá apagar permanentemente todas as suas transações, {SAFE_LABELS.lowerPayables}, {SAFE_LABELS.lowerReceivables}, contas financeiras, contatos, orçamentos, categorias e configurações de recibo/PIX. Esta ação não pode ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
