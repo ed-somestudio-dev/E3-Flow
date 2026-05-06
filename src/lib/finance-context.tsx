@@ -1478,7 +1478,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
     // 1) Marca o registro original como recebido com o valor parcial
     const updatePayload = {
-      status: 'received',
+      status: 'received' as const,
       payment_date: today,
       account_id: accountId,
       amount: receivedAmount,
