@@ -998,7 +998,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
         payload: { table: 'payables', data: { status: 'paid', payment_date: today, account_id: targetAccountId || null }, match: { id } }
       });
       setData(prev => {
-        const fresh = { ...prev, payables: prev.payables.map(p => p.id === id ? { ...p, status: 'paid', paymentDate: today, accountId: targetAccountId } : p) };
+        const fresh = { ...prev, payables: prev.payables.map(p => p.id === id ? { ...p, status: 'paid' as const, paymentDate: today, accountId: targetAccountId } : p) };
         saveSnapshot(user.id, fresh).catch(() => {});
         return fresh;
       });
