@@ -1081,7 +1081,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
     // 1) Marca o registro original como pago com o valor parcial
     const updatePayload = {
-      status: 'paid',
+      status: 'paid' as const,
       payment_date: today,
       account_id: accountId,
       amount: paidAmount,
@@ -1399,7 +1399,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
         payload: { table: 'receivables', data: { status: 'received', payment_date: today, account_id: targetAccountId || null }, match: { id } }
       });
       setData(prev => {
-        const fresh = { ...prev, receivables: prev.receivables.map(r => r.id === id ? { ...r, status: 'received', paymentDate: today, accountId: targetAccountId } : r) };
+        const fresh = { ...prev, receivables: prev.receivables.map(r => r.id === id ? { ...r, status: 'received' as const, paymentDate: today, accountId: targetAccountId } : r) };
         saveSnapshot(user.id, fresh).catch(() => {});
         return fresh;
       });
