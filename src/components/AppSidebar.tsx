@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import {
-  LayoutDashboard, FileText, FileInput, ArrowUpDown, Wallet, Target, Sun, Moon, BarChart3, LogOut, Tag, RotateCcw, Download, Upload, Settings, Users, ChevronDown, MoreHorizontal,
+  LayoutDashboard, FileText, FileInput, ArrowUpDown, Wallet, Target, Sun, Moon, BarChart3, LogOut, Tag, RotateCcw, Download, Upload, Settings, Users, ChevronDown, MoreHorizontal, Smartphone,
 } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import logoFluxoPro from '@/assets/Logo_FluxoPro.png';
@@ -32,6 +32,7 @@ const manageItems = [
   { title: 'Orçamentos', url: '/budgets', icon: Target },
   { title: 'Relatórios', url: '/reports', icon: BarChart3 },
   { title: 'Configurações', url: '/settings', icon: Settings },
+  { title: 'Instalar App', url: '/instalar', icon: Smartphone },
 ];
 
 export function AppSidebar() {

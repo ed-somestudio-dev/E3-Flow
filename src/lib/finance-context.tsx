@@ -44,6 +44,8 @@ interface FinanceContextType {
   addBudget: (b: Omit<Budget, 'id'>) => Promise<void>;
   updateBudget: (b: Budget) => Promise<void>;
   deleteBudget: (id: string) => Promise<void>;
+  addCategory: (c: Omit<Category, 'id'>) => Promise<void>;
+  updateCategory: (c: Category) => Promise<void>;
   deleteCategory: (id: string) => Promise<void>;
   addContact: (c: Omit<Contact, 'id'>) => Promise<Contact | null>;
   updateContact: (c: Contact) => Promise<void>;
@@ -60,7 +62,7 @@ interface FinanceContextType {
 const FinanceContext = createContext<FinanceContextType | null>(null);
 
 const emptyData: FinanceData = {
-  accounts: [], categories: [], transactions: [], payables: [], receivables: [], budgets: [],
+  accounts: [], categories: [], transactions: [], payables: [], receivables: [], budgets: [], contacts: [],
 };
 
 const defaultCategories: Omit<Category, 'id'>[] = [
@@ -998,7 +1000,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
         payload: { table: 'payables', data: { status: 'paid', payment_date: today, account_id: targetAccountId || null }, match: { id } }
       });
       setData(prev => {
-        const fresh = { ...prev, payables: prev.payables.map(p => p.id === id ? { ...p, status: 'paid', paymentDate: today, accountId: targetAccountId } : p) };
+        const fresh = { ...prev, payables: prev.payables.map(p => p.id === id ? { ...p, status: 'paid' as const, paymentDate: today, accountId: targetAccountId } : p) };
         saveSnapshot(user.id, fresh).catch(() => {});
         return fresh;
       });
@@ -1081,7 +1083,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
     // 1) Marca o registro original como pago com o valor parcial
     const updatePayload = {
-      status: 'paid',
+      status: 'paid' as const,
       payment_date: today,
       account_id: accountId,
       amount: paidAmount,
@@ -1399,7 +1401,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
         payload: { table: 'receivables', data: { status: 'received', payment_date: today, account_id: targetAccountId || null }, match: { id } }
       });
       setData(prev => {
-        const fresh = { ...prev, receivables: prev.receivables.map(r => r.id === id ? { ...r, status: 'received', paymentDate: today, accountId: targetAccountId } : r) };
+        const fresh = { ...prev, receivables: prev.receivables.map(r => r.id === id ? { ...r, status: 'received' as const, paymentDate: today, accountId: targetAccountId } : r) };
         saveSnapshot(user.id, fresh).catch(() => {});
         return fresh;
       });
@@ -1478,7 +1480,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
     // 1) Marca o registro original como recebido com o valor parcial
     const updatePayload = {
-      status: 'received',
+      status: 'received' as const,
       payment_date: today,
       account_id: accountId,
       amount: receivedAmount,
