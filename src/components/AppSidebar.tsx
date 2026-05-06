@@ -32,6 +32,7 @@ const manageItems = [
   { title: 'Orçamentos', url: '/budgets', icon: Target },
   { title: 'Relatórios', url: '/reports', icon: BarChart3 },
   { title: 'Configurações', url: '/settings', icon: Settings },
+  { title: 'Instalar App', url: '/instalar', icon: Smartphone },
 ];
 
 export function AppSidebar() {
