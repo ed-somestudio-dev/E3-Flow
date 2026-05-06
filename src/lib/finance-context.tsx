@@ -60,7 +60,7 @@ interface FinanceContextType {
 const FinanceContext = createContext<FinanceContextType | null>(null);
 
 const emptyData: FinanceData = {
-  accounts: [], categories: [], transactions: [], payables: [], receivables: [], budgets: [],
+  accounts: [], categories: [], transactions: [], payables: [], receivables: [], budgets: [], contacts: [],
 };
 
 const defaultCategories: Omit<Category, 'id'>[] = [
