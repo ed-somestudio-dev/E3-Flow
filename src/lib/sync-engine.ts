@@ -39,7 +39,7 @@ export async function syncOfflineMutations(userId: string) {
       } else if (mutation.type === 'DELETE') {
         let query = supabase.from(mutation.payload.table).delete();
         if (mutation.payload.matchIn) {
-           query = query.in(mutation.payload.matchIn.column, mutation.payload.matchIn.values);
+           query = (query as any).in(mutation.payload.matchIn.column, mutation.payload.matchIn.values);
         }
         for (const [key, value] of Object.entries(mutation.payload.match || {})) {
           query = query.eq(key, value);
