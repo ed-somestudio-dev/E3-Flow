@@ -67,6 +67,7 @@ const defaultData: FinanceData = {
   payables: defaultPayables,
   receivables: defaultReceivables,
   budgets: defaultBudgets,
+  contacts: [],
 };
 
 export function loadData(): FinanceData {
