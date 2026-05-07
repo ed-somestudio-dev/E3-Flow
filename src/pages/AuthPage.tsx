@@ -42,19 +42,27 @@ export default function AuthPage() {
   };
 
   const handleGoogleLogin = async () => {
-    const { Capacitor } = await import('@capacitor/core');
-    const redirectUri = Capacitor.isNativePlatform() 
-      ? 'com.somestudio.fluxopro://login-callback' 
-      : window.location.origin;
+    setLoading(true);
+    try {
+      const { Capacitor } = await import('@capacitor/core');
+      const redirectUri = Capacitor.isNativePlatform()
+        ? 'com.somestudio.fluxopro://login-callback'
+        : window.location.origin;
 
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: redirectUri,
-        skipBrowserRedirect: false,
+      const result = await lovable.auth.signInWithOAuth('google', {
+        redirect_uri: redirectUri,
+      });
+
+      if (result.error) {
+        toast.error(result.error.message || 'Erro ao entrar com Google');
+        setLoading(false);
+        return;
       }
-    });
-    if (error) toast.error('Erro ao entrar com Google');
+      // Se redirected, o navegador vai para o Google. Se não, sessão já foi setada.
+    } catch (err: any) {
+      toast.error(err?.message || 'Erro ao entrar com Google');
+      setLoading(false);
+    }
   };
 
   return (
