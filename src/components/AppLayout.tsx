@@ -2,7 +2,7 @@ import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/AppSidebar';
 import { useAutoRefresh } from '@/hooks/use-auto-refresh';
 import { OfflineBadge, OfflineBanner } from '@/components/OfflineBadge';
-import { BillsReminderBanner } from '@/components/BillsReminderBanner';
+
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   // Recarrega a página quando volta de background há mais de 60s
