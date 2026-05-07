@@ -21,6 +21,7 @@ import SettingsPage from "@/pages/SettingsPage";
 import ContactsPage from "@/pages/ContactsPage";
 import InstallPage from "@/pages/InstallPage";
 import AuthPage from "@/pages/AuthPage";
+import ResetPasswordPage from "@/pages/ResetPasswordPage";
 import NotFound from "@/pages/NotFound";
 import logoFluxoPro from '@/assets/Logo_FluxoPro.png';
 
@@ -85,6 +86,7 @@ const App = () => (
           <BrowserRouter>
             <Routes>
               <Route path="/auth" element={<AuthRoute />} />
+              <Route path="/reset-password" element={<ResetPasswordPage />} />
               <Route path="/*" element={<ProtectedRoutes />} />
             </Routes>
           </BrowserRouter>
