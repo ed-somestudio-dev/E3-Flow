@@ -35,7 +35,10 @@ export default function AuthPage() {
         if (error) throw error;
       }
     } catch (err: any) {
-      toast.error(err.message || 'Erro na autenticação');
+      console.error('Auth error detailed:', err);
+      let msg = err.message || 'Erro na autenticação';
+      if (msg.includes('origin')) msg += '. Verifique se o domínio está liberado no Supabase.';
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
