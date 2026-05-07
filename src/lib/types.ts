@@ -3,6 +3,7 @@ export type PayableStatus = 'pending' | 'paid' | 'overdue';
 export type ReceivableStatus = 'pending' | 'received' | 'overdue';
 export type AccountType = 'checking' | 'savings' | 'cash' | 'credit_card';
 export type RecurrenceFrequency = 'monthly' | 'weekly' | 'yearly';
+export type SaleStatus = 'pending' | 'completed' | 'cancelled';
 
 export interface FinancialAccount {
   id: string;
@@ -104,4 +105,38 @@ export interface FinanceData {
   receivables: Receivable[];
   budgets: Budget[];
   contacts: Contact[];
+}
+
+export interface Product {
+  id: string;
+  name: string;
+  description?: string;
+  price: number;
+  stockQuantity: number;
+  unit: string;
+  categoryId?: string;
+  active: boolean;
+}
+
+export interface SaleItem {
+  id: string;
+  saleId: string;
+  productId?: string;
+  productName: string;
+  quantity: number;
+  unitPrice: number;
+  total: number;
+}
+
+export interface Sale {
+  id: string;
+  clientName?: string;
+  status: SaleStatus;
+  total: number;
+  paymentMethod?: string;
+  notes?: string;
+  saleDate: string;
+  receivableId?: string;
+  items: SaleItem[];
+  createdAt: string;
 }

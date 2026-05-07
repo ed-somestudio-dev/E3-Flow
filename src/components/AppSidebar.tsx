@@ -1,6 +1,8 @@
 import { useState, useRef } from 'react';
 import {
-  LayoutDashboard, FileText, FileInput, ArrowUpDown, Wallet, Target, Sun, Moon, BarChart3, LogOut, Tag, RotateCcw, Download, Upload, Settings, Users, ChevronDown, MoreHorizontal, Smartphone,
+  LayoutDashboard, FileText, FileInput, ArrowUpDown, Wallet, Target, Sun, Moon,
+  BarChart3, LogOut, Tag, RotateCcw, Download, Upload, Settings, Users,
+  ChevronDown, MoreHorizontal, Smartphone, ShoppingCart, Package,
 } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import logoFluxoPro from '@/assets/Logo_FluxoPro.png';
@@ -8,6 +10,7 @@ import { NavLink } from '@/components/NavLink';
 import { useTheme } from '@/lib/theme-context';
 import { useAuth } from '@/lib/auth-context';
 import { useFinance } from '@/lib/finance-context';
+import { usePixSettings } from '@/lib/pix-settings-context';
 import { SAFE_LABELS } from '@/lib/safe-labels';
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
@@ -41,11 +44,14 @@ export function AppSidebar() {
   const { theme, toggleTheme } = useTheme();
   const { signOut } = useAuth();
   const { resetAllData, exportBackup, importBackup } = useFinance();
+  const { settings: pixSettings } = usePixSettings();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [restoreConfirmOpen, setRestoreConfirmOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pendingFileRef = useRef<File | null>(null);
+
+  const salesEnabled = pixSettings.salesModuleEnabled;
 
   return (
     <>
@@ -91,6 +97,32 @@ export function AppSidebar() {
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
+
+          {salesEnabled && (
+            <SidebarGroup>
+              <SidebarGroupLabel>Vendas</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild>
+                      <NavLink to="/sales" activeClassName="bg-sidebar-accent text-sidebar-primary font-medium">
+                        <ShoppingCart className="h-4 w-4 mr-2" />
+                        {!collapsed && <span>Vendas</span>}
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild>
+                      <NavLink to="/products" activeClassName="bg-sidebar-accent text-sidebar-primary font-medium">
+                        <Package className="h-4 w-4 mr-2" />
+                        {!collapsed && <span>Produtos</span>}
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          )}
         </SidebarContent>
         <SidebarFooter>
           <Collapsible open={moreOpen} onOpenChange={setMoreOpen}>

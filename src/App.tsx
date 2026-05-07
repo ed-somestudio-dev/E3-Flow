@@ -7,6 +7,7 @@ import { AuthProvider, useAuth } from "@/lib/auth-context";
 import { FinanceProvider } from "@/lib/finance-context";
 import { PixSettingsProvider } from "@/lib/pix-settings-context";
 import { ContactsProvider } from "@/lib/contacts-context";
+import { SalesProvider } from "@/lib/sales-context";
 import { ThemeProvider } from "@/lib/theme-context";
 import { AppLayout } from "@/components/AppLayout";
 import DashboardPage from "@/pages/DashboardPage";
@@ -19,6 +20,8 @@ import ReportsPage from "@/pages/ReportsPage";
 import CategoriesPage from "@/pages/CategoriesPage";
 import SettingsPage from "@/pages/SettingsPage";
 import ContactsPage from "@/pages/ContactsPage";
+import SalesPage from "@/pages/SalesPage";
+import ProductsPage from "@/pages/ProductsPage";
 import InstallPage from "@/pages/InstallPage";
 import AuthPage from "@/pages/AuthPage";
 import ResetPasswordPage from "@/pages/ResetPasswordPage";
@@ -47,22 +50,26 @@ function ProtectedRoutes() {
     <PixSettingsProvider>
       <FinanceProvider>
         <ContactsProvider>
-          <AppLayout>
-            <Routes>
-              <Route path="/" element={<DashboardPage />} />
-              <Route path="/transactions" element={<TransactionsPage />} />
-              <Route path="/payables" element={<PayablesPage />} />
-              <Route path="/receivables" element={<ReceivablesPage />} />
-              <Route path="/accounts" element={<AccountsPage />} />
-              <Route path="/contacts" element={<ContactsPage />} />
-              <Route path="/budgets" element={<BudgetsPage />} />
-              <Route path="/reports" element={<ReportsPage />} />
-              <Route path="/categories" element={<CategoriesPage />} />
-              <Route path="/settings" element={<SettingsPage />} />
-              <Route path="/instalar" element={<InstallPage />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </AppLayout>
+          <SalesProvider>
+            <AppLayout>
+              <Routes>
+                <Route path="/" element={<DashboardPage />} />
+                <Route path="/transactions" element={<TransactionsPage />} />
+                <Route path="/payables" element={<PayablesPage />} />
+                <Route path="/receivables" element={<ReceivablesPage />} />
+                <Route path="/accounts" element={<AccountsPage />} />
+                <Route path="/contacts" element={<ContactsPage />} />
+                <Route path="/budgets" element={<BudgetsPage />} />
+                <Route path="/reports" element={<ReportsPage />} />
+                <Route path="/categories" element={<CategoriesPage />} />
+                <Route path="/settings" element={<SettingsPage />} />
+                <Route path="/sales" element={<SalesPage />} />
+                <Route path="/products" element={<ProductsPage />} />
+                <Route path="/instalar" element={<InstallPage />} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </AppLayout>
+          </SalesProvider>
         </ContactsProvider>
       </FinanceProvider>
     </PixSettingsProvider>

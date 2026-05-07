@@ -12,12 +12,13 @@ export interface PixSettingsRow {
   receiptStampUrl: string;
   remindersEnabled: boolean;
   reminderDaysBefore: number;
+  salesModuleEnabled: boolean;
 }
 
 const empty: PixSettingsRow = {
   pixKey: '', pixKeyType: 'cpf', beneficiaryName: '',
   beneficiaryCity: '', beneficiaryDocument: '', receiptStampUrl: '',
-  remindersEnabled: true, reminderDaysBefore: 3,
+  remindersEnabled: true, reminderDaysBefore: 3, salesModuleEnabled: false,
 };
 
 interface Ctx {
@@ -56,6 +57,7 @@ export function PixSettingsProvider({ children }: { children: React.ReactNode })
         receiptStampUrl: (data as any).receipt_stamp_url || '',
         remindersEnabled: (data as any).reminders_enabled ?? true,
         reminderDaysBefore: (data as any).reminder_days_before ?? 3,
+        salesModuleEnabled: (data as any).sales_module_enabled ?? false,
       });
     } else {
       setSettings(empty);
@@ -79,6 +81,7 @@ export function PixSettingsProvider({ children }: { children: React.ReactNode })
       receipt_stamp_url: s.receiptStampUrl || null,
       reminders_enabled: s.remindersEnabled,
       reminder_days_before: s.reminderDaysBefore,
+      sales_module_enabled: s.salesModuleEnabled,
     } as any, { onConflict: 'user_id' });
     if (error) { toast.error('Erro ao salvar: ' + error.message); throw error; }
     setSettings(s);

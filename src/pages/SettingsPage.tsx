@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { QrCode, Save, Stamp, Upload, Trash2, Bell } from 'lucide-react';
+import { QrCode, Save, Stamp, Upload, Trash2, Bell, ShoppingCart } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 
@@ -197,6 +197,42 @@ export default function SettingsPage() {
         <Button onClick={handleSave} disabled={saving} className="w-full sm:w-auto">
           <Save className="h-4 w-4 mr-2" />
           {saving ? 'Salvando...' : 'Salvar lembretes'}
+        </Button>
+      </div>
+
+      {/* Módulo de Vendas */}
+      <div className="finance-card p-6 space-y-4">
+        <div className="flex items-center gap-2 pb-2 border-b border-border">
+          <ShoppingCart className="h-5 w-5 text-primary" />
+          <h2 className="font-semibold">Módulo de Vendas</h2>
+        </div>
+
+        <p className="text-sm text-muted-foreground">
+          Habilite o módulo de vendas para cadastrar produtos, controlar estoque e registrar vendas.
+          Quando ativo, os menus <strong>Vendas</strong> e <strong>Produtos</strong> aparecerão na navegação.
+        </p>
+
+        <div className="flex items-center justify-between gap-4 p-3 rounded-md bg-secondary/30 border border-border">
+          <div>
+            <Label className="text-sm font-medium">Ativar módulo de vendas</Label>
+            <p className="text-xs text-muted-foreground">Produtos, estoque e registro de vendas</p>
+          </div>
+          <Switch
+            checked={form.salesModuleEnabled}
+            onCheckedChange={(v) => setForm({ ...form, salesModuleEnabled: v })}
+          />
+        </div>
+
+        {form.salesModuleEnabled && (
+          <div className="rounded-md bg-primary/5 border border-primary/20 p-3 text-xs text-muted-foreground">
+            ✅ Módulo ativo — acesse <strong>Vendas</strong> e <strong>Produtos</strong> no menu lateral.
+            As vendas concluídas atualizam automaticamente o estoque dos produtos.
+          </div>
+        )}
+
+        <Button onClick={handleSave} disabled={saving} className="w-full sm:w-auto">
+          <Save className="h-4 w-4 mr-2" />
+          {saving ? 'Salvando...' : 'Salvar configurações'}
         </Button>
       </div>
     </div>
