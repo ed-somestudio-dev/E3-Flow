@@ -52,6 +52,25 @@ export default function DashboardPage() {
   const overduePayables = consolidated.filter(p => p.status === 'overdue');
   const overdueReceivables = data.receivables.filter(r => r.status === 'overdue');
 
+  // Próximas a vencer (dentro da janela de antecedência das configurações)
+  const lead = settings.reminderDaysBefore ?? 3;
+  const todayStr = new Date().toISOString().split('T')[0];
+  const upcomingPayables = useMemo(() => consolidated.filter(p => {
+    if (p.status === 'paid' || p.status === 'overdue') return false;
+    if (p.dueDate < todayStr) return false;
+    const d = differenceInCalendarDays(new Date(p.dueDate + 'T12:00:00'), new Date());
+    return d >= 0 && d <= lead;
+  }), [consolidated, lead, todayStr]);
+  const upcomingReceivables = useMemo(() => data.receivables.filter(r => {
+    if (r.status === 'received' || r.status === 'overdue') return false;
+    if (r.dueDate < todayStr) return false;
+    const d = differenceInCalendarDays(new Date(r.dueDate + 'T12:00:00'), new Date());
+    return d >= 0 && d <= lead;
+  }), [data.receivables, lead, todayStr]);
+
+  const remindersOn = settingsLoaded && settings.remindersEnabled;
+  const showAlertsCard = remindersOn && (overduePayables.length + overdueReceivables.length + upcomingPayables.length + upcomingReceivables.length) > 0;
+
   const cashFlowData = useMemo(() => {
     const months: { name: string; receitas: number; despesas: number; saldo: number }[] = [];
     const now = new Date();
