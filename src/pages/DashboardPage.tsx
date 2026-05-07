@@ -1,11 +1,14 @@
 import { useFinance } from '@/lib/finance-context';
 import { useMemo } from 'react';
-import { Wallet, TrendingUp, TrendingDown, AlertTriangle, ArrowDownRight, ArrowUpRight } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Wallet, TrendingUp, TrendingDown, AlertTriangle, ArrowDownRight, ArrowUpRight, Bell } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area, LineChart, Line } from 'recharts';
 import { motion } from 'framer-motion';
+import { differenceInCalendarDays } from 'date-fns';
 import { fmt, fmtDate } from '@/lib/format';
 import { SAFE_LABELS } from '@/lib/safe-labels';
 import { consolidatePayables } from '@/lib/consolidate-payables';
+import { usePixSettings } from '@/lib/pix-settings-context';
 import { APP_VERSION, APP_VERSION_DATE } from '@/lib/version';
 
 function StatCard({ label, value, icon: Icon, trend, color }: {
@@ -30,6 +33,7 @@ function StatCard({ label, value, icon: Icon, trend, color }: {
 
 export default function DashboardPage() {
   const { data, getCategoryName, getCategoryColor, getAccountName } = useFinance();
+  const { settings, loaded: settingsLoaded } = usePixSettings();
 
   const consolidated = useMemo(() => consolidatePayables(data.payables, getAccountName), [data.payables, getAccountName]);
 
@@ -47,6 +51,25 @@ export default function DashboardPage() {
 
   const overduePayables = consolidated.filter(p => p.status === 'overdue');
   const overdueReceivables = data.receivables.filter(r => r.status === 'overdue');
+
+  // Próximas a vencer (dentro da janela de antecedência das configurações)
+  const lead = settings.reminderDaysBefore ?? 3;
+  const todayStr = new Date().toISOString().split('T')[0];
+  const upcomingPayables = useMemo(() => consolidated.filter(p => {
+    if (p.status === 'paid' || p.status === 'overdue') return false;
+    if (p.dueDate < todayStr) return false;
+    const d = differenceInCalendarDays(new Date(p.dueDate + 'T12:00:00'), new Date());
+    return d >= 0 && d <= lead;
+  }), [consolidated, lead, todayStr]);
+  const upcomingReceivables = useMemo(() => data.receivables.filter(r => {
+    if (r.status === 'received' || r.status === 'overdue') return false;
+    if (r.dueDate < todayStr) return false;
+    const d = differenceInCalendarDays(new Date(r.dueDate + 'T12:00:00'), new Date());
+    return d >= 0 && d <= lead;
+  }), [data.receivables, lead, todayStr]);
+
+  const remindersOn = settingsLoaded && settings.remindersEnabled;
+  const showAlertsCard = remindersOn && (overduePayables.length + overdueReceivables.length + upcomingPayables.length + upcomingReceivables.length) > 0;
 
   const cashFlowData = useMemo(() => {
     const months: { name: string; receitas: number; despesas: number; saldo: number }[] = [];
@@ -124,25 +147,68 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Alertas */}
-      {(overduePayables.length > 0 || overdueReceivables.length > 0) && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="finance-card border-destructive/30 bg-destructive/5">
-          <div className="flex items-center gap-2 text-destructive mb-2">
-            <AlertTriangle className="h-4 w-4" />
-            <span className="font-semibold text-sm">Alertas de Atraso</span>
+      {/* Alertas e Lembretes — vencidas + próximas (controlado em Configurações) */}
+      {showAlertsCard && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="finance-card border-warning/30 bg-warning/5"
+          role="region"
+          aria-label="Alertas e lembretes"
+        >
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <Bell className="h-4 w-4 text-warning" />
+              <span className="font-semibold text-sm">Alertas e Lembretes</span>
+            </div>
+            <Link to="/settings" className="text-[10px] text-muted-foreground hover:text-foreground underline">
+              configurar
+            </Link>
           </div>
-          <div className="space-y-1 text-sm">
-            {overduePayables.map(p => (
-              <p key={p.id} className="text-muted-foreground">
-                {SAFE_LABELS.shortPayable}: <span className="text-foreground font-medium">{p.description}</span>{p.isInvoice ? ` (${p.itemCount} itens)` : ''} — {fmt(p.amount)} venceu em {fmtDate(p.dueDate)}
-              </p>
-            ))}
-            {overdueReceivables.map(r => (
-              <p key={r.id} className="text-muted-foreground">
-                {SAFE_LABELS.shortReceivable}: <span className="text-foreground font-medium">{r.description}</span> de {r.clientName} — {fmt(r.amount)} venceu em {fmtDate(r.dueDate)}
-              </p>
-            ))}
-          </div>
+
+          {(overduePayables.length > 0 || overdueReceivables.length > 0) && (
+            <div className="mb-3">
+              <div className="flex items-center gap-2 text-destructive mb-1.5">
+                <AlertTriangle className="h-3.5 w-3.5" />
+                <span className="text-xs font-semibold uppercase tracking-wide">Vencidas</span>
+              </div>
+              <div className="space-y-1 text-sm max-h-32 overflow-y-auto">
+                {overduePayables.map(p => (
+                  <p key={p.id} className="text-muted-foreground">
+                    <Link to="/payables" className="text-destructive font-medium hover:underline">{SAFE_LABELS.shortPayable}</Link>: <span className="text-foreground font-medium">{p.description}</span>{p.isInvoice ? ` (${p.itemCount} itens)` : ''} — {fmt(p.amount)} venceu em {fmtDate(p.dueDate)}
+                  </p>
+                ))}
+                {overdueReceivables.map(r => (
+                  <p key={r.id} className="text-muted-foreground">
+                    <Link to="/receivables" className="text-destructive font-medium hover:underline">{SAFE_LABELS.shortReceivable}</Link>: <span className="text-foreground font-medium">{r.description}</span> de {r.clientName} — {fmt(r.amount)} venceu em {fmtDate(r.dueDate)}
+                  </p>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {(upcomingPayables.length > 0 || upcomingReceivables.length > 0) && (
+            <div>
+              <div className="flex items-center gap-2 text-warning mb-1.5">
+                <Bell className="h-3.5 w-3.5" />
+                <span className="text-xs font-semibold uppercase tracking-wide">
+                  Vence em até {lead} dia{lead !== 1 ? 's' : ''}
+                </span>
+              </div>
+              <div className="space-y-1 text-sm max-h-32 overflow-y-auto">
+                {upcomingPayables.map(p => (
+                  <p key={p.id} className="text-muted-foreground">
+                    <Link to="/payables" className="text-warning font-medium hover:underline">{SAFE_LABELS.shortPayable}</Link>: <span className="text-foreground font-medium">{p.description}</span>{p.isInvoice ? ` (${p.itemCount} itens)` : ''} — {fmt(p.amount)} vence em {fmtDate(p.dueDate)}
+                  </p>
+                ))}
+                {upcomingReceivables.map(r => (
+                  <p key={r.id} className="text-muted-foreground">
+                    <Link to="/receivables" className="text-warning font-medium hover:underline">{SAFE_LABELS.shortReceivable}</Link>: <span className="text-foreground font-medium">{r.description}</span> de {r.clientName} — {fmt(r.amount)} vence em {fmtDate(r.dueDate)}
+                  </p>
+                ))}
+              </div>
+            </div>
+          )}
         </motion.div>
       )}
 
