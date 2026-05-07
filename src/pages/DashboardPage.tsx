@@ -33,6 +33,7 @@ function StatCard({ label, value, icon: Icon, trend, color }: {
 
 export default function DashboardPage() {
   const { data, getCategoryName, getCategoryColor, getAccountName } = useFinance();
+  const { settings, loaded: settingsLoaded } = usePixSettings();
 
   const consolidated = useMemo(() => consolidatePayables(data.payables, getAccountName), [data.payables, getAccountName]);
 
