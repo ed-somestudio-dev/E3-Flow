@@ -1,11 +1,14 @@
 import { useFinance } from '@/lib/finance-context';
 import { useMemo } from 'react';
-import { Wallet, TrendingUp, TrendingDown, AlertTriangle, ArrowDownRight, ArrowUpRight } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Wallet, TrendingUp, TrendingDown, AlertTriangle, ArrowDownRight, ArrowUpRight, Bell } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area, LineChart, Line } from 'recharts';
 import { motion } from 'framer-motion';
+import { differenceInCalendarDays } from 'date-fns';
 import { fmt, fmtDate } from '@/lib/format';
 import { SAFE_LABELS } from '@/lib/safe-labels';
 import { consolidatePayables } from '@/lib/consolidate-payables';
+import { usePixSettings } from '@/lib/pix-settings-context';
 import { APP_VERSION, APP_VERSION_DATE } from '@/lib/version';
 
 function StatCard({ label, value, icon: Icon, trend, color }: {
