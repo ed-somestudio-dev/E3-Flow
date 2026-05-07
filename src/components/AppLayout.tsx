@@ -19,7 +19,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             <OfflineBadge />
           </header>
           <OfflineBanner />
-          <BillsReminderBanner />
+          
           <main className="flex-1 overflow-auto p-4 md:p-6">
             {children}
           </main>
