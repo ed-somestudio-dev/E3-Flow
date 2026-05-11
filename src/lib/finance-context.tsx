@@ -23,7 +23,7 @@ const generateId = () => {
 interface FinanceContextType {
   data: FinanceData;
   loading: boolean;
-  addTransaction: (tx: Omit<Transaction, 'id'>) => Promise<void>;
+  addTransaction: (tx: Omit<Transaction, 'id'>) => Promise<Transaction | undefined>;
   updateTransaction: (tx: Transaction) => Promise<void>;
   deleteTransaction: (id: string) => Promise<void>;
   addPayable: (p: Omit<Payable, 'id'>, installments?: number, isCredit?: boolean, recurrence?: { frequency: 'weekly' | 'monthly' | 'yearly'; occurrences: number }) => Promise<void>;
@@ -32,7 +32,7 @@ interface FinanceContextType {
   deletePayableWithFuture: (id: string) => Promise<number>;
   markPayablePaid: (id: string, accountId?: string) => Promise<void>;
   markPayablePaidPartial: (id: string, accountId: string, paidAmount: number) => Promise<void>;
-  addReceivable: (r: Omit<Receivable, 'id'>, installments?: number, recurrence?: { frequency: 'weekly' | 'monthly' | 'yearly'; occurrences: number }) => Promise<void>;
+  addReceivable: (r: Omit<Receivable, 'id'>, installments?: number, recurrence?: { frequency: 'weekly' | 'monthly' | 'yearly'; occurrences: number }) => Promise<Receivable | undefined>;
   updateReceivable: (r: Receivable) => Promise<void>;
   deleteReceivable: (id: string) => Promise<void>;
   markReceivableReceived: (id: string, accountId?: string) => Promise<void>;
@@ -537,6 +537,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     } else {
       toast.success('Transação salva offline');
     }
+    return mapTransaction(payload);
   }, [user, data.accounts, fetchAll, persistAccountAdjustments, queueTransactionAccountAdjustment, adjustCreditCardInvoice]);
 
 
@@ -1319,6 +1320,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       });
       toast.success('Salvo offline. Será sincronizado depois.');
     }
+    return mapReceivable(payload);
   }, [user, fetchAll]);
 
   const updateReceivable = useCallback(async (r: Receivable) => {
@@ -1458,11 +1460,13 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    if (isOnline) {
-      await fetchAll();
-    } else {
-      toast.success('Recebimento registrado offline');
-    }
+    if (isOnline) await fetchAll();
+    else toast.success('Recebimento registrado offline');
+
+    // Emite evento para o módulo de vendas sincronizar
+    window.dispatchEvent(new CustomEvent('receivable_paid', { 
+      detail: { description: receivable?.description } 
+    }));
   }, [user, data, fetchAll]);
 
   const markReceivableReceivedPartial = useCallback(async (id: string, accountId: string, receivedAmount: number) => {
@@ -1581,6 +1585,11 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
     toast.success(`Recebimento parcial registrado. Saldo restante: ${remaining.toFixed(2)}`);
     if (isOnline) await fetchAll();
+
+    // Emite evento para o módulo de vendas sincronizar
+    window.dispatchEvent(new CustomEvent('receivable_paid', { 
+      detail: { description: receivable?.description } 
+    }));
   }, [user, data, fetchAll, markReceivableReceived]);
 
   // --- Accounts ---

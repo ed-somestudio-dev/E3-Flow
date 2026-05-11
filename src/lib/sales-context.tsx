@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './auth-context';
+import { useFinance } from './finance-context';
 import { toast } from 'sonner';
 import { Product, Sale, SaleItem, SaleStatus } from './types';
 
@@ -82,6 +83,7 @@ const SalesContext = createContext<SalesContextType | null>(null);
 
 export function SalesProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
+  const finance = useFinance();
   const [products, setProducts] = useState<Product[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
@@ -104,22 +106,10 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
     if (!user) { setSales([]); setLoadingSales(false); return; }
     setLoadingSales(true);
     try {
-      const { data: salesData, error } = await supabase
-        .from('sales').select('*').eq('user_id', user.id)
-        .order('created_at', { ascending: false });
+      const { data, error } = await supabase
+        .from('sales').select('*, items:sale_items(*)').eq('user_id', user.id).order('created_at', { ascending: false });
       if (error) throw error;
-      if (!salesData || salesData.length === 0) { setSales([]); return; }
-
-      const { data: itemsData } = await supabase
-        .from('sale_items').select('*').in('sale_id', salesData.map(s => s.id));
-
-      const itemsMap: Record<string, SaleItem[]> = {};
-      for (const item of (itemsData || [])) {
-        const m = mapSaleItem(item);
-        if (!itemsMap[m.saleId]) itemsMap[m.saleId] = [];
-        itemsMap[m.saleId].push(m);
-      }
-      setSales(salesData.map(s => mapSale(s, itemsMap[s.id] || [])));
+      setSales((data || []).map(row => mapSale(row, (row.items || []).map(mapSaleItem))));
     } catch (err) {
       console.error('[SalesContext] Failed to load sales:', err);
     } finally { setLoadingSales(false); }
@@ -129,6 +119,8 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
     refreshProducts();
     refreshSales();
   }, [user, refreshProducts, refreshSales]);
+
+
 
   const addProduct = useCallback(async (p: Omit<Product, 'id'>) => {
     if (!user) return;
@@ -211,22 +203,51 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    // Create receivable if requested
-    if (createReceivable && payload.clientName) {
-      const { data: cats } = await supabase.from('categories')
-        .select('id').eq('user_id', user.id).eq('type', 'income').limit(1);
+    // Integrar com módulo financeiro se solicitado
+    if (createReceivable) {
+      const cats = finance.data.categories.filter(c => c.type === 'income');
       const catId = categoryId || cats?.[0]?.id;
-      if (catId) {
-        const recId = generateId();
-        await supabase.from('receivables').insert({
-          id: recId, user_id: user.id,
-          client_name: payload.clientName,
-          description: `Venda #${saleData.id.slice(0, 8).toUpperCase()}`,
-          category_id: catId, account_id: accountId || null,
-          amount: total, due_date: payload.saleDate,
-          status: 'pending',
-        });
-        await supabase.from('sales').update({ receivable_id: recId }).eq('id', saleData.id);
+        if (payload.status === 'completed') {
+          // Se a venda já foi paga/concluída, lança direto como Transação para aparecer no Dashboard
+          const targetAccountId = accountId || (finance.data.accounts.length > 0 ? finance.data.accounts[0].id : '');
+          
+          if (!catId || !targetAccountId) {
+            toast.error('Não foi possível gerar a transação: Categoria ou Conta não definida.');
+          } else {
+            const tx = await finance.addTransaction({
+              type: 'income',
+              description: `Venda #${saleData.id.slice(0, 8).toUpperCase()}`,
+              categoryId: catId,
+              accountId: targetAccountId,
+              amount: total,
+              date: payload.saleDate,
+              notes: payload.notes,
+              isCredit: false,
+            });
+            
+            if (tx) {
+              toast.info('Transação financeira registrada com sucesso!');
+            }
+          }
+        } else {
+          // Se for pendente, cria como Conta a Receber
+          const rec = await finance.addReceivable({
+            clientName: payload.clientName || 'Consumidor Final',
+            description: `Venda #${saleData.id.slice(0, 8).toUpperCase()}`,
+            categoryId: catId,
+            accountId: accountId || undefined,
+            amount: total,
+            dueDate: payload.saleDate,
+            status: 'pending',
+            notes: payload.notes
+          });
+          
+          if (rec) {
+            // Atualiza a venda com o ID da conta a receber para sincronização futura
+            await supabase.from('sales').update({ receivable_id: rec.id }).eq('id', saleData.id);
+            saleData.receivable_id = rec.id;
+          }
+        }
       }
     }
 
@@ -238,11 +259,23 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
       productId: item.productId, productName: item.productName,
       quantity: item.quantity, unitPrice: item.unitPrice, total: item.total,
     })));
-  }, [user, products, refreshSales, refreshProducts]);
+  }, [user, products, refreshSales, refreshProducts, finance]);
 
   const updateSaleStatus = useCallback(async (id: string, status: SaleStatus) => {
     if (!user) return;
     const sale = sales.find(s => s.id === id);
+    if (!sale) return;
+
+    // Se cancelar a venda, exclui a conta a receber pendente associada
+    if (status === 'cancelled') {
+      const saleIdShort = id.slice(0, 8).toUpperCase();
+      const rec = finance.data.receivables.find(r => 
+        r.description?.includes(`Venda #${saleIdShort}`) && r.status === 'pending'
+      );
+      if (rec) {
+        await finance.deleteReceivable(rec.id);
+      }
+    }
 
     // Restore stock if cancelling a completed sale
     if (sale && sale.status === 'completed' && status === 'cancelled') {
@@ -261,6 +294,11 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
 
     // Decrease stock if completing a pending sale
     if (sale && sale.status === 'pending' && status === 'completed') {
+      // Sincroniza com financeiro se houver conta a receber vinculada
+      if (sale.receivableId) {
+        await finance.markReceivableReceived(sale.receivableId);
+      }
+
       for (const item of sale.items) {
         if (item.productId) {
           const prod = products.find(p => p.id === item.productId);
@@ -279,11 +317,22 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
     toast.success('Status atualizado!');
     await refreshSales();
     await refreshProducts();
-  }, [user, sales, products, refreshSales, refreshProducts]);
+  }, [user, sales, products, refreshSales, refreshProducts, finance]);
 
   const deleteSale = useCallback(async (id: string) => {
     if (!user) return;
     const sale = sales.find(s => s.id === id);
+    if (!sale) return;
+
+    // Se excluir a venda, exclui a conta a receber pendente associada
+    const saleIdShort = id.slice(0, 8).toUpperCase();
+    const rec = finance.data.receivables.find(r => 
+      r.description?.includes(`Venda #${saleIdShort}`) && r.status === 'pending'
+    );
+    if (rec) {
+      await finance.deleteReceivable(rec.id);
+    }
+    
     // Restore stock if deleting a completed sale
     if (sale && sale.status === 'completed') {
       for (const item of sale.items) {
@@ -303,7 +352,26 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
     toast.success('Venda excluída!');
     await refreshSales();
     await refreshProducts();
-  }, [user, sales, products, refreshSales, refreshProducts]);
+  }, [user, sales, products, refreshSales, refreshProducts, finance]);
+
+  // Sincronização segura via Eventos (evita qualquer loop infinito do React)
+  useEffect(() => {
+    const handleReceivablePaid = (e: any) => {
+      const desc = e.detail?.description;
+      if (desc && desc.includes('Venda #')) {
+        const match = desc.match(/Venda #([A-F0-9]{8})/);
+        if (match) {
+          const saleIdShort = match[1];
+          const sale = sales.find(s => s.id.toUpperCase().startsWith(saleIdShort) && s.status === 'pending');
+          if (sale) {
+            updateSaleStatus(sale.id, 'completed').catch(console.error);
+          }
+        }
+      }
+    };
+    window.addEventListener('receivable_paid', handleReceivablePaid);
+    return () => window.removeEventListener('receivable_paid', handleReceivablePaid);
+  }, [sales, updateSaleStatus]);
 
   return (
     <SalesContext.Provider value={{

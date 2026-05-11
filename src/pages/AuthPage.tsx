@@ -69,16 +69,18 @@ export default function AuthPage() {
         ? 'com.somestudio.fluxopro://login-callback'
         : window.location.origin;
 
-      const result = await lovable.auth.signInWithOAuth('google', {
-        redirect_uri: redirectUri,
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: redirectUri,
+        }
       });
 
-      if (result.error) {
-        toast.error(result.error.message || 'Erro ao entrar com Google');
+      if (error) {
+        toast.error(error.message || 'Erro ao entrar com Google');
         setLoading(false);
         return;
       }
-      // Se redirected, o navegador vai para o Google. Se não, sessão já foi setada.
     } catch (err: any) {
       toast.error(err?.message || 'Erro ao entrar com Google');
       setLoading(false);

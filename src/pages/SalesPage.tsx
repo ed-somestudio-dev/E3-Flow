@@ -382,8 +382,12 @@ export default function SalesPage() {
 
               <div className="flex items-center justify-between p-3 rounded-md bg-secondary/30 border border-border">
                 <div>
-                  <Label className="text-sm font-medium">Criar conta a receber</Label>
-                  <p className="text-xs text-muted-foreground">Lança no módulo financeiro</p>
+                  <Label className="text-sm font-medium">
+                    {completeOnSave ? 'Lançar receita no financeiro' : 'Criar conta a receber'}
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    {completeOnSave ? 'Gera uma transação imediata na conta' : 'Lança como conta a receber pendente'}
+                  </p>
                 </div>
                 <Switch checked={createReceivable} onCheckedChange={setCreateReceivable} />
               </div>
