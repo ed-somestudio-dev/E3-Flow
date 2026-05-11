@@ -36,13 +36,22 @@ export default function ProductsPage() {
 
   const openAdd = () => {
     setEditTarget(null);
-    setForm(emptyForm());
+    setForm({ ...emptyForm(), priceRaw: '', stockRaw: '' } as any);
     setDialogOpen(true);
   };
 
   const openEdit = (p: Product) => {
     setEditTarget(p);
-    setForm({ name: p.name, description: p.description || '', price: p.price, stockQuantity: p.stockQuantity, unit: p.unit, active: p.active });
+    setForm({ 
+      name: p.name, 
+      description: p.description || '', 
+      price: p.price, 
+      stockQuantity: p.stockQuantity, 
+      unit: p.unit, 
+      active: p.active,
+      priceRaw: p.price.toString(),
+      stockRaw: p.stockQuantity.toString()
+    } as any);
     setDialogOpen(true);
   };
 
@@ -178,9 +187,22 @@ export default function ProductsPage() {
               <div>
                 <Label>Preço (R$) *</Label>
                 <Input
-                  type="number" min={0} step={0.01}
-                  value={form.price}
-                  onChange={e => setForm(f => ({ ...f, price: Math.max(0, parseFloat(e.target.value) || 0) }))}
+                  type="text"
+                  inputMode="decimal"
+                  value={(form as any).priceRaw ?? (form.price === 0 ? "" : form.price.toString())}
+                  onChange={e => {
+                    const rawVal = e.target.value;
+                    // Permite números, uma vírgula ou um ponto
+                    if (rawVal === '' || /^\d*[.,]?\d*$/.test(rawVal)) {
+                      const numericVal = parseFloat(rawVal.replace(',', '.')) || 0;
+                      setForm(f => ({ 
+                        ...f, 
+                        price: numericVal,
+                        priceRaw: rawVal 
+                      } as any));
+                    }
+                  }}
+                  placeholder="0,00"
                 />
               </div>
               <div>
@@ -196,9 +218,21 @@ export default function ProductsPage() {
             <div>
               <Label>Quantidade em Estoque</Label>
               <Input
-                type="number" min={0} step={0.001}
-                value={form.stockQuantity}
-                onChange={e => setForm(f => ({ ...f, stockQuantity: Math.max(0, parseFloat(e.target.value) || 0) }))}
+                type="text"
+                inputMode="decimal"
+                value={(form as any).stockRaw ?? (form.stockQuantity === 0 ? "" : form.stockQuantity.toString())}
+                onChange={e => {
+                  const rawVal = e.target.value;
+                  if (rawVal === '' || /^\d*[.,]?\d*$/.test(rawVal)) {
+                    const numericVal = parseFloat(rawVal.replace(',', '.')) || 0;
+                    setForm(f => ({ 
+                      ...f, 
+                      stockQuantity: numericVal,
+                      stockRaw: rawVal 
+                    } as any));
+                  }
+                }}
+                placeholder="0"
               />
             </div>
             <div className="flex items-center justify-between p-3 rounded-md bg-secondary/30 border border-border">

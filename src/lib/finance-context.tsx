@@ -7,18 +7,9 @@ import { toast } from 'sonner';
 import { saveSnapshot, loadSnapshot, enqueueMutation } from './offline-store';
 import { assertOnline } from './online-guard';
 import { syncOfflineMutations } from './sync-engine';
+import { generateId } from './utils';
 
-const generateId = () => {
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-    return crypto.randomUUID();
-  }
-  // Fallback UUID v4 generator
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    const v = c === 'x' ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
-};
+
 
 interface FinanceContextType {
   data: FinanceData;
@@ -1202,6 +1193,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     // Recurring expansion — generates N concrete records visible in calculations and reports
     if (recurrence && recurrence.occurrences > 1) {
       const baseDate = new Date(r.dueDate + 'T12:00:00');
+      let firstRec: Receivable | undefined;
       for (let i = 0; i < recurrence.occurrences; i++) {
         const d = new Date(baseDate);
         if (recurrence.frequency === 'weekly') d.setDate(d.getDate() + 7 * i);
@@ -1232,15 +1224,17 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
             return fresh;
           });
         }
+        if (i === 0) firstRec = mapReceivable(payload);
       }
       if (isOnline) await fetchAll();
       else toast.success('Salvo offline. Será sincronizado depois.');
-      return;
+      return firstRec;
     }
 
     if (installments && installments > 1) {
       const installmentAmount = Math.round((r.amount / installments) * 100) / 100;
       const baseDate = new Date(r.dueDate + 'T12:00:00');
+      let firstRec: Receivable | undefined;
 
       for (let i = 0; i < installments; i++) {
         const d = new Date(baseDate);
@@ -1268,10 +1262,11 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
             return fresh;
           });
         }
+        if (i === 0) firstRec = mapReceivable(payload);
       }
       if (isOnline) await fetchAll();
       else toast.success('Salvo offline. Será sincronizado depois.');
-      return;
+      return firstRec;
     }
 
     const id = generateId();
@@ -1388,6 +1383,8 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     if (!user) return;
     const isOnline = assertOnline();
     const receivable = data.receivables.find(x => x.id === id);
+    if (!receivable || receivable.status === 'received') return;
+
     const targetAccountId = accountId || receivable?.accountId;
     const today = new Date().toISOString().split('T')[0];
 
@@ -1402,12 +1399,17 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
         type: 'UPDATE',
         payload: { table: 'receivables', data: { status: 'received', payment_date: today, account_id: targetAccountId || null }, match: { id } }
       });
-      setData(prev => {
-        const fresh = { ...prev, receivables: prev.receivables.map(r => r.id === id ? { ...r, status: 'received' as const, paymentDate: today, accountId: targetAccountId } : r) };
-        saveSnapshot(user.id, fresh).catch(() => {});
-        return fresh;
-      });
     }
+
+    // Update local state immediately (optimistic update) to prevent redundant calls
+    setData(prev => {
+      const fresh = { 
+        ...prev, 
+        receivables: prev.receivables.map(r => r.id === id ? { ...r, status: 'received' as const, paymentDate: today, accountId: targetAccountId } : r) 
+      };
+      saveSnapshot(user.id, fresh).catch(() => {});
+      return fresh;
+    });
 
     if (receivable && targetAccountId) {
       const acc = data.accounts.find(a => a.id === targetAccountId);
@@ -1465,7 +1467,10 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
     // Emite evento para o módulo de vendas sincronizar
     window.dispatchEvent(new CustomEvent('receivable_paid', { 
-      detail: { description: receivable?.description } 
+      detail: { 
+        id: id,
+        description: receivable?.description 
+      } 
     }));
   }, [user, data, fetchAll]);
 
@@ -1473,7 +1478,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     if (!user) return;
     const isOnline = assertOnline();
     const receivable = data.receivables.find(x => x.id === id);
-    if (!receivable) { toast.error('Recebível não encontrado'); return; }
+    if (!receivable || receivable.status === 'received') return;
     if (receivedAmount <= 0) { toast.error('Valor recebido deve ser maior que zero'); return; }
     if (receivedAmount >= receivable.amount) {
       await markReceivableReceived(id, accountId);
@@ -1508,7 +1513,9 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     }
 
     // 2) Cria novo registro pendente com o valor restante
+    const newReceivableId = generateId();
     const insertPayload = {
+      id: newReceivableId,
       user_id: user.id,
       client_name: receivable.clientName,
       description: `${receivable.description} (Saldo restante)`,
@@ -1529,7 +1536,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
         type: 'INSERT',
         payload: { table: 'receivables', data: insertPayload }
       });
-      const newReceivable = mapReceivable({ id: generateId(), ...insertPayload });
+      const newReceivable = mapReceivable(insertPayload);
       setData(prev => {
         const fresh = { ...prev, receivables: [...prev.receivables, newReceivable] };
         saveSnapshot(user.id, fresh).catch(() => {});
@@ -1586,9 +1593,9 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     toast.success(`Recebimento parcial registrado. Saldo restante: ${remaining.toFixed(2)}`);
     if (isOnline) await fetchAll();
 
-    // Emite evento para o módulo de vendas sincronizar
-    window.dispatchEvent(new CustomEvent('receivable_paid', { 
-      detail: { description: receivable?.description } 
+    // Emite evento de recebimento parcial (para atualizar o link na venda)
+    window.dispatchEvent(new CustomEvent('receivable_partial_received', { 
+      detail: { originalId: id, newId: newReceivableId } 
     }));
   }, [user, data, fetchAll, markReceivableReceived]);
 
@@ -2047,36 +2054,51 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   const getCategoryColor = useCallback((id: string) => data.categories.find(c => c.id === id)?.color || '#888', [data.categories]);
 
   const resetAllData = useCallback(async () => {
-    if (!assertOnline()) return;
-    if (!user) return;
-    // Delete in order to respect foreign keys: transactions first, then payables/receivables/budgets, then accounts/categories
-    await supabase.from('transactions').delete().eq('user_id', user.id);
-    await supabase.from('payables').delete().eq('user_id', user.id);
-    await supabase.from('receivables').delete().eq('user_id', user.id);
-    await supabase.from('budgets').delete().eq('user_id', user.id);
-    await supabase.from('financial_accounts').delete().eq('user_id', user.id);
-    await supabase.from('categories').delete().eq('user_id', user.id);
-    await supabase.from('contacts').delete().eq('user_id', user.id);
-    await supabase.from('user_settings').delete().eq('user_id', user.id);
-    
-    // 7. Storage cleanup (receipt stamps)
-    try {
-      const { data: files, error: listErr } = await supabase.storage.from('receipt-stamps').list(user.id);
-      if (listErr) {
-        console.warn('Could not list storage files:', listErr);
-      } else if (files && files.length > 0) {
-        const paths = files.map(f => `${user.id}/${f.name}`);
-        await supabase.storage.from('receipt-stamps').remove(paths);
-      }
-    } catch (e) {
-      console.error('Storage cleanup failed:', e);
+    if (!assertOnline()) {
+      toast.error('Você precisa estar online para reiniciar todos os dados (limpeza remota)');
+      return;
     }
+    if (!user) return;
+    
+    toast.info('Limpando dados remotos e locais...');
 
-    // 8. Refresh other contexts
-    await refreshPix();
+    try {
+      // 1. Delete in order to respect foreign keys
+      await supabase.from('transactions').delete().eq('user_id', user.id);
+      await supabase.from('payables').delete().eq('user_id', user.id);
+      await supabase.from('receivables').delete().eq('user_id', user.id);
+      await supabase.from('budgets').delete().eq('user_id', user.id);
+      await supabase.from('sales').delete().eq('user_id', user.id); // sale_items cascades
+      await supabase.from('products').delete().eq('user_id', user.id);
+      await supabase.from('financial_accounts').delete().eq('user_id', user.id);
+      await supabase.from('categories').delete().eq('user_id', user.id);
+      await supabase.from('contacts').delete().eq('user_id', user.id);
+      await supabase.from('user_settings').delete().eq('user_id', user.id);
+      
+      // 2. Storage cleanup (receipt stamps)
+      try {
+        const { data: files, error: listErr } = await supabase.storage.from('receipt-stamps').list(user.id);
+        if (!listErr && files && files.length > 0) {
+          const paths = files.map(f => `${user.id}/${f.name}`);
+          await supabase.storage.from('receipt-stamps').remove(paths);
+        }
+      } catch (e) { console.error('Storage cleanup failed:', e); }
 
-    await fetchAll();
-    toast.success('Todos os dados foram reiniciados');
+      // 3. Local Cleanup (IndexedDB)
+      const { clearSnapshot, clearMutationsQueue } = await import('./offline-store');
+      await clearSnapshot(user.id);
+      await clearMutationsQueue(user.id);
+
+      // 4. Refresh contexts
+      await refreshPix();
+      window.dispatchEvent(new CustomEvent('reset_sales')); // Notify SalesProvider
+      
+      await fetchAll();
+      toast.success('Todos os dados foram reiniciados com sucesso');
+    } catch (err: any) {
+      console.error('Reset failed:', err);
+      toast.error('Erro ao reiniciar dados: ' + err.message);
+    }
   }, [user, fetchAll, refreshPix]);
 
   const exportBackup = useCallback(async () => {

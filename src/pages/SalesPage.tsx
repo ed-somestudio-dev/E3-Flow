@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog';
@@ -114,12 +115,13 @@ export default function SalesPage() {
   // New Sale form
   const [clientName, setClientName] = useState('');
   const [saleDate, setSaleDate] = useState(new Date().toISOString().split('T')[0]);
+  const [dueDate, setDueDate] = useState(new Date().toISOString().split('T')[0]);
   const [paymentMethod, setPaymentMethod] = useState('');
   const [notes, setNotes] = useState('');
   const [completeOnSave, setCompleteOnSave] = useState(true);
-  const [createReceivable, setCreateReceivable] = useState(false);
-  const [selectedCategoryId, setSelectedCategoryId] = useState('');
-  const [selectedAccountId, setSelectedAccountId] = useState('');
+  const [createReceivable, setCreateReceivable] = useState(true);
+  const [selectedCategoryId, setSelectedCategoryId] = useState(localStorage.getItem('last_sale_category') || '');
+  const [selectedAccountId, setSelectedAccountId] = useState(localStorage.getItem('last_sale_account') || '');
   const [cartItems, setCartItems] = useState<(NewSaleItem & { tmpId: string })[]>([]);
   const [productSearch, setProductSearch] = useState('');
 
@@ -154,11 +156,19 @@ export default function SalesPage() {
   const addToCart = (productId: string) => {
     const prod = products.find(p => p.id === productId);
     if (!prod) return;
+    
     const existing = cartItems.find(i => i.productId === productId);
+    const currentQty = existing ? existing.quantity : 0;
+    const newQty = currentQty + 1;
+
+    if (newQty > prod.stockQuantity) {
+      toast.warning(`Atenção: Estoque insuficiente de "${prod.name}" (Disponível: ${prod.stockQuantity})`);
+    }
+
     if (existing) {
       setCartItems(prev => prev.map(i =>
         i.productId === productId
-          ? { ...i, quantity: i.quantity + 1, total: (i.quantity + 1) * i.unitPrice }
+          ? { ...i, quantity: newQty, total: newQty * i.unitPrice }
           : i
       ));
     } else {
@@ -171,9 +181,17 @@ export default function SalesPage() {
   };
 
   const updateCartQty = (tmpId: string, qty: number) => {
+    const item = cartItems.find(i => i.tmpId === tmpId);
+    if (!item) return;
+
     if (qty <= 0) {
       setCartItems(prev => prev.filter(i => i.tmpId !== tmpId));
     } else {
+      const prod = products.find(p => p.id === item.productId);
+      if (prod && qty > prod.stockQuantity) {
+        toast.warning(`Atenção: Quantidade superior ao estoque disponível (${prod.stockQuantity})`);
+      }
+
       setCartItems(prev => prev.map(i =>
         i.tmpId === tmpId ? { ...i, quantity: qty, total: qty * i.unitPrice } : i
       ));
@@ -182,9 +200,12 @@ export default function SalesPage() {
 
   const resetForm = () => {
     setClientName(''); setSaleDate(new Date().toISOString().split('T')[0]);
+    setDueDate(new Date().toISOString().split('T')[0]);
     setPaymentMethod(''); setNotes(''); setCompleteOnSave(true);
-    setCreateReceivable(false); setCartItems([]); setProductSearch('');
-    setSelectedCategoryId(''); setSelectedAccountId('');
+    setCreateReceivable(true); setCartItems([]); setProductSearch('');
+    // Manter categoria e conta do localStorage
+    setSelectedCategoryId(localStorage.getItem('last_sale_category') || '');
+    setSelectedAccountId(localStorage.getItem('last_sale_account') || '');
   };
 
   const handleCreateSale = async () => {
@@ -197,6 +218,7 @@ export default function SalesPage() {
         paymentMethod: paymentMethod || undefined,
         notes: notes || undefined,
         saleDate,
+        dueDate: !completeOnSave ? dueDate : undefined,
         items: cartItems,
       };
       await createSale(payload, createReceivable, selectedCategoryId || undefined, selectedAccountId || undefined);
@@ -372,12 +394,33 @@ export default function SalesPage() {
 
             {/* Options */}
             <div className="space-y-3">
-              <div className="flex items-center justify-between p-3 rounded-md bg-secondary/30 border border-border">
-                <div>
-                  <Label className="text-sm font-medium">Concluir venda agora</Label>
-                  <p className="text-xs text-muted-foreground">Atualiza estoque imediatamente</p>
-                </div>
-                <Switch checked={completeOnSave} onCheckedChange={setCompleteOnSave} />
+              <div className="p-3 rounded-md bg-secondary/30 border border-border">
+                <Label className="text-sm font-medium mb-3 block">Tipo de Venda</Label>
+                <RadioGroup 
+                  value={completeOnSave ? "vista" : "prazo"} 
+                  onValueChange={(v) => setCompleteOnSave(v === "vista")}
+                  className="flex gap-4"
+                >
+                  <div className="flex items-center space-x-2 cursor-pointer">
+                    <RadioGroupItem value="vista" id="vista" />
+                    <Label htmlFor="vista" className="cursor-pointer">À vista</Label>
+                  </div>
+                  <div className="flex items-center space-x-2 cursor-pointer">
+                    <RadioGroupItem value="prazo" id="prazo" />
+                    <Label htmlFor="prazo" className="cursor-pointer">À prazo</Label>
+                  </div>
+                </RadioGroup>
+                
+                {!completeOnSave && (
+                  <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="mt-4 pt-4 border-t border-border">
+                    <Label className="text-xs mb-1.5 block">Data de Vencimento</Label>
+                    <Input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className="h-9" />
+                  </motion.div>
+                )}
+
+                <p className="text-[10px] text-muted-foreground mt-2">
+                  {completeOnSave ? "Conclui a venda e baixa o estoque agora" : "A venda ficará pendente no sistema"}
+                </p>
               </div>
 
               <div className="flex items-center justify-between p-3 rounded-md bg-secondary/30 border border-border">
@@ -396,7 +439,13 @@ export default function SalesPage() {
                 <div className="grid grid-cols-2 gap-3 pl-4 border-l-2 border-primary/30">
                   <div>
                     <Label className="text-xs">Categoria</Label>
-                    <Select value={selectedCategoryId} onValueChange={setSelectedCategoryId}>
+                    <Select 
+                      value={selectedCategoryId} 
+                      onValueChange={(v) => {
+                        setSelectedCategoryId(v);
+                        localStorage.setItem('last_sale_category', v);
+                      }}
+                    >
                       <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Categoria..." /></SelectTrigger>
                       <SelectContent>
                         {incomeCategories.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
@@ -405,7 +454,13 @@ export default function SalesPage() {
                   </div>
                   <div>
                     <Label className="text-xs">Conta</Label>
-                    <Select value={selectedAccountId} onValueChange={setSelectedAccountId}>
+                    <Select 
+                      value={selectedAccountId} 
+                      onValueChange={(v) => {
+                        setSelectedAccountId(v);
+                        localStorage.setItem('last_sale_account', v);
+                      }}
+                    >
                       <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Conta..." /></SelectTrigger>
                       <SelectContent>
                         {accounts.map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}

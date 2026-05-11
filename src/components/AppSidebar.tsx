@@ -35,7 +35,7 @@ const manageItems = [
   { title: 'Orçamentos', url: '/budgets', icon: Target },
   { title: 'Relatórios', url: '/reports', icon: BarChart3 },
   { title: 'Configurações', url: '/settings', icon: Settings },
-  { title: 'Instalar App', url: '/instalar', icon: Smartphone },
+
 ];
 
 export function AppSidebar() {
@@ -163,6 +163,10 @@ export function AppSidebar() {
                 {theme === 'light' ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
                 {!collapsed && <span className="text-sm">{theme === 'light' ? 'Modo Escuro' : 'Modo Claro'}</span>}
               </button>
+              <NavLink to="/instalar" className="flex items-center gap-2 px-4 py-3 text-sidebar-muted hover:text-sidebar-foreground transition-colors w-full">
+                <Smartphone className="h-4 w-4" />
+                {!collapsed && <span className="text-sm">Instalar App</span>}
+              </NavLink>
               <button onClick={signOut}
                 className="flex items-center gap-2 px-4 py-3 text-sidebar-muted hover:text-destructive transition-colors w-full">
                 <LogOut className="h-4 w-4" />

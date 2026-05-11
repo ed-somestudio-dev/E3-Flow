@@ -6,29 +6,26 @@
 // na ativação e os clients abertos são recarregados (essencial para iOS Safari,
 // que costuma ficar preso em uma versão antiga apontando para assets removidos).
 
-const CACHE = 'fluxopro-v5';
-// Apenas assets estáveis (sem hash) entram no precache. NÃO incluímos
-// '/' nem '/index.html' aqui — eles devem ser sempre buscados via network-first
-// para que o HTML referencie as URLs de bundle atuais.
-const ASSETS = ['/manifest.webmanifest', '/icon-192.png', '/icon-512.png', '/apple-touch-icon.png'];
+const CACHE = 'fluxopro-v9';
+const ASSETS = [
+  '/index.html',
+  '/manifest.webmanifest',
+  '/icon-192.png',
+  '/icon-512.png',
+  '/apple-touch-icon.png'
+];
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)).catch(() => {}));
-  self.skipWaiting();
+  event.waitUntil(
+    caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
       Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))
-    ).then(() => self.clients.claim()).then(async () => {
-      // Recarrega abas abertas quando a versão muda, para que clientes iOS
-      // que estavam presos numa versão antiga voltem a funcionar.
-      const clients = await self.clients.matchAll({ type: 'window' });
-      for (const client of clients) {
-        try { client.navigate(client.url); } catch (_) { /* noop */ }
-      }
-    })
+    ).then(() => self.clients.claim())
   );
 });
 
@@ -36,44 +33,38 @@ self.addEventListener('fetch', (event) => {
   const req = event.request;
   const url = new URL(req.url);
 
-  // NUNCA intercepta APIs (Supabase) ou rotas de auth — devem ir direto à rede
   if (url.origin !== self.location.origin) return;
-  if (url.pathname.startsWith('/~oauth')) return;
-  if (url.pathname.startsWith('/auth')) return;
+  if (url.pathname.startsWith('/auth') || url.pathname.includes('supabase')) return;
 
-  // Apenas GET
-  if (req.method !== 'GET') return;
-
-  // Network-first para HTML (navegação). Em caso de falha de rede, tenta o
-  // cache; senão, retorna o index.html cacheado. NUNCA serve HTML antigo
-  // se a rede responder, evitando "tela branca" por assets ausentes.
+  // Navegação (HTML)
   if (req.mode === 'navigate' || req.destination === 'document') {
     event.respondWith(
       fetch(req)
         .then((res) => {
           const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});
+          caches.open(CACHE).then((c) => c.put('/index.html', copy));
           return res;
         })
-        .catch(() => caches.match(req).then((c) => c || caches.match('/index.html')))
+        .catch(() => caches.match('/index.html').then(cached => cached || caches.match('/')))
     );
     return;
   }
 
-  // Cache-first para assets estáticos (com hash do Vite — imutáveis)
-  if (['style', 'script', 'image', 'font'].includes(req.destination)) {
+  // Assets estáticos (Vite dev server serve .ts, .tsx, .css, etc)
+  const isStaticAsset = 
+    ['style', 'script', 'image', 'font'].includes(req.destination) ||
+    url.pathname.match(/\.(ts|tsx|js|jsx|css|png|jpg|jpeg|svg|webp|woff2)$/);
+
+  if (isStaticAsset) {
     event.respondWith(
       caches.match(req).then((cached) => {
-        if (cached) return cached;
-        return fetch(req)
-          .then((res) => {
-            // Só cacheia respostas OK
-            if (!res || res.status !== 200) return res;
+        return cached || fetch(req).then((res) => {
+          if (res.status === 200) {
             const copy = res.clone();
-            caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});
-            return res;
-          })
-          .catch(() => cached!);
+            caches.open(CACHE).then((c) => c.put(req, copy));
+          }
+          return res;
+        }).catch(() => cached); // Retorna o que tiver no cache se a rede falhar
       })
     );
   }

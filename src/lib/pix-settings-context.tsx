@@ -2,6 +2,8 @@ import React, { createContext, useContext, useEffect, useState, useCallback } fr
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './auth-context';
 import { toast } from 'sonner';
+import { assertOnline } from './online-guard';
+import { enqueueMutation, saveSnapshot, loadSnapshot } from './offline-store';
 
 export interface PixSettingsRow {
   pixKey: string;
@@ -71,7 +73,9 @@ export function PixSettingsProvider({ children }: { children: React.ReactNode })
 
   const save = useCallback(async (s: PixSettingsRow) => {
     if (!user) return;
-    const { error } = await supabase.from('user_settings').upsert({
+    const isOnline = assertOnline();
+
+    const payload = {
       user_id: user.id,
       pix_key: s.pixKey || null,
       pix_key_type: s.pixKeyType || null,
@@ -82,8 +86,20 @@ export function PixSettingsProvider({ children }: { children: React.ReactNode })
       reminders_enabled: s.remindersEnabled,
       reminder_days_before: s.reminderDaysBefore,
       sales_module_enabled: s.salesModuleEnabled,
-    } as any, { onConflict: 'user_id' });
-    if (error) { toast.error('Erro ao salvar: ' + error.message); throw error; }
+    } as any;
+
+    if (isOnline) {
+      const { error } = await supabase.from('user_settings').upsert(payload, { onConflict: 'user_id' });
+      if (error) { toast.error('Erro ao salvar: ' + error.message); throw error; }
+    } else {
+      await enqueueMutation({
+        userId: user.id,
+        type: 'UPDATE', // We use UPDATE with match user_id as a proxy for upsert since it's 1:1
+        payload: { table: 'user_settings', data: payload, match: { user_id: user.id } }
+      });
+      toast.info('Alteração salva offline. Será sincronizada depois.');
+    }
+
     setSettings(s);
     toast.success('Configurações salvas');
   }, [user]);

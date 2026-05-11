@@ -4,16 +4,12 @@ import "./index.css";
 
 createRoot(document.getElementById("root")!).render(<App />);
 
-// Registra o Service Worker apenas em produção e fora de iframes (preview do Lovable).
-// Isso garante PWA instalável + cache offline de assets, sem interferir no preview.
-if (
-  typeof window !== 'undefined' &&
-  'serviceWorker' in navigator &&
-  import.meta.env.PROD &&
-  window.self === window.top
-) {
+// Registra o Service Worker para garantir PWA instalável + cache offline de assets.
+if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch((err) => {
+    navigator.serviceWorker.register('/sw.js').then(() => {
+      console.log('[pwa] service worker registrado com sucesso');
+    }).catch((err) => {
       console.warn('[pwa] falha ao registrar service worker:', err);
     });
   });

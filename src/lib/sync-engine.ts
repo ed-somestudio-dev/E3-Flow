@@ -9,6 +9,7 @@ let isSyncing = false;
  */
 export async function syncOfflineMutations(userId: string) {
   if (typeof navigator !== 'undefined' && !navigator.onLine) return;
+  if (userId.startsWith('guest_')) return; // Visitantes não sincronizam com o servidor
   if (isSyncing) return;
   
   const queue = await getMutationsQueue(userId);
@@ -24,6 +25,17 @@ export async function syncOfflineMutations(userId: string) {
     try {
       console.log(`[sync-engine] Processando ${mutation.type} em ${mutation.payload.table || 'RPC'}`, mutation.payload);
       
+      if (mutation.payload.table === 'products' && mutation.payload.data) {
+        if ('category' in mutation.payload.data) {
+          mutation.payload.data.category_id = mutation.payload.data.category;
+          delete mutation.payload.data.category;
+        }
+        if ('unit_price' in mutation.payload.data) {
+          mutation.payload.data.price = mutation.payload.data.unit_price;
+          delete mutation.payload.data.unit_price;
+        }
+      }
+
       if (mutation.type === 'INSERT') {
         const { error } = await supabase.from(mutation.payload.table).insert(mutation.payload.data);
         if (error) throw error;
@@ -59,8 +71,25 @@ export async function syncOfflineMutations(userId: string) {
         await dequeueMutation(mutation.id);
       }
       successCount++;
-    } catch (err) {
-      console.error('[sync-engine] ERRO CRÍTICO:', mutation, err);
+    } catch (err: any) {
+      console.error('[sync-engine] ERRO AO PROCESSAR:', mutation, err);
+      
+      // Erro 23503: Violação de chave estrangeira (ex: categoria não existe mais)
+      // Erro 409: Conflito (dado já existe)
+      if (err?.code === '23503' || err?.status === 409 || err?.code === 'PGRST116') {
+        console.warn(`[sync-engine] Removendo item inconsistente da fila: ${err.message}`);
+        if (mutation.id) await dequeueMutation(mutation.id);
+        successCount++; // Contamos como "processado" para não travar a fila
+        continue;
+      }
+
+      // Se for erro de autorização (token expirado), interrompe sem mostrar toast de erro
+      if (err?.status === 401 || err?.message?.includes('JWT expired')) {
+        console.warn('[sync-engine] Sessão expirada. Sincronização interrompida.');
+        errorCount = 0;
+        break;
+      }
+
       errorCount++;
       break;
     }

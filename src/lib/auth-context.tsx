@@ -1,12 +1,15 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
+import { migrateGuestData } from './offline-store';
+import { toast } from 'sonner';
 
 interface AuthContextType {
   session: Session | null;
   user: User | null;
   loading: boolean;
   signOut: () => Promise<void>;
+  signInAsGuest: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -17,16 +20,58 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     // Standard auth state change listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setSession(session);
+      
+      // If we just logged in and had a guest session, migrate data
+      if (session?.user && !session.user.id.startsWith('guest_')) {
+        const guestId = localStorage.getItem('fluxopro_guest_id');
+        if (guestId && guestId !== session.user.id) {
+          console.log('[AuthContext] Sessão real detectada. Migrando dados do visitante...');
+          await migrateGuestData(guestId, session.user.id);
+          localStorage.removeItem('fluxopro_guest_id');
+          toast.success('Dados sincronizados com sua conta!');
+        }
+      }
+      
       setLoading(false);
     });
 
     // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setLoading(false);
-    });
+    const getInitialSession = async () => {
+      try {
+        const { data: { session: initialSession } } = await supabase.auth.getSession();
+        
+        if (initialSession) {
+          // Verify session is still valid by doing a lightweight user check
+          const { error } = await supabase.auth.getUser();
+          if (error && (error.status === 401 || error.message.includes('expired'))) {
+             console.warn('[AuthContext] Sessão expirada detectada na inicialização.');
+             await supabase.auth.signOut();
+             setSession(null);
+          } else {
+             setSession(initialSession);
+          }
+        } else {
+          // Check for guest session in localStorage
+          const guestId = localStorage.getItem('fluxopro_guest_id');
+          if (guestId) {
+            setSession({
+              user: { id: guestId, email: 'visitante@fluxopro.local', user_metadata: { name: 'Visitante' } } as any,
+              access_token: 'guest',
+              refresh_token: 'guest',
+              expires_in: 3600,
+              token_type: 'bearer'
+            } as Session);
+          }
+        }
+      } catch (err) {
+        console.error('[AuthContext] Erro ao recuperar sessão:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    getInitialSession();
 
     // Handle Deep Linking for Mobile (Google Login / Email Confirmation)
     const handleDeepLink = async () => {
@@ -55,12 +100,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  const signInAsGuest = () => {
+    const guestId = 'guest_' + Math.random().toString(36).substring(2, 15);
+    localStorage.setItem('fluxopro_guest_id', guestId);
+    setSession({
+      user: { id: guestId, email: 'visitante@fluxopro.local', user_metadata: { name: 'Visitante' } } as any,
+      access_token: 'guest',
+      refresh_token: 'guest',
+      expires_in: 3600,
+      token_type: 'bearer'
+    } as Session);
+  };
+
   const signOut = async () => {
+    localStorage.removeItem('fluxopro_guest_id');
     await supabase.auth.signOut();
+    setSession(null);
   };
 
   return (
-    <AuthContext.Provider value={{ session, user: session?.user ?? null, loading, signOut }}>
+    <AuthContext.Provider value={{ session, user: session?.user ?? null, loading, signOut, signInAsGuest } as any}>
       {children}
     </AuthContext.Provider>
   );

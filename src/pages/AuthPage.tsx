@@ -7,8 +7,10 @@ import { Label } from '@/components/ui/label';
 import { Mail, Lock, Chrome, ArrowLeft } from 'lucide-react';
 import logoFluxoPro from '@/assets/Logo_FluxoPro.png';
 import { toast } from 'sonner';
+import { useAuth } from '@/lib/auth-context';
 
 export default function AuthPage() {
+  const { signInAsGuest } = useAuth();
   const [mode, setMode] = useState<'login' | 'signup' | 'forgot'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -123,6 +125,10 @@ export default function AuthPage() {
               <Button variant="outline" className="w-full" onClick={handleGoogleLogin}>
                 <Chrome className="h-4 w-4 mr-2" />
                 Entrar com Google
+              </Button>
+
+              <Button variant="secondary" className="w-full" onClick={signInAsGuest}>
+                Entrar como Visitante (Offline)
               </Button>
 
               <div className="relative">
