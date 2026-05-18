@@ -4,8 +4,10 @@ import "./index.css";
 
 createRoot(document.getElementById("root")!).render(<App />);
 
-// Registra o Service Worker para garantir PWA instalável + cache offline de assets.
-if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+import { Capacitor } from '@capacitor/core';
+
+// Registra o Service Worker apenas se não for plataforma nativa (Capacitor cuida dos assets nativamente)
+if (typeof window !== 'undefined' && 'serviceWorker' in navigator && !Capacitor.isNativePlatform()) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js').then(() => {
       console.log('[pwa] service worker registrado com sucesso');

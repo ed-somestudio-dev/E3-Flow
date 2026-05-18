@@ -1,8 +1,8 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.somestudio.fluxopro',
-  appName: 'FluxoPro 2.0',
+  appId: 'com.fluxopro.app',
+  appName: 'FluxoPro2',
   webDir: 'dist'
 };
 
