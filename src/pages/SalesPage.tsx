@@ -1,4 +1,6 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
+import { ContactInputWithPicker } from '@/components/ContactInputWithPicker';
+import { useContacts } from '@/lib/contacts-context';
 import { useSales, NewSaleItem, NewSalePayload } from '@/lib/sales-context';
 import { useFinance } from '@/lib/finance-context';
 import { Sale, SaleStatus } from '@/lib/types';
@@ -12,6 +14,10 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { motion } from 'framer-motion';
 import {
   Plus, Search, ShoppingCart, Trash2, CheckCircle2, XCircle,
@@ -34,9 +40,11 @@ function SaleCard({ sale, onStatusChange, onDelete }: {
   onDelete: (id: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [cancelConfirm, setCancelConfirm] = useState(false);
   const st = STATUS_MAP[sale.status];
 
   return (
+    <>
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="finance-card p-4 space-y-3">
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
@@ -81,14 +89,14 @@ function SaleCard({ sale, onStatusChange, onDelete }: {
                 <CheckCircle2 className="h-3 w-3" /> Concluir
               </Button>
               <Button size="sm" variant="outline" className="h-7 text-xs gap-1 text-destructive border-destructive/40 hover:bg-destructive/10"
-                onClick={() => onStatusChange(sale.id, 'cancelled')}>
+                onClick={() => setCancelConfirm(true)}>
                 <XCircle className="h-3 w-3" /> Cancelar
               </Button>
             </>
           )}
           {sale.status === 'completed' && (
             <Button size="sm" variant="outline" className="h-7 text-xs gap-1 text-destructive border-destructive/40 hover:bg-destructive/10"
-              onClick={() => onStatusChange(sale.id, 'cancelled')}>
+              onClick={() => setCancelConfirm(true)}>
               <XCircle className="h-3 w-3" /> Cancelar
             </Button>
           )}
@@ -99,15 +107,40 @@ function SaleCard({ sale, onStatusChange, onDelete }: {
         </Button>
       </div>
     </motion.div>
+
+    {/* Cancel Confirmation */}
+    <AlertDialog open={cancelConfirm} onOpenChange={setCancelConfirm}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Cancelar venda?</AlertDialogTitle>
+          <AlertDialogDescription>
+            A venda de <strong>{sale.clientName || 'cliente não informado'}</strong> no valor de <strong>{fmt(sale.total)}</strong> será marcada como cancelada. Esta ação pode ser revertida depois.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Voltar</AlertDialogCancel>
+          <AlertDialogAction
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            onClick={() => { onStatusChange(sale.id, 'cancelled'); setCancelConfirm(false); }}
+          >
+            Sim, cancelar venda
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }
 
 export default function SalesPage() {
   const { products, sales, loadingSales, createSale, updateSaleStatus, deleteSale } = useSales();
   const { data: financeData } = useFinance();
+  const { contacts } = useContacts();
 
   const [tab, setTab] = useState<'all' | SaleStatus>('all');
   const [search, setSearch] = useState('');
+  const [showSearchSuggestions, setShowSearchSuggestions] = useState(false);
+  const searchRef = useRef<HTMLInputElement>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -262,7 +295,7 @@ export default function SalesPage() {
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3">
-        <Tabs value={tab} onValueChange={v => setTab(v as any)} className="w-full sm:w-auto">
+        <Tabs value={tab} onValueChange={v => setTab(v as 'all' | SaleStatus)} className="w-full sm:w-auto">
           <TabsList>
             <TabsTrigger value="all">Todas</TabsTrigger>
             <TabsTrigger value="pending"><Clock className="h-3 w-3 mr-1" />Pendentes</TabsTrigger>
@@ -272,7 +305,36 @@ export default function SalesPage() {
         </Tabs>
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input className="pl-9" placeholder="Buscar por cliente..." value={search} onChange={e => setSearch(e.target.value)} />
+          <Input
+            ref={searchRef}
+            className="pl-9"
+            placeholder="Buscar por cliente..."
+            value={search}
+            onChange={e => { setSearch(e.target.value); setShowSearchSuggestions(true); }}
+            onFocus={() => setShowSearchSuggestions(true)}
+            onBlur={() => setTimeout(() => setShowSearchSuggestions(false), 150)}
+            autoComplete="off"
+          />
+          {showSearchSuggestions && search.length >= 1 && (() => {
+            const suggestions = contacts
+              .filter(c => c.name.toLowerCase().includes(search.toLowerCase()))
+              .slice(0, 6);
+            return suggestions.length > 0 ? (
+              <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-popover border border-border rounded-md shadow-lg overflow-hidden">
+                {suggestions.map(c => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors flex items-center justify-between"
+                    onMouseDown={() => { setSearch(c.name); setShowSearchSuggestions(false); }}
+                  >
+                    <span className="font-medium">{c.name}</span>
+                    {c.phone && <span className="text-xs text-muted-foreground">{c.phone}</span>}
+                  </button>
+                ))}
+              </div>
+            ) : null;
+          })()}
         </div>
       </div>
 
@@ -309,7 +371,7 @@ export default function SalesPage() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Cliente</Label>
-                <Input value={clientName} onChange={e => setClientName(e.target.value)} placeholder="Nome do cliente" />
+                <ContactInputWithPicker value={clientName} onChange={setClientName} />
               </div>
               <div>
                 <Label>Data da Venda</Label>

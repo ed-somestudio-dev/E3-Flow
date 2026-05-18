@@ -19,7 +19,24 @@ export default function SettingsPage() {
 
   const handleSave = async () => {
     setSaving(true);
-    try { await save(form); } finally { setSaving(false); }
+    try { 
+      await save(form); 
+      toast.success('Configurações PIX salvas');
+    } catch {
+      toast.error('Erro ao salvar');
+    } finally { 
+      setSaving(false); 
+    }
+  };
+
+  const handleSaveField = async (field: keyof PixSettingsRow, value: any) => {
+    const newForm = { ...form, [field]: value };
+    setForm(newForm);
+    try { 
+      await save(newForm); 
+    } catch {
+      toast.error('Erro ao salvar configuração');
+    }
   };
 
   const handleStampPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -176,7 +193,7 @@ export default function SettingsPage() {
           </div>
           <Switch
             checked={form.remindersEnabled}
-            onCheckedChange={(v) => setForm({ ...form, remindersEnabled: v })}
+            onCheckedChange={(v) => handleSaveField('remindersEnabled', v)}
           />
         </div>
 
@@ -186,6 +203,7 @@ export default function SettingsPage() {
             type="number" min={0} max={30}
             value={form.reminderDaysBefore}
             onChange={e => setForm({ ...form, reminderDaysBefore: Math.max(0, Math.min(30, parseInt(e.target.value) || 0)) })}
+            onBlur={() => handleSaveField('reminderDaysBefore', form.reminderDaysBefore)}
             disabled={!form.remindersEnabled}
             placeholder="3"
           />
@@ -194,10 +212,7 @@ export default function SettingsPage() {
           </p>
         </div>
 
-        <Button onClick={handleSave} disabled={saving} className="w-full sm:w-auto">
-          <Save className="h-4 w-4 mr-2" />
-          {saving ? 'Salvando...' : 'Salvar lembretes'}
-        </Button>
+        {/* Botão de salvar removido - salvamento automático */}
       </div>
 
       {/* Módulo de Vendas */}
@@ -219,7 +234,7 @@ export default function SettingsPage() {
           </div>
           <Switch
             checked={form.salesModuleEnabled}
-            onCheckedChange={(v) => setForm({ ...form, salesModuleEnabled: v })}
+            onCheckedChange={(v) => handleSaveField('salesModuleEnabled', v)}
           />
         </div>
 
@@ -230,10 +245,7 @@ export default function SettingsPage() {
           </div>
         )}
 
-        <Button onClick={handleSave} disabled={saving} className="w-full sm:w-auto">
-          <Save className="h-4 w-4 mr-2" />
-          {saving ? 'Salvando...' : 'Salvar configurações'}
-        </Button>
+        {/* Botão de salvar removido - salvamento automático */}
       </div>
     </div>
   );

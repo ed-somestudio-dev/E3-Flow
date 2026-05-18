@@ -4,6 +4,7 @@ import { useAuth } from './auth-context';
 import { toast } from 'sonner';
 import { assertOnline } from './online-guard';
 import { enqueueMutation, saveSnapshot, loadSnapshot } from './offline-store';
+import { Preferences } from '@capacitor/preferences';
 
 export interface PixSettingsRow {
   pixKey: string;
@@ -43,26 +44,56 @@ export function PixSettingsProvider({ children }: { children: React.ReactNode })
 
   const refresh = useCallback(async () => {
     if (!user) { setSettings(empty); setLoaded(true); return; }
-    const { data, error } = await supabase
-      .from('user_settings')
-      .select('*')
-      .eq('user_id', user.id)
-      .maybeSingle();
-    if (error) console.error(error);
-    if (data) {
-      setSettings({
-        pixKey: data.pix_key || '',
-        pixKeyType: data.pix_key_type || 'cpf',
-        beneficiaryName: data.beneficiary_name || '',
-        beneficiaryCity: data.beneficiary_city || '',
-        beneficiaryDocument: data.beneficiary_document || '',
-        receiptStampUrl: (data as any).receipt_stamp_url || '',
-        remindersEnabled: (data as any).reminders_enabled ?? true,
-        reminderDaysBefore: (data as any).reminder_days_before ?? 3,
-        salesModuleEnabled: (data as any).sales_module_enabled ?? false,
-      });
+    
+    const isOnline = assertOnline();
+
+    if (isOnline) {
+      const { data, error } = await supabase
+        .from('user_settings')
+        .select('*')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      if (error) console.error(error);
+      if (data) {
+        const newSettings = {
+          pixKey: data.pix_key || '',
+          pixKeyType: data.pix_key_type || 'cpf',
+          beneficiaryName: data.beneficiary_name || '',
+          beneficiaryCity: data.beneficiary_city || '',
+          beneficiaryDocument: data.beneficiary_document || '',
+          receiptStampUrl: (data as any).receipt_stamp_url || '',
+          remindersEnabled: (data as any).reminders_enabled ?? true,
+          reminderDaysBefore: (data as any).reminder_days_before ?? 3,
+          salesModuleEnabled: (data as any).sales_module_enabled ?? false,
+        };
+        setSettings(newSettings);
+        await Preferences.set({ key: `pix_settings_${user.id}`, value: JSON.stringify(newSettings) });
+        
+        // Cache da imagem da assinatura para funcionar offline
+        if (newSettings.receiptStampUrl) {
+          try {
+            const res = await fetch(newSettings.receiptStampUrl);
+            const blob = await res.blob();
+            const reader = new FileReader();
+            reader.onloadend = async () => {
+              await Preferences.set({ key: `stamp_cache_${newSettings.receiptStampUrl}`, value: reader.result as string });
+            };
+            reader.readAsDataURL(blob);
+          } catch (e) {
+            console.warn('Falha ao armazenar cache da assinatura offline', e);
+          }
+        }
+      } else {
+        setSettings(empty);
+        if (!error) await Preferences.set({ key: `pix_settings_${user.id}`, value: JSON.stringify(empty) });
+      }
     } else {
-      setSettings(empty);
+      const { value } = await Preferences.get({ key: `pix_settings_${user.id}` });
+      if (value) {
+        try { setSettings(JSON.parse(value)); } catch (e) { setSettings(empty); }
+      } else {
+        setSettings(empty);
+      }
     }
     setLoaded(true);
   }, [user]);
@@ -101,11 +132,16 @@ export function PixSettingsProvider({ children }: { children: React.ReactNode })
     }
 
     setSettings(s);
-    toast.success('Configurações salvas');
+    await Preferences.set({ key: `pix_settings_${user.id}`, value: JSON.stringify(s) });
+    // Somente mostra toast de sucesso se não for offline
+    if (isOnline) {
+      toast.success('Configurações salvas');
+    }
   }, [user]);
 
   const uploadStamp = useCallback(async (file: File): Promise<string> => {
     if (!user) throw new Error('Usuário não autenticado');
+    if (!assertOnline()) throw new Error('É necessário conexão com a internet para enviar uma nova assinatura.');
     if (file.size > 2 * 1024 * 1024) throw new Error('Imagem deve ter no máximo 2MB');
     const ext = file.name.split('.').pop()?.toLowerCase() || 'png';
     const path = `${user.id}/stamp-${Date.now()}.${ext}`;
@@ -115,6 +151,16 @@ export function PixSettingsProvider({ children }: { children: React.ReactNode })
     if (error) throw error;
     const { data } = supabase.storage.from('receipt-stamps').getPublicUrl(path);
     const url = data.publicUrl;
+    
+    // Cache immediate
+    try {
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        await Preferences.set({ key: `stamp_cache_${url}`, value: reader.result as string });
+      };
+      reader.readAsDataURL(file);
+    } catch (e) {}
+
     await save({ ...settings, receiptStampUrl: url });
     return url;
   }, [user, settings, save]);

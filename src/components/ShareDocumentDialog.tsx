@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { FileText, Image as ImageIcon, Share2, Loader2, Copy, Check, Send } from 'lucide-react';
 import { downloadBlob, shareBlob } from '@/lib/documents';
+import { Capacitor } from '@capacitor/core';
 import { toast } from 'sonner';
 
 interface Props {
@@ -65,18 +66,27 @@ export function ShareDocumentDialog({ open, onOpenChange, title, filenameBase, g
 
   const sharePix = async () => {
     if (!pixCode) return;
-    const nav = navigator as any;
-    if (nav.share) {
+    
+    if (Capacitor.isNativePlatform()) {
       try {
-        await nav.share({ title, text: pixCode });
+        const { Share } = await import('@capacitor/share');
+        await Share.share({ title, text: pixCode, dialogTitle: 'Compartilhar PIX' });
         return;
-      } catch { /* user cancelled */ }
+      } catch { /* user cancelled or error */ }
+    } else {
+      const nav = navigator as any;
+      if (nav.share) {
+        try {
+          await nav.share({ title, text: pixCode });
+          return;
+        } catch { /* user cancelled */ }
+      }
     }
     await copyPix();
   };
 
-  const canShare = typeof navigator !== 'undefined' && (navigator as any).canShare;
-  const canShareText = typeof navigator !== 'undefined' && !!(navigator as any).share;
+  const canShare = Capacitor.isNativePlatform() || (typeof navigator !== 'undefined' && !!(navigator as any).canShare);
+  const canShareText = Capacitor.isNativePlatform() || (typeof navigator !== 'undefined' && !!(navigator as any).share);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

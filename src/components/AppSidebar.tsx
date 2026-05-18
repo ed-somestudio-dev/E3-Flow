@@ -80,24 +80,6 @@ export function AppSidebar() {
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
-          <SidebarGroup>
-            <SidebarGroupLabel>Gerenciar</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {manageItems.map(item => (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton asChild>
-                      <NavLink to={item.url} activeClassName="bg-sidebar-accent text-sidebar-primary font-medium">
-                        <item.icon className="h-4 w-4 mr-2" />
-                        {!collapsed && <span>{item.title}</span>}
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-
           {salesEnabled && (
             <SidebarGroup>
               <SidebarGroupLabel>Vendas</SidebarGroupLabel>
@@ -123,6 +105,26 @@ export function AppSidebar() {
               </SidebarGroupContent>
             </SidebarGroup>
           )}
+
+          <SidebarGroup>
+            <SidebarGroupLabel>Gerenciar</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {manageItems.map(item => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton asChild>
+                      <NavLink to={item.url} activeClassName="bg-sidebar-accent text-sidebar-primary font-medium">
+                        <item.icon className="h-4 w-4 mr-2" />
+                        {!collapsed && <span>{item.title}</span>}
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+
+
         </SidebarContent>
         <SidebarFooter>
           <Collapsible open={moreOpen} onOpenChange={setMoreOpen}>

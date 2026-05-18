@@ -56,6 +56,8 @@ export default function ReceivablesPage() {
   const [dateTo, setDateTo] = useState<Date | undefined>(endOfMonth(new Date()));
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [pixWarningOpen, setPixWarningOpen] = useState(false);
+  const [bulkPartialMode, setBulkPartialMode] = useState(false);
+  const [bulkPartialAmount, setBulkPartialAmount] = useState('');
 
   // Share dialog state
   const [shareOpen, setShareOpen] = useState(false);
@@ -129,8 +131,14 @@ export default function ReceivablesPage() {
     const first = data.receivables.find(r => r.id === ids[0]);
     setReceivingIds(ids);
     setReceiveAccountId(first?.accountId || data.accounts[0]?.id || '');
-    setPartialMode(false);
-    setPartialAmount('');
+    // Se o modo parcial da barra estiver ativo, já preenche o dialog
+    if (bulkPartialMode && bulkPartialAmount) {
+      setPartialMode(true);
+      setPartialAmount(bulkPartialAmount);
+    } else {
+      setPartialMode(false);
+      setPartialAmount('');
+    }
     setShowReceiveItems(false);
     setReceiveDialogOpen(true);
   };
@@ -409,16 +417,88 @@ export default function ReceivablesPage() {
         <span className="text-lg font-bold text-success mono">{fmt(totalFiltered)}</span>
         <span className="text-xs text-muted-foreground">({filtered.length} {filtered.length === 1 ? 'item' : 'itens'})</span>
         {selectedIds.size > 0 && (
-          <div className="ml-auto flex items-center gap-2 flex-wrap">
-            <span className="text-xs text-muted-foreground">Selecionado: <strong className="text-foreground mono">{fmt(selectedTotal)}</strong> ({selectedIds.size})</span>
-            <Button size="sm" variant="outline" onClick={handleGenerateChargesSelected}>
-              <QrCode className="h-4 w-4 mr-1" />
-              Gerar boleto PIX
-            </Button>
-            <Button size="sm" className="bg-success text-success-foreground hover:bg-success/90" onClick={handleReceiveSelected}>
-              <CheckCircle className="h-4 w-4 mr-1" />
-              Receber selecionados
-            </Button>
+          <div className="ml-auto flex flex-col gap-2 items-end w-full sm:w-auto">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs text-muted-foreground">Selecionado: <strong className="text-foreground mono">{fmt(selectedTotal)}</strong> ({selectedIds.size})</span>
+              <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-background border border-border">
+                <Checkbox
+                  id="bulkPartial"
+                  checked={bulkPartialMode}
+                  onCheckedChange={(c) => {
+                    const checked = c === true;
+                    setBulkPartialMode(checked);
+                    if (checked && !bulkPartialAmount) setBulkPartialAmount((selectedTotal / 2).toFixed(2));
+                    if (!checked) setBulkPartialAmount('');
+                  }}
+                />
+                <Label htmlFor="bulkPartial" className="cursor-pointer text-xs whitespace-nowrap">Parcial</Label>
+              </div>
+            </div>
+            {bulkPartialMode && (
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  max={selectedTotal}
+                  value={bulkPartialAmount}
+                  onChange={(e) => setBulkPartialAmount(e.target.value)}
+                  placeholder="Valor parcial"
+                  className="h-8 w-36 text-sm"
+                />
+                {bulkPartialAmount && parseFloat(bulkPartialAmount) > 0 && parseFloat(bulkPartialAmount) < selectedTotal && (
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">
+                    Restante: <strong className="mono text-success">{fmt(selectedTotal - parseFloat(bulkPartialAmount))}</strong>
+                  </span>
+                )}
+              </div>
+            )}
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button size="sm" variant="outline" onClick={() => {
+                if (bulkPartialMode && bulkPartialAmount && parseFloat(bulkPartialAmount) > 0) {
+                  // Gerar boleto PIX com valor parcial
+                  if (!isConfigured) { setPixWarningOpen(true); return; }
+                  const items = Array.from(selectedIds).map(id => data.receivables.find(r => r.id === id)).filter(Boolean) as Receivable[];
+                  if (items.length === 0) return;
+                  const amt = parseFloat(bulkPartialAmount);
+                  const r = items[0];
+                  const clientName = items.every(i => i.clientName === r.clientName) ? r.clientName : 'Diversos';
+                  const description = items.length > 1
+                    ? `Pagamento parcial \u2014 ${items.length} cobran\u00e7as`
+                    : `${r.description} (parcial)`;
+                  openShare({
+                    title: 'Boleto PIX \u2014 Valor Parcial',
+                    filenameBase: `cobranca-parcial-${clientName.replace(/\s+/g, '_')}-${format(new Date(), 'yyyy-MM-dd')}`,
+                    generatePDF: () => generateChargePDF({
+                      id: r.id, clientName, description, amount: amt, dueDate: r.dueDate,
+                    }, pixSettings),
+                    generatePNG: () => generateChargePNG({
+                      id: r.id, clientName, description, amount: amt, dueDate: r.dueDate,
+                    }, pixSettings),
+                    pixCopyText: (async () => {
+                      const { generatePixBRCode } = await import('@/lib/pix');
+                      return generatePixBRCode({
+                        pixKey: pixSettings.pixKey, amount: amt,
+                        beneficiaryName: pixSettings.beneficiaryName,
+                        beneficiaryCity: pixSettings.beneficiaryCity,
+                        txid: r.id.replace(/-/g, '').substring(0, 25), description,
+                      });
+                    })(),
+                  });
+                } else {
+                  handleGenerateChargesSelected();
+                }
+              }}>
+                <QrCode className="h-4 w-4 mr-1" />
+                {bulkPartialMode && bulkPartialAmount && parseFloat(bulkPartialAmount) > 0
+                  ? `Boleto PIX ${fmt(parseFloat(bulkPartialAmount))}`
+                  : 'Gerar boleto PIX'}
+              </Button>
+              <Button size="sm" className="bg-success text-success-foreground hover:bg-success/90" onClick={handleReceiveSelected}>
+                <CheckCircle className="h-4 w-4 mr-1" />
+                {bulkPartialMode ? 'Receber parcial' : 'Receber selecionados'}
+              </Button>
+            </div>
           </div>
         )}
       </div>
@@ -564,7 +644,7 @@ export default function ReceivablesPage() {
                   </Label>
                 </div>
                 {partialMode && (
-                  <div className="space-y-1">
+                  <div className="space-y-2">
                     <Label className="text-xs text-muted-foreground">
                       {recItems.length > 1 ? 'Valor recebido agora (FIFO — quita os mais antigos primeiro)' : 'Valor recebido agora'}
                     </Label>
@@ -577,6 +657,49 @@ export default function ReceivablesPage() {
                     )}
                     {partialAmount && parseFloat(partialAmount) >= receivingTotal && (
                       <p className="text-xs text-warning">Valor igual ou maior que o total — será registrado como recebimento integral.</p>
+                    )}
+                    {isConfigured && partialAmount && parseFloat(partialAmount) > 0 && parseFloat(partialAmount) < receivingTotal && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="w-full gap-2 border-primary/40 text-primary hover:bg-primary/10"
+                        onClick={() => {
+                          const amt = parseFloat(partialAmount);
+                          if (!amt || amt <= 0) return;
+                          const r = recItems[0];
+                          const clientName = recItems.every(i => i.clientName === r.clientName) ? r.clientName : 'Diversos';
+                          const description = recItems.length > 1
+                            ? `Pagamento parcial — ${recItems.length} cobranças`
+                            : `${r.description} (parcial)`;
+                          openShare({
+                            title: 'Boleto PIX — Valor Parcial',
+                            filenameBase: `cobranca-parcial-${clientName.replace(/\s+/g, '_')}-${format(new Date(), 'yyyy-MM-dd')}`,
+                            generatePDF: () => generateChargePDF({
+                              id: r.id, clientName, description, amount: amt,
+                              dueDate: r.dueDate,
+                            }, pixSettings),
+                            generatePNG: () => generateChargePNG({
+                              id: r.id, clientName, description, amount: amt,
+                              dueDate: r.dueDate,
+                            }, pixSettings),
+                            pixCopyText: (async () => {
+                              const { generatePixBRCode } = await import('@/lib/pix');
+                              return generatePixBRCode({
+                                pixKey: pixSettings.pixKey,
+                                amount: amt,
+                                beneficiaryName: pixSettings.beneficiaryName,
+                                beneficiaryCity: pixSettings.beneficiaryCity,
+                                txid: r.id.replace(/-/g, '').substring(0, 25),
+                                description,
+                              });
+                            })(),
+                          });
+                        }}
+                      >
+                        <QrCode className="h-4 w-4" />
+                        Gerar Boleto PIX com valor parcial ({partialAmount ? fmt(parseFloat(partialAmount)) : ''})
+                      </Button>
                     )}
                   </div>
                 )}

@@ -509,11 +509,21 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
 
       // 1. Handle financial integration (cancelling or completing)
       if (status === "cancelled") {
-        const saleIdShort = id.slice(0, 8).toUpperCase();
-        const rec = finance.data.receivables.find(
-          (r) => r.description?.includes(`Venda #${saleIdShort}`) && r.status === "pending",
-        );
-        if (rec) await finance.deleteReceivable(rec.id);
+        // Primeiro tenta pelo receivableId direto (venda a prazo com link explícito)
+        if (sale.receivableId) {
+          const rec = finance.data.receivables.find(r => r.id === sale.receivableId);
+          if (rec) {
+            await finance.deleteReceivable(rec.id);
+            toast.info('Conta a receber vinculada foi excluída.');
+          }
+        } else {
+          // Fallback: busca por descrição para vendas antigas sem receivable_id
+          const saleIdShort = id.slice(0, 8).toUpperCase();
+          const rec = finance.data.receivables.find(
+            (r) => r.description?.includes(`Venda #${saleIdShort}`) && r.status === "pending",
+          );
+          if (rec) await finance.deleteReceivable(rec.id);
+        }
       } else if (status === "completed" && sale.status === "pending" && sale.receivableId) {
         const rec = finance.data.receivables.find(r => r.id === sale.receivableId);
         if (rec && rec.status === 'pending') {

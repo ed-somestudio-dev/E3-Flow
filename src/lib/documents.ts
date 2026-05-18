@@ -2,6 +2,9 @@ import jsPDF from 'jspdf';
 import QRCode from 'qrcode';
 import { generatePixBRCode } from './pix';
 import { fmt, fmtDate } from './format';
+import { Capacitor } from '@capacitor/core';
+import { Share } from '@capacitor/share';
+import { Filesystem, Directory } from '@capacitor/filesystem';
 
 export interface PixSettings {
   pixKey: string;
@@ -218,6 +221,16 @@ export async function generateReceiptPNG(receipt: ReceiptData, pix: PixSettings 
 
 // Carrega imagem externa e converte para data URL (necessário para incluir no PDF)
 async function loadImageAsDataUrl(url: string): Promise<string> {
+  if (url.startsWith('data:image')) return url;
+  
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const { Preferences } = await import('@capacitor/preferences');
+      const { value } = await Preferences.get({ key: `stamp_cache_${url}` });
+      if (value) return value;
+    } catch {}
+  }
+
   const res = await fetch(url, { mode: 'cors' });
   const blob = await res.blob();
   return new Promise((resolve, reject) => {
@@ -354,14 +367,24 @@ function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number)
   return lines;
 }
 
-function loadImage(src: string): Promise<HTMLImageElement> {
+async function loadImage(src: string): Promise<HTMLImageElement> {
+  let finalSrc = src;
+  
+  if (Capacitor.isNativePlatform() && src.startsWith('http')) {
+    try {
+      const { Preferences } = await import('@capacitor/preferences');
+      const { value } = await Preferences.get({ key: `stamp_cache_${src}` });
+      if (value) finalSrc = value;
+    } catch {}
+  }
+
   return new Promise((resolve, reject) => {
     const img = new Image();
     // habilita CORS para imagens externas (carimbo armazenado no Supabase Storage)
-    if (src.startsWith('http')) img.crossOrigin = 'anonymous';
+    if (finalSrc.startsWith('http')) img.crossOrigin = 'anonymous';
     img.onload = () => resolve(img);
     img.onerror = reject;
-    img.src = src;
+    img.src = finalSrc;
   });
 }
 
@@ -379,6 +402,36 @@ export function downloadBlob(blob: Blob, filename: string) {
 }
 
 export async function shareBlob(blob: Blob, filename: string, title: string): Promise<boolean> {
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const reader = new FileReader();
+      reader.readAsDataURL(blob);
+      const base64Data = await new Promise<string>((resolve, reject) => {
+        reader.onloadend = () => {
+          const result = reader.result as string;
+          resolve(result.split(',')[1]);
+        };
+        reader.onerror = reject;
+      });
+
+      const writeResult = await Filesystem.writeFile({
+        path: filename,
+        data: base64Data,
+        directory: Directory.Cache,
+      });
+
+      await Share.share({
+        title,
+        url: writeResult.uri,
+        dialogTitle: 'Compartilhar',
+      });
+      return true;
+    } catch (e) {
+      console.error('Erro ao compartilhar nativo:', e);
+      return false;
+    }
+  }
+
   const file = new File([blob], filename, { type: blob.type });
   const nav = navigator as any;
   if (nav.canShare && nav.canShare({ files: [file] })) {
