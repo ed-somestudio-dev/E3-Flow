@@ -45,7 +45,7 @@ export function PixSettingsProvider({ children }: { children: React.ReactNode })
   const refresh = useCallback(async () => {
     if (!user) { setSettings(empty); setLoaded(true); return; }
     
-    const isOnline = assertOnline();
+    const isOnline = assertOnline() && !user.id.startsWith('guest_');
 
     if (isOnline) {
       const { data, error } = await supabase
@@ -104,7 +104,7 @@ export function PixSettingsProvider({ children }: { children: React.ReactNode })
 
   const save = useCallback(async (s: PixSettingsRow) => {
     if (!user) return;
-    const isOnline = assertOnline();
+    const isOnline = assertOnline() && !user.id.startsWith('guest_');
 
     const payload = {
       user_id: user.id,

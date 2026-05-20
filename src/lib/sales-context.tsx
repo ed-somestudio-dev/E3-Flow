@@ -110,7 +110,7 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
     }
     setLoadingProducts(true);
     try {
-      const isOnline = assertOnline();
+      const isOnline = assertOnline() && !user.id.startsWith('guest_');
       if (isOnline) {
         const { data, error } = await supabase
           .from("products")
@@ -142,7 +142,7 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
     }
     setLoadingSales(true);
     try {
-      const isOnline = assertOnline();
+      const isOnline = assertOnline() && !user.id.startsWith('guest_');
       if (isOnline) {
         const { data, error } = await supabase
           .from("sales")
@@ -176,7 +176,7 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
   const addProduct = useCallback(
     async (p: Omit<Product, "id">) => {
       if (!user) return;
-      const isOnline = assertOnline();
+      const isOnline = assertOnline() && !user.id.startsWith('guest_');
       const id = generateId();
       const payload = {
         id,
@@ -226,7 +226,7 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
   const updateProduct = useCallback(
     async (p: Product) => {
       if (!user) return;
-      const isOnline = assertOnline();
+      const isOnline = assertOnline() && !user.id.startsWith('guest_');
       const payload = {
         name: p.name,
         description: p.description || null,
@@ -276,7 +276,7 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
   const deleteProduct = useCallback(
     async (id: string) => {
       if (!user) return;
-      const isOnline = assertOnline();
+      const isOnline = assertOnline() && !user.id.startsWith('guest_');
 
       setProducts(prev => {
         const next = prev.filter(p => p.id !== id);
@@ -321,7 +321,7 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
       accountId?: string,
     ): Promise<Sale | null> => {
       if (!user) return null;
-      const isOnline = assertOnline();
+      const isOnline = assertOnline() && !user.id.startsWith('guest_');
       const total = payload.items.reduce((s, i) => s + i.total, 0);
       const saleId = generateId();
 
@@ -496,7 +496,7 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
   const updateSaleStatus = useCallback(
     async (id: string, status: SaleStatus) => {
       if (!user) return;
-      const isOnline = assertOnline();
+      const isOnline = assertOnline() && !user.id.startsWith('guest_');
       const sale = sales.find((s) => s.id === id);
       if (!sale || sale.status === status) return;
 
@@ -598,7 +598,7 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
   const deleteSale = useCallback(
     async (id: string) => {
       if (!user) return;
-      const isOnline = assertOnline();
+      const isOnline = assertOnline() && !user.id.startsWith('guest_');
       const sale = sales.find((s) => s.id === id);
       if (!sale) return;
 

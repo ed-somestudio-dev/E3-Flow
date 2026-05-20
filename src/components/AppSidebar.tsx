@@ -77,34 +77,29 @@ export function AppSidebar() {
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 ))}
+                {salesEnabled && (
+                  <>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild>
+                        <NavLink to="/sales" activeClassName="bg-sidebar-accent text-sidebar-primary font-medium">
+                          <ShoppingCart className="h-4 w-4 mr-2" />
+                          {!collapsed && <span>Vendas</span>}
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild>
+                        <NavLink to="/products" activeClassName="bg-sidebar-accent text-sidebar-primary font-medium">
+                          <Package className="h-4 w-4 mr-2" />
+                          {!collapsed && <span>Produtos</span>}
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  </>
+                )}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
-          {salesEnabled && (
-            <SidebarGroup>
-              <SidebarGroupLabel>Vendas</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                      <NavLink to="/sales" activeClassName="bg-sidebar-accent text-sidebar-primary font-medium">
-                        <ShoppingCart className="h-4 w-4 mr-2" />
-                        {!collapsed && <span>Vendas</span>}
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                      <NavLink to="/products" activeClassName="bg-sidebar-accent text-sidebar-primary font-medium">
-                        <Package className="h-4 w-4 mr-2" />
-                        {!collapsed && <span>Produtos</span>}
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-          )}
 
           <SidebarGroup>
             <SidebarGroupLabel>Gerenciar</SidebarGroupLabel>

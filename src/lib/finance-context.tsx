@@ -143,12 +143,14 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   const fetchAll = useCallback(async () => {
     if (!user) { setData(emptyData); setLoading(false); return; }
 
-    // Se estiver offline, restaura o último snapshot e encerra.
-    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    // Se estiver offline ou for visitante, restaura o último snapshot e encerra.
+    if ((typeof navigator !== 'undefined' && !navigator.onLine) || user.id.startsWith('guest_')) {
       const snap = await loadSnapshot(user.id);
       if (snap) {
         setData(snap.data);
-        toast.info('Modo offline: exibindo dados salvos no dispositivo');
+        if (!user.id.startsWith('guest_')) {
+          toast.info('Modo offline: exibindo dados salvos no dispositivo');
+        }
       }
       setLoading(false);
       return;
@@ -274,12 +276,12 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       }, 5000);
 
       try {
-        const isOnline = typeof navigator !== 'undefined' && navigator.onLine;
+        const isOnline = typeof navigator !== 'undefined' && navigator.onLine && !user.id.startsWith('guest_');
         if (isOnline) {
           console.log('[FinanceProvider] Online: Sincronizando...');
           await syncOfflineMutations(user.id).catch(e => console.error('Sync failed:', e));
         } else {
-          console.log('[FinanceProvider] Offline: Carregando snapshot...');
+          console.log('[FinanceProvider] Offline ou Visitante: Carregando snapshot...');
         }
         
         await fetchAll();
@@ -329,7 +331,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   }, [data.accounts]);
 
   const persistAccountAdjustments = useCallback(async (adjustments: Record<string, AccountAdjustment>) => {
-    const isOnline = assertOnline();
+    const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
     const updates = [];
     const localAccountUpdates: FinancialAccount[] = [];
 
@@ -375,7 +377,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
   const adjustCreditCardInvoice = useCallback(async (acc: FinancialAccount, amountDelta: number, txDate: string) => {
     if (!user) return;
-    const isOnline = assertOnline();
+    const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
     const closeDay = acc.billingCloseDay || 1;
     const dueDay = acc.dueDay || 10;
     const d = new Date(txDate + 'T12:00:00');
@@ -484,7 +486,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   // --- Transactions ---
   const addTransaction = useCallback(async (tx: Omit<Transaction, 'id'>) => {
     if (!user) return;
-    const isOnline = assertOnline();
+    const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
     const id = generateId();
     const payload = {
       id,
@@ -534,7 +536,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
   const updateTransaction = useCallback(async (tx: Transaction) => {
     if (!user) return;
-    const isOnline = assertOnline();
+    const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
     const old = data.transactions.find(t => t.id === tx.id);
     
     const payload = {
@@ -595,7 +597,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
   const deleteTransaction = useCallback(async (id: string) => {
     if (!user) return;
-    const isOnline = assertOnline();
+    const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
     const tx = data.transactions.find(t => t.id === id);
 
     if (isOnline) {
@@ -640,7 +642,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   // --- Payables ---
   const addPayable = useCallback(async (p: Omit<Payable, 'id'>, installments?: number, isCredit?: boolean, recurrence?: { frequency: 'weekly' | 'monthly' | 'yearly'; occurrences: number }) => {
     if (!user) return;
-    const isOnline = assertOnline();
+    const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
 
     // Recurring expansion (independent of installments) — generates N concrete records
     if (recurrence && recurrence.occurrences > 1) {
@@ -870,7 +872,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
   const updatePayable = useCallback(async (p: Payable) => {
     if (!user) return;
-    const isOnline = assertOnline();
+    const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
     const payload = {
       description: p.description, 
       supplier: p.supplier,
@@ -907,7 +909,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
   const deletePayable = useCallback(async (id: string) => {
     if (!user) return;
-    const isOnline = assertOnline();
+    const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
 
     if (isOnline) {
       const { error } = await supabase.from('payables').delete().eq('id', id).eq('user_id', user.id);
@@ -935,7 +937,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   // Considera "futuras" as contas com due_date >= due_date da atual.
   const deletePayableWithFuture = useCallback(async (id: string): Promise<number> => {
     if (!user) return 0;
-    const isOnline = assertOnline();
+    const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
     const target = data.payables.find(p => p.id === id);
     if (!target) return 0;
     const stripSuffix = (s: string) => s.replace(/\s*\(\d+\/\d+\)\s*$/, '').trim().toLowerCase();
@@ -975,7 +977,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
   const markPayablePaid = useCallback(async (id: string, accountId?: string) => {
     if (!user) return;
-    const isOnline = assertOnline();
+    const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
     const payable = data.payables.find(x => x.id === id);
     const targetAccountId = accountId || payable?.accountId;
     const today = new Date().toISOString().split('T')[0];
@@ -1061,7 +1063,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
   const markPayablePaidPartial = useCallback(async (id: string, accountId: string, paidAmount: number) => {
     if (!user) return;
-    const isOnline = assertOnline();
+    const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
     const payable = data.payables.find(x => x.id === id);
     if (!payable) { toast.error('Conta não encontrada'); return; }
     if (paidAmount <= 0) { toast.error('Valor pago deve ser maior que zero'); return; }
@@ -1188,7 +1190,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   // --- Receivables ---
   const addReceivable = useCallback(async (r: Omit<Receivable, 'id'>, installments?: number, recurrence?: { frequency: 'weekly' | 'monthly' | 'yearly'; occurrences: number }) => {
     if (!user) return;
-    const isOnline = assertOnline();
+    const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
 
     // Recurring expansion — generates N concrete records visible in calculations and reports
     if (recurrence && recurrence.occurrences > 1) {
@@ -1320,7 +1322,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
   const updateReceivable = useCallback(async (r: Receivable) => {
     if (!user) return;
-    const isOnline = assertOnline();
+    const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
     const payload = {
       client_name: r.clientName, 
       description: r.description,
@@ -1357,7 +1359,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
   const deleteReceivable = useCallback(async (id: string) => {
     if (!user) return;
-    const isOnline = assertOnline();
+    const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
 
     if (isOnline) {
       const { error } = await supabase.from('receivables').delete().eq('id', id).eq('user_id', user.id);
@@ -1381,7 +1383,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
   const markReceivableReceived = useCallback(async (id: string, accountId?: string) => {
     if (!user) return;
-    const isOnline = assertOnline();
+    const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
     const receivable = data.receivables.find(x => x.id === id);
     if (!receivable || receivable.status === 'received') return;
 
@@ -1476,7 +1478,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
   const markReceivableReceivedPartial = useCallback(async (id: string, accountId: string, receivedAmount: number) => {
     if (!user) return;
-    const isOnline = assertOnline();
+    const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
     const receivable = data.receivables.find(x => x.id === id);
     if (!receivable || receivable.status === 'received') return;
     if (receivedAmount <= 0) { toast.error('Valor recebido deve ser maior que zero'); return; }
@@ -1602,7 +1604,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   // --- Accounts ---
   const addAccount = useCallback(async (a: Omit<FinancialAccount, 'id'>) => {
     if (!user) return;
-    const isOnline = assertOnline();
+    const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
     const id = generateId();
     
     // Defensive payload construction
@@ -1643,7 +1645,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
   const updateAccount = useCallback(async (a: FinancialAccount) => {
     if (!user) return;
-    const isOnline = assertOnline();
+    const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
     
     const payload = {
       name: (a.name || '').trim(),
@@ -1683,7 +1685,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
   const deleteAccount = useCallback(async (id: string) => {
     if (!user) return;
-    const isOnline = assertOnline();
+    const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
 
     if (isOnline) {
       const { error } = await supabase.from('financial_accounts').delete().eq('id', id).eq('user_id', user.id);
@@ -1707,7 +1709,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
   const transferBetweenAccounts = useCallback(async (fromId: string, toId: string, amount: number) => {
     if (!user) return;
-    const isOnline = assertOnline();
+    const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
     const fromAcc = data.accounts.find(a => a.id === fromId);
     const toAcc = data.accounts.find(a => a.id === toId);
     if (!fromAcc || !toAcc) return;
@@ -1749,7 +1751,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   // --- Budgets ---
   const addBudget = useCallback(async (b: Omit<Budget, 'id'>) => {
     if (!user) return;
-    const isOnline = assertOnline();
+    const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
     const id = generateId();
     const payload = {
       id,
@@ -1775,7 +1777,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
   const updateBudget = useCallback(async (b: Budget) => {
     if (!user) return;
-    const isOnline = assertOnline();
+    const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
     const payload = { category_id: b.categoryId, amount: b.amount, month: b.month };
 
     if (isOnline) {
@@ -1800,7 +1802,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
   const deleteBudget = useCallback(async (id: string) => {
     if (!user) return;
-    const isOnline = assertOnline();
+    const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
 
     if (isOnline) {
       const { error } = await supabase.from('budgets').delete().eq('id', id).eq('user_id', user.id);
@@ -1825,7 +1827,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   // --- Categories ---
   const addCategory = useCallback(async (c: Omit<Category, 'id'>) => {
     if (!user) return;
-    const isOnline = assertOnline();
+    const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
     const id = generateId();
     const payload = {
       id,
@@ -1851,7 +1853,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
   const updateCategory = useCallback(async (c: Category) => {
     if (!user) return;
-    const isOnline = assertOnline();
+    const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
     const payload = {
       name: c.name, type: c.type, icon: c.icon, color: c.color,
     };
@@ -1878,7 +1880,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
   const deleteCategory = useCallback(async (id: string) => {
     if (!user) return;
-    const isOnline = assertOnline();
+    const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
 
     if (isOnline) {
       const { error } = await supabase.from('categories').delete().eq('id', id).eq('user_id', user.id);
@@ -1902,7 +1904,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
   const addContact = useCallback(async (c: Omit<Contact, 'id'>) => {
     if (!user) return null;
-    const isOnline = assertOnline();
+    const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
     const id = generateId();
     const payload = {
       id,
@@ -1947,7 +1949,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
   const updateContact = useCallback(async (c: Contact) => {
     if (!user) return;
-    const isOnline = assertOnline();
+    const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
     const payload = {
       name: c.name,
       phone: c.phone || null,
@@ -1977,7 +1979,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
   const deleteContact = useCallback(async (id: string) => {
     if (!user) return;
-    const isOnline = assertOnline();
+    const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
 
     if (isOnline) {
       const { error } = await supabase.from('contacts').delete().eq('id', id).eq('user_id', user.id);
@@ -2000,7 +2002,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
   const importContacts = useCallback(async (list: Omit<Contact, 'id'>[]) => {
     if (!user || list.length === 0) return 0;
-    const isOnline = assertOnline();
+    const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
     const existingNames = new Set(data.contacts.map(c => c.name.toLowerCase()));
     const fresh = list.filter(c => c.name && !existingNames.has(c.name.toLowerCase()));
     if (fresh.length === 0) return 0;
