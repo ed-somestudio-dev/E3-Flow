@@ -1,0 +1,174 @@
+================================================================
+AUDITORIA DE PRODUCAO - INTEGRACAO ASAAS / FLUXOPRO
+================================================================
+
+================================================================
+O QUE ESTA PRONTO
+================================================================
+
+Schema (apos aplicar as duas migrations pendentes)
+-------------------------------------------------
+- Tabelas: public.subscriptions, public.user_roles (existem).
+- Colunas em subscriptions: id, user_id, asaas_customer_id,
+  asaas_subscription_id, subscription_status, subscription_due_date,
+  subscription_plan, created_at, updated_at, trial_end_date,
+  subscription_cycle (todas as usadas pelo codigo).
+- FK: user_id -> auth.users(id) ON DELETE CASCADE.
+- Trigger update_subscriptions_updated_at reaproveita
+  public.update_updated_at_column() ja criada em 20260316174749_*.
+- RLS habilitado com SELECT proprio e admin; UPDATE/DELETE admin
+  adicionados pelo script de hardening.
+
+Edge Functions
+--------------
+- asaas-checkout: usa SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY
+  (auto), valida JWT do usuario, cria cliente + assinatura no
+  Asaas, grava tudo no banco e devolve invoiceUrl.
+- asaas-webhook: valida ASAAS_WEBHOOK_TOKEN opcional e atualiza
+  subscription_status conforme o evento.
+
+Frontend
+--------
+- PLANS com mensal R$7,90 e anual R$59,90, ciclo Asaas correto.
+- Trial de 14 dias refletido no SubscriptionPage e no banner
+  "Minha Assinatura".
+- SubscriptionProvider expoe isInTrial, trialDaysRemaining, e
+  considera trial como assinatura ativa.
+- Redirecionamento para invoiceUrl do Asaas funciona.
+
+================================================================
+PENDENCIAS PARA PRODUCAO
+================================================================
+
+1) Banco - migrations nao aplicadas
+-----------------------------------
+As duas ultimas ainda nao foram executadas no projeto remoto
+(ctldsqeyhmarhaekxbuu):
+- 20260601120000_subscription_trial.sql
+- 20260601130000_subscriptions_hardening.sql
+
+Sem elas, a edge function quebra (insert em subscription_cycle /
+trial_end_date falha) e o CHECK / indices nao existem. SQL ja
+foi fornecido, basta colar no SQL Editor.
+
+2) Variaveis de ambiente
+------------------------
+.env frontend (com VITE_):
+- VITE_ASAAS_API_KEY: VAZIO. Sem isso o lib/asaas.ts lanca erro
+  em qualquer chamada direta.
+- VITE_ASAAS_WEBHOOK_TOKEN: VAZIO (nao e usado no frontend,
+  pode remover).
+- VITE_ASAAS_API_URL: ja esta em https://api.asaas.com/v3
+  (producao). OK.
+
+Secrets das Edge Functions (Supabase Dashboard -> Edge Functions
+-> Secrets):
+- ASAAS_API_KEY: FALTA. Sem isso a edge function retorna
+  "ASAAS_API_KEY is not set".
+- ASAAS_WEBHOOK_TOKEN: FALTA, mas e opcional. Se configurado no
+  painel do Asaas, recomendado colocar aqui e o header enviado
+  deve bater.
+- ASAAS_API_URL: opcional; default da edge function e
+  sandbox.asaas.com. Para producao, defina
+  https://api.asaas.com/v3 como secret, senao voce estara em
+  sandbox sem perceber.
+
+Obs: a edge function asaas-checkout usa
+Deno.env.get("ASAAS_API_URL") || "https://sandbox.asaas.com/api/v3"
+(linha 59). O frontend usa https://api.asaas.com/v3.
+Inconsistencia: se a edge function for deployada sem o secret,
+vai bater no sandbox.
+
+3) Primeiro admin
+-----------------
+Nao existe seed nem migration que promova alguem a admin em
+public.user_roles. Sem um admin cadastrado, o /admin/subscriptions
+redireciona para / e a aba do painel nao aparece. Acao apos
+deploy: inserir manualmente:
+
+  INSERT INTO public.user_roles (user_id, role)
+  VALUES ('<uuid-do-seu-usuario>', 'admin')
+  ON CONFLICT (user_id) DO UPDATE SET role = 'admin';
+
+4) Webhook Asaas - URL publica
+------------------------------
+A URL do webhook no painel do Asaas deve ser:
+
+  https://ctldsqeyhmarhaekxbuu.supabase.co/functions/v1/asaas-webhook
+
+E os eventos a assinar (no minimo): PAYMENT_RECEIVED,
+PAYMENT_CONFIRMED, PAYMENT_OVERDUE, PAYMENT_DELETED,
+PAYMENT_REFUNDED. Hoje o webhook ignora PAYMENT_DELETED /
+PAYMENT_REFUNDED, ou seja, cancelamentos via Asaas nao propagam
+para o FluxoPro.
+
+5) CORS do webhook
+------------------
+O Access-Control-Allow-Origin: * esta OK para o Asaas (que nao
+envia Origin sensivel), mas se quiser travar para o dominio do
+Asaas apenas, da para endurecer.
+
+6) Recorrencia depois do trial
+------------------------------
+A nextDueDate esta sendo enviada como a data final do trial
+(linha 129 de asaas-checkout/index.ts). Apos o primeiro
+pagamento, a proxima cobranca e gerada +1 mes (ou +1 ano)
+automaticamente pelo Asaas - esta correto. Mas vale testar no
+sandbox que o Asaas aceita nextDueDate 14 dias no futuro em
+conjunto com cycle YEARLY (regra documentada: pelo menos 1 ciclo
+precisa caber dentro).
+
+7) Validacao no checkout
+------------------------
+A edge function confia no price enviado pelo cliente
+(src/lib/subscription-context.tsx:143). Hoje vem de PLANS no
+front, mas se alguem chamar a edge function direto pode forcar
+outro valor. Recomendacao: remover price do payload e calcular
+dentro da edge function a partir de planId.
+
+8) Subscription.status no front
+-------------------------------
+A interface Subscription declara
+  subscription_status: SubscriptionStatus | string
+mas o webhook/admin esperam valores em MAIUSCULO (RECEIVED,
+CONFIRMED, TRIAL, OVERDUE). O tipo SubscriptionStatus (linha 6)
+tem valores minusculos que nunca chegam do banco. Inofensivo,
+mas confuso - vale tipar com os valores reais do Asaas.
+
+9) .env commitado
+-----------------
+O arquivo .env (com a publishable key e placeholder das
+ASAAS_API_KEYs) esta no repositorio e nao no .gitignore.
+Verifique se esta em .gitignore antes de qualquer push publico.
+A publishable key e publica, mas e boa pratica manter o arquivo
+fora do controle de versao.
+
+10) config.toml desatualizado
+-----------------------------
+supabase/config.toml aponta para
+  project_id = "rttnamrgjxuykyqswhcf"
+enquanto .env aponta para ctldsqeyhmarhaekxbuu. Nao impede o
+deploy, mas pode confundir o supabase link. Atualize o
+config.toml para ctldsqeyhmarhaekxbuu.
+
+================================================================
+CHECKLIST MINIMO DE PRODUCAO
+================================================================
+
+[ ] Aplicar 20260601120000_subscription_trial.sql no SQL Editor
+[ ] Aplicar 20260601130000_subscriptions_hardening.sql no SQL Editor
+[ ] Definir secret ASAAS_API_KEY (producao) nas Edge Functions
+[ ] Definir secret ASAAS_API_URL=https://api.asaas.com/v3
+    (para nao cair no sandbox)
+[ ] Definir secret ASAAS_WEBHOOK_TOKEN e configurar mesmo valor
+    no painel do Asaas
+[ ] Cadastrar URL do webhook no Asaas e marcar os eventos
+    PAYMENT_*
+[ ] Promover pelo menos um usuario a admin em public.user_roles
+[ ] Atualizar config.toml com o project_id correto
+[ ] (Recomendado) Remover price do payload do checkout e calcular
+    server-side
+[ ] (Recomendado) Adicionar .env ao .gitignore
+
+Com esses itens, a integracao Asaas fica pronta para operar.
+================================================================

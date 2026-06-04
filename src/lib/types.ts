@@ -116,6 +116,7 @@ export interface Product {
   unit: string;
   categoryId?: string;
   active: boolean;
+  imageUrl?: string;
 }
 
 export interface SaleItem {

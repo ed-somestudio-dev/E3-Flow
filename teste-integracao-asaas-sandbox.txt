@@ -1,0 +1,202 @@
+================================================================
+TESTE DE INTEGRACAO ASAAS - AMBIENTE SANDBOX
+Projeto: FluxoPro 2.0 (ctldsqeyhmarhaekxbuu)
+================================================================
+
+================================================================
+VERIFICACAO 1 - CODIGO DAS EDGE FUNCTIONS
+================================================================
+
+asaas-checkout/index.ts:54-59 le os secrets corretamente:
+  const ASAAS_API_KEY = Deno.env.get("ASAAS_API_KEY");
+  if (!ASAAS_API_KEY) throw new Error("ASAAS_API_KEY is not set");
+  const asaasApiUrl = Deno.env.get("ASAAS_API_URL")
+    || "https://sandbox.asaas.com/api/v3";
+
+OK: leitura correta. O fallback tambem e sandbox, entao mesmo sem
+o secret ASAAS_API_URL definido, a funcao ja aponta para
+sandbox.asaas.com/api/v3.
+
+asaas-webhook/index.ts:16,19 so le ASAAS_WEBHOOK_TOKEN (opcional,
+nao impacta o sandbox).
+
+================================================================
+VERIFICACAO 2 - COMANDOS PARA VOCE RODAR
+================================================================
+
+Abra o terminal PowerShell na pasta do projeto e substitua
+<SUA_API_KEY>, <COLE_O_ACCESS_TOKEN> e <SEU_TOKEN_DO_WEBHOOK> pelos
+valores reais antes de executar.
+
+----------------------------------------------------------------
+A) TESTAR A CHAVE DIRETO NO SANDBOX (sem Edge Function)
+----------------------------------------------------------------
+
+$ASAAS_KEY = "<SUA_API_KEY>"
+$ASAAS_URL = "https://sandbox.asaas.com/api/v3"
+
+# A.1 - Conexao basica: testa se a chave autentica
+Invoke-RestMethod -Method GET `
+  -Uri "$ASAAS_URL/customers?limit=1" `
+  -Headers @{ "access_token" = $ASAAS_KEY } | ConvertTo-Json -Depth 3
+
+Esperado: JSON com { "object": "list", "data": [...], "totalCount": N }.
+Se retornar 401 Unauthorized ou invalid_access_token, a chave esta
+errada ou vencida.
+
+# A.2 - Criar cliente de teste (simula o que a edge function faz)
+$body = @{
+  name    = "Cliente Teste FluxoPro"
+  email   = "teste+$(Get-Random)@fluxopro.local"
+  cpfCnpj = "11144477735"
+} | ConvertTo-Json
+
+Invoke-RestMethod -Method POST `
+  -Uri "$ASAAS_URL/customers" `
+  -Headers @{
+    "access_token" = $ASAAS_KEY
+    "Content-Type" = "application/json"
+  } `
+  -Body $body | ConvertTo-Json -Depth 3
+
+Esperado: JSON com id (ex: cus_0001...). Esse e o asaas_customer_id
+que a edge function grava.
+
+----------------------------------------------------------------
+B) TESTAR A EDGE FUNCTION asaas-checkout PONTA A PONTA
+----------------------------------------------------------------
+
+Pre-requisito: funcao precisa estar deployada. Se ainda nao
+ estiver, rode:
+
+  npx supabase functions deploy asaas-checkout --project-ref ctldsqeyhmarhaekxbuu
+  npx supabase functions deploy asaas-webhook --project-ref ctldsqeyhmarhaekxbuu
+
+Depois, pegue um JWT de usuario valido no console do navegador:
+  Application -> Local Storage -> sb-ctldsqeyhmarhaekxbuu-auth-token
+  -> campo access_token
+
+$JWT = "<COLE_O_ACCESS_TOKEN_DO_USUARIO>"
+
+$body = @{
+  planId      = "monthly"
+  planName    = "Mensal"
+  price       = 7.90
+  cycle       = "MONTHLY"
+  trialDays   = 14
+  userName    = "Cliente Teste"
+  userEmail   = "teste@fluxopro.local"
+  userCpfCnpj = "11144477735"
+} | ConvertTo-Json
+
+Invoke-RestMethod -Method POST `
+  -Uri "https://ctldsqeyhmarhaekxbuu.supabase.co/functions/v1/asaas-checkout" `
+  -Headers @{
+    "Authorization" = "Bearer $JWT"
+    "Content-Type"  = "application/json"
+  } `
+  -Body $body | ConvertTo-Json -Depth 3
+
+Esperado: JSON com invoiceUrl (link de pagamento sandbox),
+subscriptionId, trialEndDate, cycle.
+
+Validar no banco (SQL Editor do Supabase):
+  SELECT subscription_status, subscription_plan, subscription_cycle,
+         trial_end_date, asaas_subscription_id
+    FROM public.subscriptions
+   WHERE user_id = '<uuid-do-usuario-testado>';
+
+Esperado: subscription_status = 'TRIAL', trial_end_date preenchido
+com data daqui a 14 dias, subscription_cycle = 'MONTHLY',
+asaas_subscription_id preenchido.
+
+----------------------------------------------------------------
+C) TESTAR O WEBHOOK (simulando pagamento confirmado)
+----------------------------------------------------------------
+
+O token precisa bater com o secret ASAAS_WEBHOOK_TOKEN configurado
+(so e exigido se voce tiver configurado o secret no Supabase).
+
+$ASAAS_WEBHOOK_TOKEN = "<SEU_TOKEN_DO_WEBHOOK>"
+
+$body = @{
+  event = "PAYMENT_RECEIVED"
+  payment = @{
+    id           = "pay_test_001"
+    subscription = "sub_TESTE_DO_ID_RETORNADO_NO_PASSO_B"
+    customer     = "cus_TESTE"
+    value        = 7.90
+    dueDate      = (Get-Date -Format "yyyy-MM-dd")
+    status       = "RECEIVED"
+  }
+} | ConvertTo-Json -Depth 5
+
+Invoke-RestMethod -Method POST `
+  -Uri "https://ctldsqeyhmarhaekxbuu.supabase.co/functions/v1/asaas-webhook" `
+  -Headers @{
+    "Content-Type"       = "application/json"
+    "asaas-access-token" = $ASAAS_WEBHOOK_TOKEN
+  } `
+  -Body $body
+
+Esperado: { "received": true }.
+No banco, a linha daquela assinatura deve estar com
+subscription_status = 'RECEIVED'.
+
+Validar no banco:
+  SELECT subscription_status, subscription_due_date
+    FROM public.subscriptions
+   WHERE asaas_subscription_id = 'sub_TESTE_DO_ID_RETORNADO_NO_PASSO_B';
+
+================================================================
+CHECKLIST DO TESTE
+================================================================
+
+[ ] A.1 - GET /customers?limit=1 autentica
+[ ] A.2 - POST /customers cria cliente (retorna id)
+[ ] B   - Edge function retorna invoiceUrl sandbox
+[ ] B   - Linha em subscriptions tem subscription_status='TRIAL',
+            trial_end_date e subscription_cycle='MONTHLY'
+[ ] C   - Webhook aceita PAYMENT_RECEIVED e muda status para
+            RECEIVED
+
+================================================================
+SECRETS NECESSARIOS NO SUPABASE (Edge Functions -> Secrets)
+================================================================
+
+ASAAS_API_KEY    = <sua chave sandbox>
+ASAAS_API_URL    = https://sandbox.asaas.com/api/v3
+ASAAS_WEBHOOK_TOKEN = <opcional, recomendado para producao>
+
+================================================================
+SE ALGO FALHAR
+================================================================
+
+401 invalid_access_token em A.1
+  -> chave errada, vencida ou do ambiente errado (producao vs
+     sandbox). Gere uma nova no painel do sandbox do Asaas.
+
+customer.errors em A.2
+  -> cpfCnpj invalido. Sandbox aceita o 11144477735 e o CNPJ
+     11111111000191. NAO use CPF/CNPJ real.
+
+Edge function retorna "ASAAS_API_KEY is not set"
+  -> secret nao foi salvo no Dashboard. Volte em
+     Edge Functions -> Secrets e confirme.
+
+Edge function retorna "Unauthorized"
+  -> JWT expirado. Pegue um novo access_token do navegador.
+
+invoiceUrl vem vazia
+  -> primeira chamada a /payments apos criar a subscription
+     as vezes retorna data vazia. Rode o SELECT no banco:
+     o asaas_subscription_id foi salvo? Se sim, a fatura foi
+     criada no Asaas, mas o link nao voltou. Tente a chamada
+     novamente (a edge function eh idempotente se a subscription
+     ja existe).
+
+Webhook retorna 401
+  -> secret ASAAS_WEBHOOK_TOKEN configurado, mas o header
+     enviado nao bate. Use o mesmo valor do secret.
+
+================================================================

@@ -1,3 +1,3 @@
-// VersÃ£o da aplicaÃ§Ã£o â€” atualizar a cada release significativa
-export const APP_VERSION = 'v1.4.0';
-export const APP_VERSION_DATE = '28/04/2026';
+// Versão da aplicação — atualizar a cada release significativa
+export const APP_VERSION = 'v1.5.0';
+export const APP_VERSION_DATE = '01/06/2026';

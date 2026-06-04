@@ -26,7 +26,7 @@ interface FinanceContextType {
   addReceivable: (r: Omit<Receivable, 'id'>, installments?: number, recurrence?: { frequency: 'weekly' | 'monthly' | 'yearly'; occurrences: number }) => Promise<Receivable | undefined>;
   updateReceivable: (r: Receivable) => Promise<void>;
   deleteReceivable: (id: string) => Promise<void>;
-  markReceivableReceived: (id: string, accountId?: string) => Promise<void>;
+  markReceivableReceived: (id: string, accountId?: string, customDate?: string) => Promise<void>;
   markReceivableReceivedPartial: (id: string, accountId: string, receivedAmount: number) => Promise<void>;
   addAccount: (a: Omit<FinancialAccount, 'id'>) => Promise<void>;
   updateAccount: (a: FinancialAccount) => Promise<void>;
@@ -1381,25 +1381,25 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     if (isOnline) await fetchAll();
   }, [user, fetchAll]);
 
-  const markReceivableReceived = useCallback(async (id: string, accountId?: string) => {
+  const markReceivableReceived = useCallback(async (id: string, accountId?: string, customDate?: string) => {
     if (!user) return;
     const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
     const receivable = data.receivables.find(x => x.id === id);
     if (!receivable || receivable.status === 'received') return;
 
     const targetAccountId = accountId || receivable?.accountId;
-    const today = new Date().toISOString().split('T')[0];
+    const paymentDate = customDate || new Date().toISOString().split('T')[0];
 
     if (isOnline) {
       const { error } = await supabase.from('receivables').update({
-        status: 'received', payment_date: today, account_id: targetAccountId || null,
+        status: 'received', payment_date: paymentDate, account_id: targetAccountId || null,
       }).eq('id', id).eq('user_id', user.id);
       if (error) { console.error('markReceivableReceived error:', error); toast.error('Erro ao marcar como recebido'); return; }
     } else {
       await enqueueMutation({
         userId: user.id,
         type: 'UPDATE',
-        payload: { table: 'receivables', data: { status: 'received', payment_date: today, account_id: targetAccountId || null }, match: { id } }
+        payload: { table: 'receivables', data: { status: 'received', payment_date: paymentDate, account_id: targetAccountId || null }, match: { id } }
       });
     }
 
@@ -1407,7 +1407,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     setData(prev => {
       const fresh = { 
         ...prev, 
-        receivables: prev.receivables.map(r => r.id === id ? { ...r, status: 'received' as const, paymentDate: today, accountId: targetAccountId } : r) 
+        receivables: prev.receivables.map(r => r.id === id ? { ...r, status: 'received' as const, paymentDate: paymentDate, accountId: targetAccountId } : r) 
       };
       saveSnapshot(user.id, fresh).catch(() => {});
       return fresh;
@@ -1442,7 +1442,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
         description: receivable.description,
         category_id: receivable.categoryId,
         amount: receivable.amount,
-        date: today,
+        date: paymentDate,
         account_id: targetAccountId,
         notes: `Recebimento: ${receivable.clientName || ''}`.trim(),
       };

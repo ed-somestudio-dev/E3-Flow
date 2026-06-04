@@ -1,1 +1,5 @@
-project_id = "rttnamrgjxuykyqswhcf"
+project_id = "ctldsqeyhmarhaekxbuu"
+
+[auth.email.template.confirmation]
+subject = "Confirme seu cadastro"
+content_path = "./supabase/templates/confirm_signup.html"

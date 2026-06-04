@@ -409,7 +409,7 @@ export type Database = {
           },
         ]
       }
-      suppressed_emails: {
+suppressed_emails: {
         Row: {
           created_at: string
           email: string
@@ -433,65 +433,68 @@ export type Database = {
         }
         Relationships: []
       }
-      transactions: {
+      subscriptions: {
         Row: {
-          account_id: string
-          amount: number
-          category_id: string
-          created_at: string
-          date: string
-          description: string
           id: string
-          is_credit: boolean | null
-          notes: string | null
-          type: string
-          updated_at: string
           user_id: string
+          asaas_customer_id: string | null
+          asaas_subscription_id: string | null
+          subscription_status: string
+          subscription_due_date: string | null
+          subscription_plan: string | null
+          trial_end_date: string | null
+          subscription_cycle: string | null
+          created_at: string
+          updated_at: string
         }
         Insert: {
-          account_id: string
-          amount: number
-          category_id: string
-          created_at?: string
-          date: string
-          description: string
           id?: string
-          is_credit?: boolean | null
-          notes?: string | null
-          type: string
-          updated_at?: string
           user_id: string
+          asaas_customer_id?: string | null
+          asaas_subscription_id?: string | null
+          subscription_status?: string
+          subscription_due_date?: string | null
+          subscription_plan?: string | null
+          trial_end_date?: string | null
+          subscription_cycle?: string | null
+          created_at?: string
+          updated_at?: string
         }
         Update: {
-          account_id?: string
-          amount?: number
-          category_id?: string
-          created_at?: string
-          date?: string
-          description?: string
           id?: string
-          is_credit?: boolean | null
-          notes?: string | null
-          type?: string
-          updated_at?: string
           user_id?: string
+          asaas_customer_id?: string | null
+          asaas_subscription_id?: string | null
+          subscription_status?: string
+          subscription_due_date?: string | null
+          subscription_plan?: string | null
+          trial_end_date?: string | null
+          subscription_cycle?: string | null
+          created_at?: string
+          updated_at?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "transactions_account_id_fkey"
-            columns: ["account_id"]
-            isOneToOne: false
-            referencedRelation: "financial_accounts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "transactions_category_id_fkey"
-            columns: ["category_id"]
-            isOneToOne: false
-            referencedRelation: "categories"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          id: string
+          user_id: string
+          role: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          role: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          role?: string
+          created_at?: string
+        }
+        Relationships: []
       }
       user_settings: {
         Row: {

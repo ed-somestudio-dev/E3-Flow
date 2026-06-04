@@ -1,9 +1,9 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useFinance } from '@/lib/finance-context';
 import { supabase } from '@/integrations/supabase/client';
 import { usePixSettings } from '@/lib/pix-settings-context';
 import { Receivable, ReceivableStatus, RecurrenceFrequency } from '@/lib/types';
-import { Plus, Trash2, Edit2, CheckCircle, CreditCard, CalendarIcon, X, RefreshCw, QrCode, Receipt, AlertTriangle, ChevronDown, ChevronRight } from 'lucide-react';
+import { Plus, Trash2, Edit2, CheckCircle, CreditCard, CalendarIcon, X, RefreshCw, QrCode, Receipt, AlertTriangle, ChevronDown, ChevronRight, Upload } from 'lucide-react';
 import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog';
 import { CalculatorInput } from '@/components/CalculatorInput';
 import { ContactAutocomplete } from '@/components/ContactAutocomplete';
@@ -58,6 +58,95 @@ export default function ReceivablesPage() {
   const [pixWarningOpen, setPixWarningOpen] = useState(false);
   const [bulkPartialMode, setBulkPartialMode] = useState(false);
   const [bulkPartialAmount, setBulkPartialAmount] = useState('');
+
+  // OFX reconciliation states
+  const [ofxDialogOpen, setOfxDialogOpen] = useState(false);
+  const [ofxTransactions, setOfxTransactions] = useState<any[]>([]);
+  const [selectedOfxAccountId, setSelectedOfxAccountId] = useState('');
+  const [ofxStep, setOfxStep] = useState<'upload' | 'reconcile' | 'success'>('upload');
+  const [reconciliations, setReconciliations] = useState<Record<string, string>>({}); // ofxTxId -> receivableId (or 'ignore')
+  const [isProcessingOfx, setIsProcessingOfx] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
+
+  // Auto-select first account when opening OFX modal
+  useEffect(() => {
+    if (ofxDialogOpen && data.accounts.length > 0 && !selectedOfxAccountId) {
+      setSelectedOfxAccountId(data.accounts[0].id);
+    }
+  }, [ofxDialogOpen, data.accounts, selectedOfxAccountId]);
+
+  const handleOfxFile = async (file: File) => {
+    try {
+      const text = await file.text();
+      const { parseOFX, getMatchCandidates } = await import('@/lib/ofx-parser');
+      const allTx = parseOFX(text);
+      
+      // Filter only CREDIT (inflows) with positive amount
+      const credits = allTx.filter(tx => tx.type === 'CREDIT' && tx.amount > 0);
+      
+      if (credits.length === 0) {
+        toast.error('Nenhuma transação de crédito (entrada) foi encontrada no arquivo OFX.');
+        return;
+      }
+      
+      const enrichedCredits = credits.map(tx => {
+        const candidates = getMatchCandidates(tx, data.receivables);
+        return {
+          ...tx,
+          candidates
+        };
+      });
+      
+      const initialReconciliations: Record<string, string> = {};
+      enrichedCredits.forEach(tx => {
+        const best = tx.candidates[0];
+        if (best && best.score >= 100) {
+          initialReconciliations[tx.id] = best.receivable.id;
+        } else {
+          initialReconciliations[tx.id] = 'ignore';
+        }
+      });
+      
+      setOfxTransactions(enrichedCredits);
+      setReconciliations(initialReconciliations);
+      setOfxStep('reconcile');
+      toast.success(`${credits.length} transações de entrada identificadas.`);
+    } catch (e) {
+      console.error(e);
+      toast.error('Falha ao processar arquivo OFX. Verifique se o formato está correto.');
+    }
+  };
+
+  const confirmOfxReconciliation = async () => {
+    if (!selectedOfxAccountId) {
+      toast.error('Selecione uma conta bancária.');
+      return;
+    }
+    
+    setIsProcessingOfx(true);
+    let count = 0;
+    
+    try {
+      const entries = Object.entries(reconciliations);
+      for (const [txId, recId] of entries) {
+        if (recId && recId !== 'ignore') {
+          const tx = ofxTransactions.find(t => t.id === txId);
+          if (tx) {
+            await markReceivableReceived(recId, selectedOfxAccountId, tx.date);
+            count++;
+          }
+        }
+      }
+      
+      toast.success(`${count} recebíveis conciliados com sucesso.`);
+      setOfxStep('success');
+    } catch (e) {
+      console.error(e);
+      toast.error('Erro ao processar conciliação.');
+    } finally {
+      setIsProcessingOfx(false);
+    }
+  };
 
   // Share dialog state
   const [shareOpen, setShareOpen] = useState(false);
@@ -336,16 +425,22 @@ export default function ReceivablesPage() {
           <h1 className="text-2xl font-bold">{SAFE_LABELS.receivables}</h1>
           <p className="text-muted-foreground text-sm">Gerencie seus recebimentos</p>
         </div>
-        <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) setEditingItem(null); }}>
-          <DialogTrigger asChild>
-            <Button onClick={() => setEditingItem(null)}><Plus className="h-4 w-4 mr-2" />Novo Recebível</Button>
-          </DialogTrigger>
-          <DialogContent className="max-h-[90vh] overflow-y-auto">
-            <DialogHeader><DialogTitle>{editingItem ? 'Editar' : 'Novo'} Recebível</DialogTitle></DialogHeader>
-            <ReceivableForm item={editingItem} categories={data.categories.filter(c => c.type === 'income')} accounts={data.accounts}
-              onSave={(r) => { const { installments, recurrence, ...receivable } = r; if (editingItem) updateReceivable({ ...receivable, id: editingItem.id } as Receivable); else addReceivable(receivable, installments, recurrence); setDialogOpen(false); setEditingItem(null); }} />
-          </DialogContent>
-        </Dialog>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setOfxDialogOpen(true)}>
+            <Upload className="h-4 w-4 mr-2 text-primary" />Conciliar OFX
+          </Button>
+
+          <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) setEditingItem(null); }}>
+            <DialogTrigger asChild>
+              <Button onClick={() => setEditingItem(null)}><Plus className="h-4 w-4 mr-2" />Novo Recebível</Button>
+            </DialogTrigger>
+            <DialogContent className="max-h-[90vh] overflow-y-auto">
+              <DialogHeader><DialogTitle>{editingItem ? 'Editar' : 'Novo'} Recebível</DialogTitle></DialogHeader>
+              <ReceivableForm item={editingItem} categories={data.categories.filter(c => c.type === 'income')} accounts={data.accounts}
+                onSave={(r) => { const { installments, recurrence, ...receivable } = r; if (editingItem) updateReceivable({ ...receivable, id: editingItem.id } as Receivable); else addReceivable(receivable, installments, recurrence); setDialogOpen(false); setEditingItem(null); }} />
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       {!isConfigured && (
@@ -744,6 +839,229 @@ export default function ReceivablesPage() {
       <ConfirmDeleteDialog open={!!deleteId} onOpenChange={(o) => { if (!o) setDeleteId(null); }}
         onConfirm={() => { if (deleteId) { deleteReceivable(deleteId); setDeleteId(null); } }}
         title="Excluir recebível?" description="Tem certeza que deseja excluir este recebível? Esta ação não pode ser desfeita." />
+
+      {/* OFX Reconciliation Dialog */}
+      <Dialog open={ofxDialogOpen} onOpenChange={(open) => {
+        setOfxDialogOpen(open);
+        if (!open) {
+          setOfxTransactions([]);
+          setSelectedOfxAccountId('');
+          setOfxStep('upload');
+          setReconciliations({});
+          setIsProcessingOfx(false);
+        }
+      }}>
+        <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col p-6 overflow-hidden">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-xl font-bold">
+              <Upload className="h-5 w-5 text-primary" />
+              Conciliação Bancária via OFX
+            </DialogTitle>
+          </DialogHeader>
+          
+          {ofxStep === 'upload' && (
+            <div className="space-y-6 my-4 flex-1 overflow-y-auto pr-1">
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold">1. Selecione a Conta Bancária de Destino</Label>
+                <Select value={selectedOfxAccountId} onValueChange={setSelectedOfxAccountId}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Selecione a conta que recebeu os valores" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {data.accounts.length === 0 ? (
+                      <SelectItem value="none" disabled>Nenhuma conta cadastrada</SelectItem>
+                    ) : (
+                      data.accounts.map(a => (
+                        <SelectItem key={a.id} value={a.id}>
+                          <div className="flex items-center justify-between w-full gap-4">
+                            <span>{a.name}</span>
+                            <span className="text-xs text-muted-foreground mono">Saldo: {fmt(a.balance)}</span>
+                          </div>
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  As transações do extrato serão conciliadas como recebidas nesta conta e os saldos serão atualizados.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold">2. Envie o arquivo de extrato bancário (.ofx)</Label>
+                <div 
+                  className={cn(
+                    "flex flex-col items-center justify-center border-2 border-dashed rounded-xl p-8 text-center transition-all cursor-pointer bg-muted/30 hover:bg-muted/50",
+                    dragActive ? "border-primary bg-primary/5" : "border-border",
+                    !selectedOfxAccountId && "opacity-50 pointer-events-none"
+                  )}
+                  onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
+                  onDragLeave={() => setDragActive(false)}
+                  onDrop={async (e) => {
+                    e.preventDefault();
+                    setDragActive(false);
+                    if (!selectedOfxAccountId) return;
+                    const file = e.dataTransfer.files?.[0];
+                    if (file) handleOfxFile(file);
+                  }}
+                  onClick={() => {
+                    if (selectedOfxAccountId) {
+                      const input = document.createElement('input');
+                      input.type = 'file';
+                      input.accept = '.ofx';
+                      input.onchange = (e) => {
+                        const file = (e.target as HTMLInputElement).files?.[0];
+                        if (file) handleOfxFile(file);
+                      };
+                      input.click();
+                    } else {
+                      toast.warning('Selecione uma conta bancária antes de enviar o arquivo');
+                    }
+                  }}
+                >
+                  <Upload className="h-10 w-10 text-muted-foreground mb-4" />
+                  <h3 className="font-semibold text-sm">Arrastar e soltar arquivo OFX aqui</h3>
+                  <p className="text-xs text-muted-foreground mt-1">ou clique para selecionar do computador</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {ofxStep === 'reconcile' && (
+            <div className="flex-1 flex flex-col min-h-0 space-y-4 my-2 overflow-hidden">
+              <div className="flex items-center justify-between p-3 rounded-lg bg-primary/5 border border-primary/20 text-sm">
+                <span className="text-muted-foreground">Conta selecionada: <strong>{data.accounts.find(a => a.id === selectedOfxAccountId)?.name}</strong></span>
+                <span className="text-xs font-semibold px-2 py-0.5 rounded bg-primary/10 text-primary uppercase">Passo 2 de 2</span>
+              </div>
+              
+              <div className="flex-1 overflow-y-auto max-h-[50vh] pr-1 space-y-3 divide-y divide-border">
+                {ofxTransactions.map((tx, idx) => {
+                  const candidates = tx.candidates || [];
+                  const selectedId = reconciliations[tx.id] || 'ignore';
+                  
+                  return (
+                    <div key={tx.id} className={cn("pt-4 first:pt-0 flex flex-col gap-3", idx > 0 && "border-t border-border")}>
+                      <div className="flex items-start justify-between flex-wrap gap-2">
+                        <div className="space-y-1 max-w-md">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-xs font-medium px-2 py-0.5 rounded bg-muted text-muted-foreground mono">{fmtDate(tx.date)}</span>
+                            <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-success/10 text-success uppercase tracking-wider flex items-center gap-1">
+                              PIX / Entrada
+                            </span>
+                          </div>
+                          <p className="text-sm font-semibold text-foreground truncate" title={tx.memo}>{tx.memo}</p>
+                        </div>
+                        <span className="text-base font-bold text-success mono">+{fmt(tx.amount)}</span>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-12 gap-2 items-center">
+                        <Label className="text-xs text-muted-foreground md:col-span-3">Vincular recebível:</Label>
+                        <div className="md:col-span-9">
+                          <Select 
+                            value={selectedId} 
+                            onValueChange={(val) => {
+                              setReconciliations(prev => ({ ...prev, [tx.id]: val }));
+                            }}
+                          >
+                            <SelectTrigger className={cn(
+                              "w-full text-xs h-9",
+                              selectedId !== 'ignore' && "border-success bg-success/5 text-success-foreground"
+                            )}>
+                              <SelectValue placeholder="Selecione um recebível" />
+                            </SelectTrigger>
+                            <SelectContent className="max-w-[400px]">
+                              <SelectItem value="ignore" className="text-xs font-semibold text-muted-foreground">
+                                🚫 Ignorar esta transação (não conciliar)
+                              </SelectItem>
+                              
+                              {candidates.length > 0 && (
+                                <div className="px-2 py-1.5 text-[10px] font-bold text-primary bg-primary/5 uppercase tracking-wider">
+                                  ★ Sugestões Recomendadas
+                                </div>
+                              )}
+                              
+                              {candidates.map((c: any) => (
+                                <SelectItem key={c.receivable.id} value={c.receivable.id} className="text-xs">
+                                  💡 {c.receivable.clientName} - {fmt(c.receivable.amount)} (Venc: {fmtDate(c.receivable.dueDate)}) - Match: {c.score}%
+                                </SelectItem>
+                              ))}
+                              
+                              {data.receivables.filter(r => r.status !== 'received' && !candidates.some((c: any) => c.receivable.id === r.id)).length > 0 && (
+                                <div className="px-2 py-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider border-t border-border mt-1">
+                                  Outros Recebíveis Pendentes
+                                </div>
+                              )}
+                              
+                              {data.receivables
+                                .filter(r => r.status !== 'received' && !candidates.some((c: any) => c.receivable.id === r.id))
+                                .map(r => (
+                                  <SelectItem key={r.id} value={r.id} className="text-xs">
+                                    {r.clientName} - {fmt(r.amount)} (Venc: {fmtDate(r.dueDate)}) {r.description ? ` - ${r.description}` : ''}
+                                  </SelectItem>
+                                ))}
+                            </SelectContent>
+                          </Select>
+                          
+                          {selectedId !== 'ignore' && (() => {
+                            const matchedRec = data.receivables.find(r => r.id === selectedId);
+                            const cand = candidates.find((c: any) => c.receivable.id === selectedId);
+                            if (matchedRec) {
+                              return (
+                                <p className="text-[11px] text-success font-medium mt-1 flex items-center gap-1">
+                                  ✔️ Conciliação vinculada a <strong>{matchedRec.clientName}</strong>. 
+                                  {cand && cand.reasons.length > 0 && ` (${cand.reasons.join(', ')})`}
+                                </p>
+                              );
+                            }
+                            return null;
+                          })()}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="flex items-center justify-between border-t border-border pt-4 mt-2 flex-wrap gap-3">
+                <span className="text-xs text-muted-foreground">
+                  Das <strong>{ofxTransactions.length}</strong> transações encontradas, 
+                  <strong> {Object.values(reconciliations).filter(v => v !== 'ignore').length}</strong> serão liquidadas.
+                </span>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setOfxStep('upload')}>Voltar</Button>
+                  <Button 
+                    className="bg-success text-success-foreground hover:bg-success/90 font-semibold" 
+                    size="sm"
+                    disabled={isProcessingOfx}
+                    onClick={confirmOfxReconciliation}
+                  >
+                    {isProcessingOfx ? (
+                      <>Processando...</>
+                    ) : (
+                      <>Confirmar Conciliações</>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {ofxStep === 'success' && (
+            <div className="flex flex-col items-center justify-center p-8 text-center my-6 space-y-4">
+              <div className="h-16 w-16 bg-success/10 text-success rounded-full flex items-center justify-center">
+                <CheckCircle className="h-10 w-10" />
+              </div>
+              <h2 className="text-xl font-bold">Conciliação concluída com sucesso!</h2>
+              <p className="text-sm text-muted-foreground max-w-md">
+                As transações foram processadas, os respectivos recebíveis foram marcados como recebidos e os saldos das contas foram atualizados.
+              </p>
+              <Button onClick={() => setOfxDialogOpen(false)} className="mt-4">
+                Fechar Janela
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

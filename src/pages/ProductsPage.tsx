@@ -19,6 +19,7 @@ const UNITS = ['un', 'kg', 'g', 'L', 'mL', 'm', 'cm', 'cx', 'pct', 'par', 'h'];
 const emptyForm = (): Omit<Product, 'id'> => ({
   name: '', description: '', price: 0,
   stockQuantity: 0, unit: 'un', active: true,
+  imageUrl: '',
 });
 
 export default function ProductsPage() {
@@ -29,6 +30,38 @@ export default function ProductsPage() {
   const [form, setForm] = useState<Omit<Product, 'id'>>(emptyForm());
   const [saving, setSaving] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+
+  const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('A imagem deve ter no máximo 5MB');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const size = 200;
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          const minSide = Math.min(img.width, img.height);
+          const sx = (img.width - minSide) / 2;
+          const sy = (img.height - minSide) / 2;
+          ctx.drawImage(img, sx, sy, minSide, minSide, 0, 0, size, size);
+          const compressedBase64 = canvas.toDataURL('image/jpeg', 0.8);
+          setForm(f => ({ ...f, imageUrl: compressedBase64 }));
+        }
+      };
+      img.src = event.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  };
 
   const filtered = products.filter(p =>
     p.name.toLowerCase().includes(search.toLowerCase())
@@ -49,6 +82,7 @@ export default function ProductsPage() {
       stockQuantity: p.stockQuantity, 
       unit: p.unit, 
       active: p.active,
+      imageUrl: p.imageUrl || '',
       priceRaw: p.price.toString(),
       stockRaw: p.stockQuantity.toString()
     } as any);
@@ -132,9 +166,22 @@ export default function ProductsPage() {
               className={`finance-card p-4 space-y-3 border-l-4 transition-opacity ${p.active ? 'border-l-primary' : 'border-l-muted opacity-60'}`}
             >
               <div className="flex items-start justify-between gap-2">
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold truncate">{p.name}</p>
-                  {p.description && <p className="text-xs text-muted-foreground truncate">{p.description}</p>}
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  {p.imageUrl ? (
+                    <img 
+                      src={p.imageUrl} 
+                      alt={p.name} 
+                      className="w-16 h-16 object-cover rounded-lg shrink-0 border border-border" 
+                    />
+                  ) : (
+                    <div className="w-16 h-16 rounded-lg bg-secondary/50 flex items-center justify-center shrink-0 border border-border">
+                      <Package className="h-6 w-6 text-muted-foreground/40" />
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold truncate">{p.name}</p>
+                    {p.description && <p className="text-xs text-muted-foreground truncate">{p.description}</p>}
+                  </div>
                 </div>
                 <Badge variant={p.active ? 'default' : 'secondary'} className="shrink-0 text-xs">
                   {p.active ? 'Ativo' : 'Inativo'}
@@ -182,6 +229,56 @@ export default function ProductsPage() {
             <div>
               <Label>Descrição</Label>
               <Input value={form.description || ''} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Descrição opcional" />
+            </div>
+            <div className="space-y-2">
+              <Label>Imagem do Produto</Label>
+              <div className="flex items-center gap-4">
+                <div className="relative w-20 h-20 rounded-lg border border-border bg-secondary/30 flex items-center justify-center overflow-hidden shrink-0">
+                  {(form as any).imageUrl ? (
+                    <img 
+                      src={(form as any).imageUrl} 
+                      alt="Preview" 
+                      className="w-full h-full object-cover" 
+                    />
+                  ) : (
+                    <Package className="h-8 w-8 text-muted-foreground/30" />
+                  )}
+                </div>
+                
+                <div className="flex flex-col gap-1.5 flex-1">
+                  <div className="flex gap-2">
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      size="sm" 
+                      className="text-xs gap-1.5"
+                      onClick={() => document.getElementById('product-image-upload')?.click()}
+                    >
+                      Upload / Câmera
+                    </Button>
+                    {(form as any).imageUrl && (
+                      <Button 
+                        type="button" 
+                        variant="ghost" 
+                        size="sm" 
+                        className="text-xs text-destructive hover:text-destructive"
+                        onClick={() => setForm(f => ({ ...f, imageUrl: '' }))}
+                      >
+                        Remover
+                      </Button>
+                    )}
+                  </div>
+                  <span className="text-[10px] text-muted-foreground">Ou insira uma URL abaixo:</span>
+                </div>
+                <input 
+                  type="file" 
+                  id="product-image-upload" 
+                  accept="image/*" 
+                  className="hidden" 
+                  onChange={handleImageFileChange} 
+                />
+              </div>
+              <Input value={(form as any).imageUrl || ''} onChange={e => setForm(f => ({ ...f, imageUrl: e.target.value }))} placeholder="https://exemplo.com/imagem.jpg" className="text-xs h-8" />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>

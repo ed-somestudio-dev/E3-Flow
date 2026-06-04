@@ -1,9 +1,10 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
+import { BrowserRouter, Route, Routes, Navigate, useLocation } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/lib/auth-context";
+import { SubscriptionProvider, useSubscription } from "@/lib/subscription-context";
 import { FinanceProvider } from "@/lib/finance-context";
 import { PixSettingsProvider } from "@/lib/pix-settings-context";
 import { ContactsProvider } from "@/lib/contacts-context";
@@ -25,15 +26,20 @@ import ProductsPage from "@/pages/ProductsPage";
 import InstallPage from "@/pages/InstallPage";
 import AuthPage from "@/pages/AuthPage";
 import ResetPasswordPage from "@/pages/ResetPasswordPage";
+import SubscriptionPage from "@/pages/SubscriptionPage";
+import AdminSubscriptionsPage from "@/pages/AdminSubscriptionsPage";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import NotFound from "@/pages/NotFound";
 import logoFluxoPro from '@/assets/Logo_FluxoPro.png';
 
 const queryClient = new QueryClient();
 
 function ProtectedRoutes() {
-  const { user, loading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
+  const { loading: subLoading, isActive, isAdmin } = useSubscription();
+  const location = useLocation();
 
-  if (loading) {
+  if (authLoading || subLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-3">
@@ -46,6 +52,13 @@ function ProtectedRoutes() {
 
   if (!user) return <Navigate to="/auth" replace />;
 
+  // Se não estiver ativo e não estiver na página de assinatura (ou admin se for admin), redirecionar
+  if (!isActive && location.pathname !== '/subscription') {
+    if (!isAdmin || (isAdmin && location.pathname !== '/admin/subscriptions')) {
+       return <Navigate to="/subscription" replace />;
+    }
+  }
+
   return (
     <PixSettingsProvider>
       <FinanceProvider>
@@ -56,7 +69,7 @@ function ProtectedRoutes() {
                 <Route path="/" element={<DashboardPage />} />
                 <Route path="/transactions" element={<TransactionsPage />} />
                 <Route path="/payables" element={<PayablesPage />} />
-                <Route path="/receivables" element={<ReceivablesPage />} />
+                <Route path="/receivables" element={<ErrorBoundary><ReceivablesPage /></ErrorBoundary>} />
                 <Route path="/accounts" element={<AccountsPage />} />
                 <Route path="/contacts" element={<ContactsPage />} />
                 <Route path="/budgets" element={<BudgetsPage />} />
@@ -66,6 +79,8 @@ function ProtectedRoutes() {
                 <Route path="/sales" element={<SalesPage />} />
                 <Route path="/products" element={<ProductsPage />} />
                 <Route path="/instalar" element={<InstallPage />} />
+                <Route path="/subscription" element={<SubscriptionPage />} />
+                {isAdmin && <Route path="/admin/subscriptions" element={<AdminSubscriptionsPage />} />}
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </AppLayout>
@@ -90,13 +105,15 @@ const App = () => (
         <Toaster />
         <Sonner />
         <AuthProvider>
-          <BrowserRouter>
-            <Routes>
-              <Route path="/auth" element={<AuthRoute />} />
-              <Route path="/reset-password" element={<ResetPasswordPage />} />
-              <Route path="/*" element={<ProtectedRoutes />} />
-            </Routes>
-          </BrowserRouter>
+          <SubscriptionProvider>
+            <BrowserRouter>
+              <Routes>
+                <Route path="/auth" element={<AuthRoute />} />
+                <Route path="/reset-password" element={<ResetPasswordPage />} />
+                <Route path="/*" element={<ProtectedRoutes />} />
+              </Routes>
+            </BrowserRouter>
+          </SubscriptionProvider>
         </AuthProvider>
       </TooltipProvider>
     </QueryClientProvider>
@@ -104,3 +121,4 @@ const App = () => (
 );
 
 export default App;
+

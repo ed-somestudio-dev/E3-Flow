@@ -406,9 +406,22 @@ export default function SalesPage() {
                   {filteredProducts.map(p => (
                     <button key={p.id} onClick={() => addToCart(p.id)}
                       className="flex items-center justify-between p-2 rounded-md border border-border hover:border-primary hover:bg-primary/5 transition-all text-left gap-2">
-                      <div className="min-w-0">
-                        <p className="text-xs font-medium truncate">{p.name}</p>
-                        <p className="text-xs text-muted-foreground">{fmt(p.price)}/{p.unit}</p>
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        {p.imageUrl ? (
+                          <img 
+                            src={p.imageUrl} 
+                            alt={p.name} 
+                            className="w-8 h-8 object-cover rounded-md shrink-0 border border-border" 
+                          />
+                        ) : (
+                          <div className="w-8 h-8 rounded-md bg-secondary/50 flex items-center justify-center shrink-0 border border-border">
+                            <Package className="h-3.5 w-3.5 text-muted-foreground/40" />
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-medium truncate">{p.name}</p>
+                          <p className="text-xs text-muted-foreground">{fmt(p.price)}/{p.unit}</p>
+                        </div>
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
                         <Package className="h-3 w-3 text-muted-foreground" />
@@ -425,21 +438,35 @@ export default function SalesPage() {
               <div className="space-y-2">
                 <Label>Itens da Venda</Label>
                 <div className="space-y-2 max-h-48 overflow-y-auto">
-                  {cartItems.map(item => (
-                    <div key={item.tmpId} className="flex items-center gap-2 p-2 rounded-md bg-secondary/30 border border-border">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-medium truncate">{item.productName}</p>
-                        <p className="text-xs text-muted-foreground mono">{fmt(item.unitPrice)} × {item.quantity} = {fmt(item.total)}</p>
+                  {cartItems.map(item => {
+                    const prod = products.find(p => p.id === item.productId);
+                    return (
+                      <div key={item.tmpId} className="flex items-center gap-2 p-2 rounded-md bg-secondary/30 border border-border">
+                        {prod?.imageUrl ? (
+                          <img 
+                            src={prod.imageUrl} 
+                            alt={item.productName} 
+                            className="w-8 h-8 object-cover rounded-md shrink-0 border border-border" 
+                          />
+                        ) : (
+                          <div className="w-8 h-8 rounded-md bg-secondary/50 flex items-center justify-center shrink-0 border border-border">
+                            <Package className="h-3.5 w-3.5 text-muted-foreground/40" />
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium truncate">{item.productName}</p>
+                          <p className="text-xs text-muted-foreground mono">{fmt(item.unitPrice)} × {item.quantity} = {fmt(item.total)}</p>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <Button size="icon" variant="outline" className="h-6 w-6 text-xs"
+                            onClick={() => updateCartQty(item.tmpId, item.quantity - 1)}>−</Button>
+                          <span className="text-sm w-8 text-center">{item.quantity}</span>
+                          <Button size="icon" variant="outline" className="h-6 w-6 text-xs"
+                            onClick={() => updateCartQty(item.tmpId, item.quantity + 1)}>+</Button>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1 shrink-0">
-                        <Button size="icon" variant="outline" className="h-6 w-6 text-xs"
-                          onClick={() => updateCartQty(item.tmpId, item.quantity - 1)}>−</Button>
-                        <span className="text-sm w-8 text-center">{item.quantity}</span>
-                        <Button size="icon" variant="outline" className="h-6 w-6 text-xs"
-                          onClick={() => updateCartQty(item.tmpId, item.quantity + 1)}>+</Button>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
                 <div className="flex justify-between items-center p-3 rounded-md bg-primary/10 border border-primary/20">
                   <span className="font-semibold text-sm">Total</span>

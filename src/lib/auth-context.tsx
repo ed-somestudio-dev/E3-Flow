@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { migrateGuestData } from './offline-store';
+import { assertOnline } from './online-guard';
 import { toast } from 'sonner';
 
 interface AuthContextType {
@@ -40,18 +41,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Get initial session
     const getInitialSession = async () => {
       try {
-        const { data: { session: initialSession } } = await supabase.auth.getSession();
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Auth timeout')), 3000));
+        
+        const { data: { session: initialSession } } = await Promise.race([
+          supabase.auth.getSession(),
+          timeoutPromise as any
+        ]);
         
         if (initialSession) {
-          // Verify session is still valid by doing a lightweight user check
-          const { error } = await supabase.auth.getUser();
-          if (error && (error.status === 401 || error.message.includes('expired'))) {
-             console.warn('[AuthContext] Sessão expirada detectada na inicialização.');
-             await supabase.auth.signOut();
-             setSession(null);
-          } else {
-             setSession(initialSession);
+          const isGuest = initialSession.user?.id?.startsWith('guest_');
+          
+          // Verify session is still valid only if we are online and not a guest
+          if (!isGuest && assertOnline()) {
+            try {
+              const { error } = await Promise.race([
+                supabase.auth.getUser(),
+                timeoutPromise as any
+              ]);
+              if (error && (error.status === 401 || error.message.includes('expired'))) {
+                 console.warn('[AuthContext] Sessão expirada detectada na inicialização.');
+                 await supabase.auth.signOut();
+                 setSession(null);
+                 return;
+              }
+            } catch (e) {
+              console.warn('[AuthContext] Timeout ou erro na verificação online da sessão. Assumindo modo offline.');
+            }
           }
+          setSession(initialSession);
         } else {
           // Check for guest session in localStorage
           const guestId = localStorage.getItem('fluxopro_guest_id');

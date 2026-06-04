@@ -24,6 +24,7 @@ function mapProduct(row: any): Product {
     unit: row.unit || "un",
     categoryId: row.category ?? row.category_id ?? undefined,
     active: row.active ?? true,
+    imageUrl: row.image_url ?? undefined,
   };
 }
 
@@ -186,6 +187,7 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
         price: p.price,
         stock_quantity: p.stockQuantity,
         category_id: p.categoryId || null,
+        image_url: p.imageUrl || null,
       };
 
       const newProd = mapProduct(payload);
@@ -233,6 +235,7 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
         price: p.price,
         stock_quantity: p.stockQuantity,
         category_id: p.categoryId || null,
+        image_url: p.imageUrl || null,
         updated_at: new Date().toISOString(),
       };
 
