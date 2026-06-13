@@ -2,7 +2,7 @@ import { useState, useRef } from 'react';
 import {
   LayoutDashboard, FileText, FileInput, ArrowUpDown, Wallet, Target, Sun, Moon,
   BarChart3, LogOut, Tag, RotateCcw, Download, Upload, Settings, Users,
-  ChevronDown, MoreHorizontal, Smartphone, ShoppingCart, Package,
+  ChevronDown, MoreHorizontal, Smartphone, ShoppingCart, Package, Crown
 } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import logoFluxoPro from '@/assets/Logo_FluxoPro.png';
@@ -34,8 +34,8 @@ const manageItems = [
   { title: 'Categorias', url: '/categories', icon: Tag },
   { title: 'Orçamentos', url: '/budgets', icon: Target },
   { title: 'Relatórios', url: '/reports', icon: BarChart3 },
+  { title: 'Assinatura', url: '/subscription', icon: Crown },
   { title: 'Configurações', url: '/settings', icon: Settings },
-
 ];
 
 export function AppSidebar() {
