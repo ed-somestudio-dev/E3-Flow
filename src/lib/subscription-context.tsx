@@ -62,21 +62,9 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
 
   // Edson dos Santos Oliveira bypass (owner/developer)
   const isDeveloperBypass = Boolean(
-    user && (
-      (user.email && (
-        user.email.toLowerCase().includes('edson') ||
-        user.email.toLowerCase().includes('ed-so') ||
-        user.email.toLowerCase().includes('edsomestudio') ||
-        user.email.toLowerCase().includes('somestudio')
-      )) ||
-      (user.user_metadata?.name && (
-        user.user_metadata.name.toLowerCase().includes('edson') ||
-        (user.user_metadata.name.toLowerCase().includes('oliveira') && user.user_metadata.name.toLowerCase().includes('santos'))
-      )) ||
-      (user.user_metadata?.full_name && (
-        user.user_metadata.full_name.toLowerCase().includes('edson') ||
-        (user.user_metadata.full_name.toLowerCase().includes('oliveira') && user.user_metadata.full_name.toLowerCase().includes('santos'))
-      ))
+    user && user.email && (
+      user.email.toLowerCase() === 'ed-somestudio@live.com' ||
+      user.email.toLowerCase() === 'contato@fluxopro.app.br'
     )
   );
 
@@ -113,21 +101,37 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
       return;
     }
 
-setLoading(true);
+    setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('subscriptions')
-        .select('*')
-        .eq('user_id', user.id)
-        .maybeSingle();
+      // The auto_provision_trial RPC function will:
+      // 1. Return the existing subscription if it exists and is active
+      // 2. Upgrade PENDING subscriptions to TRIAL
+      // 3. Create a new TRIAL subscription if none exists
+      const { data: newSub, error: rpcError } = await supabase
+        .rpc('auto_provision_trial');
 
-      if (data) {
+      if (!rpcError && newSub) {
         setSubscription({
-          ...(data as Subscription),
-          trial_end_date: (data as any).trial_end_date ?? null,
+          ...(newSub as Subscription),
+          trial_end_date: (newSub as any).trial_end_date ?? null,
         });
       } else {
-        setSubscription(null);
+        console.warn('[SubscriptionProvider] Falha ao executar auto_provision_trial:', rpcError);
+        // Fallback: tentar buscar a assinatura normalmente se a RPC falhar
+        const { data } = await supabase
+          .from('subscriptions')
+          .select('*')
+          .eq('user_id', user.id)
+          .maybeSingle();
+        
+        if (data) {
+          setSubscription({
+            ...(data as Subscription),
+            trial_end_date: (data as any).trial_end_date ?? null,
+          });
+        } else {
+          setSubscription(null);
+        }
       }
 
       try {

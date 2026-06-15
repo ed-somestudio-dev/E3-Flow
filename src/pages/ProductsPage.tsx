@@ -13,6 +13,8 @@ import { motion } from 'framer-motion';
 import { Plus, Search, Package, Pencil, Trash2, AlertCircle } from 'lucide-react';
 import { fmt } from '@/lib/format';
 import { toast } from 'sonner';
+import Cropper from 'react-easy-crop';
+import { getCroppedImg } from '@/lib/cropImage';
 
 const UNITS = ['un', 'kg', 'g', 'L', 'mL', 'm', 'cm', 'cx', 'pct', 'par', 'h'];
 
@@ -31,6 +33,12 @@ export default function ProductsPage() {
   const [saving, setSaving] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
+  const [cropDialogOpen, setCropDialogOpen] = useState(false);
+  const [imageToCrop, setImageToCrop] = useState<string | null>(null);
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState<any>(null);
+
   const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -42,25 +50,39 @@ export default function ProductsPage() {
 
     const reader = new FileReader();
     reader.onload = (event) => {
+      setImageToCrop(event.target?.result as string);
+      setZoom(1);
+      setCrop({ x: 0, y: 0 });
+      setCropDialogOpen(true);
+      e.target.value = '';
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleApplyCrop = async () => {
+    if (!imageToCrop || !croppedAreaPixels) return;
+    try {
+      const croppedBase64 = await getCroppedImg(imageToCrop, croppedAreaPixels);
+      // Downscale image inside canvas again just to be sure size is small
       const img = new Image();
       img.onload = () => {
         const canvas = document.createElement('canvas');
-        const size = 200;
+        const size = 300;
         canvas.width = size;
         canvas.height = size;
         const ctx = canvas.getContext('2d');
         if (ctx) {
-          const minSide = Math.min(img.width, img.height);
-          const sx = (img.width - minSide) / 2;
-          const sy = (img.height - minSide) / 2;
-          ctx.drawImage(img, sx, sy, minSide, minSide, 0, 0, size, size);
+          ctx.drawImage(img, 0, 0, size, size);
           const compressedBase64 = canvas.toDataURL('image/jpeg', 0.8);
           setForm(f => ({ ...f, imageUrl: compressedBase64 }));
+          setCropDialogOpen(false);
+          setImageToCrop(null);
         }
       };
-      img.src = event.target?.result as string;
-    };
-    reader.readAsDataURL(file);
+      img.src = croppedBase64;
+    } catch (e) {
+      toast.error('Erro ao recortar imagem');
+    }
   };
 
   const filtered = products.filter(p =>
@@ -345,6 +367,32 @@ export default function ProductsPage() {
             <Button onClick={handleSave} disabled={saving}>
               {saving ? 'Salvando...' : editTarget ? 'Salvar' : 'Criar Produto'}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Crop Dialog */}
+      <Dialog open={cropDialogOpen} onOpenChange={setCropDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Ajustar Imagem</DialogTitle>
+          </DialogHeader>
+          <div className="relative w-full h-[300px] bg-black rounded-lg overflow-hidden">
+            {imageToCrop && (
+              <Cropper
+                image={imageToCrop}
+                crop={crop}
+                zoom={zoom}
+                aspect={1}
+                onCropChange={setCrop}
+                onCropComplete={(_, croppedAreaPixels) => setCroppedAreaPixels(croppedAreaPixels)}
+                onZoomChange={setZoom}
+              />
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setCropDialogOpen(false); setImageToCrop(null); }}>Cancelar</Button>
+            <Button onClick={handleApplyCrop}>Aplicar Recorte</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

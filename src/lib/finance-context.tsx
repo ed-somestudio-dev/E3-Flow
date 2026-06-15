@@ -130,7 +130,8 @@ function mapBudget(row: any): Budget {
 }
 
 export function FinanceProvider({ children }: { children: React.ReactNode }) {
-  const { user } = useAuth();
+  const { user, tenantUserId } = useAuth();
+  const effectiveUserId = tenantUserId || user?.id;
   const { settings: pixSettings, refresh: refreshPix, save: savePix, uploadStampFromBase64 } = usePixSettings();
   const [data, setData] = useState<FinanceData>({ ...emptyData, contacts: [] });
   const [loading, setLoading] = useState(true);
@@ -144,11 +145,11 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     if (!user) { setData(emptyData); setLoading(false); return; }
 
     // Se estiver offline ou for visitante, restaura o último snapshot e encerra.
-    if ((typeof navigator !== 'undefined' && !navigator.onLine) || user.id.startsWith('guest_')) {
-      const snap = await loadSnapshot(user.id);
+    if ((typeof navigator !== 'undefined' && !navigator.onLine) || effectiveUserId.startsWith('guest_')) {
+      const snap = await loadSnapshot(effectiveUserId);
       if (snap) {
         setData(snap.data);
-        if (!user.id.startsWith('guest_')) {
+        if (!effectiveUserId.startsWith('guest_')) {
           toast.info('Modo offline: exibindo dados salvos no dispositivo');
         }
       }
@@ -159,20 +160,20 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     setLoading(true);
     try {
       const [cats, accs, txs, pays, recs, buds, conts] = await Promise.all([
-        supabase.from('categories').select('*').eq('user_id', user.id),
-        supabase.from('financial_accounts').select('*').eq('user_id', user.id),
-        supabase.from('transactions').select('*').eq('user_id', user.id).order('date', { ascending: false }),
-        supabase.from('payables').select('*').eq('user_id', user.id).order('due_date'),
-        supabase.from('receivables').select('*').eq('user_id', user.id).order('due_date'),
-        supabase.from('budgets').select('*').eq('user_id', user.id),
-        supabase.from('contacts').select('*').eq('user_id', user.id).order('name'),
+        supabase.from('categories').select('*').eq('user_id', effectiveUserId),
+        supabase.from('financial_accounts').select('*').eq('user_id', effectiveUserId),
+        supabase.from('transactions').select('*').eq('user_id', effectiveUserId).order('date', { ascending: false }),
+        supabase.from('payables').select('*').eq('user_id', effectiveUserId).order('due_date'),
+        supabase.from('receivables').select('*').eq('user_id', effectiveUserId).order('due_date'),
+        supabase.from('budgets').select('*').eq('user_id', effectiveUserId),
+        supabase.from('contacts').select('*').eq('user_id', effectiveUserId).order('name'),
       ]);
 
       let categories = (cats.data || []).map(mapCategory);
 
       // Seed default categories for new users
       if (categories.length === 0) {
-        const inserts = defaultCategories.map(c => ({ ...c, user_id: user.id }));
+        const inserts = defaultCategories.map(c => ({ ...c, user_id: effectiveUserId }));
         const { data: inserted } = await supabase.from('categories').insert(inserts).select();
         categories = (inserted || []).map(mapCategory);
       }
@@ -194,10 +195,10 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
         // Reassign references in payables, receivables, transactions, budgets
         for (const [oldId, newId] of idMap.entries()) {
           await Promise.all([
-            supabase.from('payables').update({ category_id: newId }).eq('category_id', oldId).eq('user_id', user.id),
-            supabase.from('receivables').update({ category_id: newId }).eq('category_id', oldId).eq('user_id', user.id),
-            supabase.from('transactions').update({ category_id: newId }).eq('category_id', oldId).eq('user_id', user.id),
-            supabase.from('budgets').update({ category_id: newId }).eq('category_id', oldId).eq('user_id', user.id),
+            supabase.from('payables').update({ category_id: newId }).eq('category_id', oldId).eq('user_id', effectiveUserId),
+            supabase.from('receivables').update({ category_id: newId }).eq('category_id', oldId).eq('user_id', effectiveUserId),
+            supabase.from('transactions').update({ category_id: newId }).eq('category_id', oldId).eq('user_id', effectiveUserId),
+            supabase.from('budgets').update({ category_id: newId }).eq('category_id', oldId).eq('user_id', effectiveUserId),
           ]);
         }
         // Delete duplicate categories
@@ -207,10 +208,10 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
         const remapCatId = (id: string) => idMap.get(id) || id;
         // We'll re-fetch to get clean data
         const [txs2, pays2, recs2, buds2] = await Promise.all([
-          supabase.from('transactions').select('*').eq('user_id', user.id).order('date', { ascending: false }),
-          supabase.from('payables').select('*').eq('user_id', user.id).order('due_date'),
-          supabase.from('receivables').select('*').eq('user_id', user.id).order('due_date'),
-          supabase.from('budgets').select('*').eq('user_id', user.id),
+          supabase.from('transactions').select('*').eq('user_id', effectiveUserId).order('date', { ascending: false }),
+          supabase.from('payables').select('*').eq('user_id', effectiveUserId).order('due_date'),
+          supabase.from('receivables').select('*').eq('user_id', effectiveUserId).order('due_date'),
+          supabase.from('budgets').select('*').eq('user_id', effectiveUserId),
         ]);
         setData({
           categories,
@@ -244,11 +245,11 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       };
       setData(fresh);
       // Salva snapshot para acesso offline
-      saveSnapshot(user.id, fresh).catch(() => {/* noop */ });
+      saveSnapshot(effectiveUserId, fresh).catch(() => {/* noop */ });
     } catch (err) {
       console.error('Failed to fetch data:', err);
       // Sem internet ou servidor caiu — tenta restaurar snapshot offline
-      const snap = await loadSnapshot(user.id);
+      const snap = await loadSnapshot(effectiveUserId);
       if (snap) {
         setData(snap.data);
         toast.info('Sem conexão: usando dados salvos no dispositivo');
@@ -276,10 +277,10 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       }, 5000);
 
       try {
-        const isOnline = typeof navigator !== 'undefined' && navigator.onLine && !user.id.startsWith('guest_');
+        const isOnline = typeof navigator !== 'undefined' && navigator.onLine && !effectiveUserId.startsWith('guest_');
         if (isOnline) {
           console.log('[FinanceProvider] Online: Sincronizando...');
-          await syncOfflineMutations(user.id).catch(e => console.error('Sync failed:', e));
+          await syncOfflineMutations(effectiveUserId).catch(e => console.error('Sync failed:', e));
         } else {
           console.log('[FinanceProvider] Offline ou Visitante: Carregando snapshot...');
         }
@@ -348,7 +349,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
         updates.push(supabase.from('financial_accounts').update(payload).eq('id', accountId));
       } else if (user) {
         await enqueueMutation({
-          userId: user.id,
+          userId: effectiveUserId,
           type: 'UPDATE',
           payload: { table: 'financial_accounts', data: payload, match: { id: accountId } }
         });
@@ -369,7 +370,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
             return up ? up : a;
           })
         };
-        if (user) saveSnapshot(user.id, fresh).catch(() => {});
+        if (user) saveSnapshot(effectiveUserId, fresh).catch(() => {});
         return fresh;
       });
     }
@@ -403,7 +404,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     if (isOnline) {
       const { data: remote } = await supabase.from('payables')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', effectiveUserId)
         .eq('supplier', `cartao:${acc.id}`)
         .eq('due_date', dueDate)
         .maybeSingle();
@@ -424,13 +425,13 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
           await supabase.from('payables').delete().eq('id', existing.id);
         } else {
           await enqueueMutation({
-            userId: user.id,
+            userId: effectiveUserId,
             type: 'DELETE',
             payload: { table: 'payables', match: { id: existing.id } }
           });
           setData(prev => {
             const fresh = { ...prev, payables: prev.payables.filter(p => p.id !== existing.id) };
-            saveSnapshot(user.id, fresh).catch(() => {});
+            saveSnapshot(effectiveUserId, fresh).catch(() => {});
             return fresh;
           });
         }
@@ -442,13 +443,13 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
         await supabase.from('payables').update(payload).eq('id', existing.id);
       } else {
         await enqueueMutation({
-          userId: user.id,
+          userId: effectiveUserId,
           type: 'UPDATE',
           payload: { table: 'payables', data: payload, match: { id: existing.id } }
         });
         setData(prev => {
           const fresh = { ...prev, payables: prev.payables.map(p => p.id === existing.id ? { ...p, ...payload } : p) };
-          saveSnapshot(user.id, fresh).catch(() => {});
+          saveSnapshot(effectiveUserId, fresh).catch(() => {});
           return fresh;
         });
       }
@@ -461,7 +462,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       const id = generateId();
       const payload = {
         id,
-        user_id: user.id, description, supplier: `cartao:${acc.id}`,
+        user_id: effectiveUserId, description, supplier: `cartao:${acc.id}`,
         category_id: cat.id, account_id: acc.id,
         amount: amountDelta, due_date: dueDate, status: 'pending',
       };
@@ -469,14 +470,14 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
         await supabase.from('payables').insert(payload);
       } else {
         await enqueueMutation({
-          userId: user.id,
+          userId: effectiveUserId,
           type: 'INSERT',
           payload: { table: 'payables', data: payload }
         });
         const newPayable = mapPayable(payload);
         setData(prev => {
           const fresh = { ...prev, payables: [...prev.payables, newPayable] };
-          saveSnapshot(user.id, fresh).catch(() => {});
+          saveSnapshot(effectiveUserId, fresh).catch(() => {});
           return fresh;
         });
       }
@@ -490,7 +491,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     const id = generateId();
     const payload = {
       id,
-      user_id: user.id, 
+      user_id: effectiveUserId, 
       type: tx.type, 
       description: tx.description,
       category_id: tx.categoryId, 
@@ -505,11 +506,11 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       const { error } = await supabase.from('transactions').insert(payload as any);
       if (error) { toast.error('Erro ao criar transação'); return; }
     } else {
-      await enqueueMutation({ userId: user.id, type: 'INSERT', payload: { table: 'transactions', data: payload } });
+      await enqueueMutation({ userId: effectiveUserId, type: 'INSERT', payload: { table: 'transactions', data: payload } });
       const newTx = mapTransaction(payload);
       setData(prev => {
         const fresh = { ...prev, transactions: [newTx, ...prev.transactions] };
-        saveSnapshot(user.id, fresh).catch(() => {});
+        saveSnapshot(effectiveUserId, fresh).catch(() => {});
         return fresh;
       });
     }
@@ -555,7 +556,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       if (error) { toast.error('Erro ao atualizar transação'); return; }
     } else {
       await enqueueMutation({
-        userId: user.id,
+        userId: effectiveUserId,
         type: 'UPDATE',
         payload: { table: 'transactions', data: payload, match: { id: tx.id } }
       });
@@ -564,7 +565,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
           ...prev,
           transactions: prev.transactions.map(t => t.id === tx.id ? tx : t)
         };
-        saveSnapshot(user.id, fresh).catch(() => {});
+        saveSnapshot(effectiveUserId, fresh).catch(() => {});
         return fresh;
       });
     }
@@ -605,7 +606,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       if (error) { toast.error('Erro ao excluir transação'); return; }
     } else {
       await enqueueMutation({
-        userId: user.id,
+        userId: effectiveUserId,
         type: 'DELETE',
         payload: { table: 'transactions', match: { id } }
       });
@@ -614,7 +615,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
           ...prev,
           transactions: prev.transactions.filter(t => t.id !== id)
         };
-        saveSnapshot(user.id, fresh).catch(() => {});
+        saveSnapshot(effectiveUserId, fresh).catch(() => {});
         return fresh;
       });
     }
@@ -689,7 +690,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
         const supplier = isCC && acc ? `cartao:${acc.id}` : p.supplier;
 
         const payload = {
-          user_id: user.id, description: desc, supplier,
+          user_id: effectiveUserId, description: desc, supplier,
           category_id: p.categoryId, account_id: p.accountId || null,
           amount: p.amount, due_date: dueStr, status: 'pending',
           notes: p.notes || null,
@@ -701,11 +702,11 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
         if (isOnline) {
           await supabase.from('payables').insert(payload);
         } else {
-          await enqueueMutation({ userId: user.id, type: 'INSERT', payload: { table: 'payables', data: payload } });
+          await enqueueMutation({ userId: effectiveUserId, type: 'INSERT', payload: { table: 'payables', data: payload } });
           const newPayable = mapPayable({ id: generateId(), ...payload });
           setData(prev => {
             const fresh = { ...prev, payables: [...prev.payables, newPayable] };
-            saveSnapshot(user.id, fresh).catch(() => { });
+            saveSnapshot(effectiveUserId, fresh).catch(() => { });
             return fresh;
           });
         }
@@ -760,7 +761,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
         if (acc?.type?.includes('credit_card')) {
           payload = {
             id,
-            user_id: user.id, description: desc, supplier: `cartao:${acc.id}`,
+            user_id: effectiveUserId, description: desc, supplier: `cartao:${acc.id}`,
             category_id: p.categoryId, account_id: p.accountId || null,
             amount: installmentAmount, due_date: dueStr, status: 'pending',
             notes: p.notes || null, purchase_date: (p as any).purchaseDate || null,
@@ -768,7 +769,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
         } else {
           payload = {
             id,
-            user_id: user.id, description: desc, supplier: p.supplier,
+            user_id: effectiveUserId, description: desc, supplier: p.supplier,
             category_id: p.categoryId, account_id: p.accountId || null,
             amount: installmentAmount, due_date: dueStr, status: 'pending',
             notes: p.notes || null,
@@ -778,11 +779,11 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
         if (isOnline) {
           await supabase.from('payables').insert(payload);
         } else {
-          await enqueueMutation({ userId: user.id, type: 'INSERT', payload: { table: 'payables', data: payload } });
+          await enqueueMutation({ userId: effectiveUserId, type: 'INSERT', payload: { table: 'payables', data: payload } });
           const newPayable = mapPayable(payload);
           setData(prev => {
             const fresh = { ...prev, payables: [...prev.payables, newPayable] };
-            saveSnapshot(user.id, fresh).catch(() => { });
+            saveSnapshot(effectiveUserId, fresh).catch(() => { });
             return fresh;
           });
         }
@@ -799,7 +800,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
         const id = generateId();
         const payload = {
           id,
-          user_id: user.id, description: p.description, supplier: `cartao:${acc.id}`,
+          user_id: effectiveUserId, description: p.description, supplier: `cartao:${acc.id}`,
           category_id: p.categoryId, account_id: p.accountId || null,
           amount: p.amount, due_date: p.dueDate, status: 'pending',
           notes: p.notes || null, purchase_date: (p as any).purchaseDate || null,
@@ -808,11 +809,11 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
           await supabase.from('payables').insert(payload);
           await fetchAll();
         } else {
-          await enqueueMutation({ userId: user.id, type: 'INSERT', payload: { table: 'payables', data: payload } });
+          await enqueueMutation({ userId: effectiveUserId, type: 'INSERT', payload: { table: 'payables', data: payload } });
           const newPayable = mapPayable(payload);
           setData(prev => {
             const fresh = { ...prev, payables: [...prev.payables, newPayable] };
-            saveSnapshot(user.id, fresh).catch(() => { });
+            saveSnapshot(effectiveUserId, fresh).catch(() => { });
             return fresh;
           });
           toast.success('Salvo offline. Será sincronizado depois.');
@@ -824,7 +825,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     const id = generateId();
     const payload = {
       id,
-      user_id: user.id, 
+      user_id: effectiveUserId, 
       description: p.description, 
       supplier: p.supplier,
       category_id: p.categoryId, 
@@ -843,11 +844,11 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       if (error) {
         if (error.message?.includes('Failed to fetch')) {
           // Fallback para offline
-          await enqueueMutation({ userId: user.id, type: 'INSERT', payload: { table: 'payables', data: payload } });
+          await enqueueMutation({ userId: effectiveUserId, type: 'INSERT', payload: { table: 'payables', data: payload } });
           const newPayable = mapPayable(payload);
           setData(prev => {
             const fresh = { ...prev, payables: [...prev.payables, newPayable] };
-            saveSnapshot(user.id, fresh).catch(() => { });
+            saveSnapshot(effectiveUserId, fresh).catch(() => { });
             return fresh;
           });
           toast.success('Salvo offline. Será sincronizado depois.');
@@ -859,11 +860,11 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       }
       await fetchAll();
     } else {
-      await enqueueMutation({ userId: user.id, type: 'INSERT', payload: { table: 'payables', data: payload } });
+      await enqueueMutation({ userId: effectiveUserId, type: 'INSERT', payload: { table: 'payables', data: payload } });
       const newPayable = mapPayable(payload);
       setData(prev => {
         const fresh = { ...prev, payables: [...prev.payables, newPayable] };
-        saveSnapshot(user.id, fresh).catch(() => { });
+        saveSnapshot(effectiveUserId, fresh).catch(() => { });
         return fresh;
       });
       toast.success('Salvo offline. Será sincronizado depois.');
@@ -888,17 +889,17 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     };
 
     if (isOnline) {
-      const { error } = await supabase.from('payables').update(payload).eq('id', p.id).eq('user_id', user.id);
+      const { error } = await supabase.from('payables').update(payload).eq('id', p.id).eq('user_id', effectiveUserId);
       if (error) { console.error('updatePayable error:', error); toast.error('Erro ao atualizar conta a pagar'); return; }
     } else {
       await enqueueMutation({
-        userId: user.id,
+        userId: effectiveUserId,
         type: 'UPDATE',
         payload: { table: 'payables', data: payload, match: { id: p.id } }
       });
       setData(prev => {
         const fresh = { ...prev, payables: prev.payables.map(x => x.id === p.id ? p : x) };
-        saveSnapshot(user.id, fresh).catch(() => {});
+        saveSnapshot(effectiveUserId, fresh).catch(() => {});
         return fresh;
       });
       toast.success('Alteração salva offline');
@@ -912,17 +913,17 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
 
     if (isOnline) {
-      const { error } = await supabase.from('payables').delete().eq('id', id).eq('user_id', user.id);
+      const { error } = await supabase.from('payables').delete().eq('id', id).eq('user_id', effectiveUserId);
       if (error) { console.error('deletePayable error:', error); toast.error('Erro ao excluir conta a pagar'); return; }
     } else {
       await enqueueMutation({
-        userId: user.id,
+        userId: effectiveUserId,
         type: 'DELETE',
         payload: { table: 'payables', match: { id } }
       });
       setData(prev => {
         const fresh = { ...prev, payables: prev.payables.filter(p => p.id !== id) };
-        saveSnapshot(user.id, fresh).catch(() => {});
+        saveSnapshot(effectiveUserId, fresh).catch(() => {});
         return fresh;
       });
       toast.success('Exclusão salva offline');
@@ -955,17 +956,17 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     const allIds = Array.from(new Set([id, ...ids]));
 
     if (isOnline) {
-      const { error } = await supabase.from('payables').delete().in('id', allIds).eq('user_id', user.id);
+      const { error } = await supabase.from('payables').delete().in('id', allIds).eq('user_id', effectiveUserId);
       if (error) { console.error('deletePayableWithFuture error:', error); toast.error('Erro ao excluir contas vinculadas'); return 0; }
     } else {
       await enqueueMutation({
-        userId: user.id,
+        userId: effectiveUserId,
         type: 'DELETE',
         payload: { table: 'payables', matchIn: { column: 'id', values: allIds } }
       });
       setData(prev => {
         const fresh = { ...prev, payables: prev.payables.filter(p => !allIds.includes(p.id)) };
-        saveSnapshot(user.id, fresh).catch(() => {});
+        saveSnapshot(effectiveUserId, fresh).catch(() => {});
         return fresh;
       });
       toast.success(`${allIds.length} contas excluídas offline`);
@@ -985,17 +986,17 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     if (isOnline) {
       const { error } = await supabase.from('payables').update({
         status: 'paid', payment_date: today, account_id: targetAccountId || null,
-      }).eq('id', id).eq('user_id', user.id);
+      }).eq('id', id).eq('user_id', effectiveUserId);
       if (error) { console.error('markPayablePaid error:', error); toast.error('Erro ao marcar como pago'); return; }
     } else {
       await enqueueMutation({
-        userId: user.id,
+        userId: effectiveUserId,
         type: 'UPDATE',
         payload: { table: 'payables', data: { status: 'paid', payment_date: today, account_id: targetAccountId || null }, match: { id } }
       });
       setData(prev => {
         const fresh = { ...prev, payables: prev.payables.map(p => p.id === id ? { ...p, status: 'paid' as const, paymentDate: today, accountId: targetAccountId } : p) };
-        saveSnapshot(user.id, fresh).catch(() => {});
+        saveSnapshot(effectiveUserId, fresh).catch(() => {});
         return fresh;
       });
     }
@@ -1010,13 +1011,13 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
             if (balErr) console.error('decrement balance error:', balErr);
           } else {
             await enqueueMutation({
-              userId: user.id,
+              userId: effectiveUserId,
               type: 'RPC',
               payload: { rpc: 'decrement_account_balance', args: { p_account_id: targetAccountId, p_amount: payable.amount } }
             });
             setData(prev => {
               const fresh = { ...prev, accounts: prev.accounts.map(a => a.id === targetAccountId ? { ...a, balance: a.balance - payable.amount } : a) };
-              saveSnapshot(user.id, fresh).catch(() => {});
+              saveSnapshot(effectiveUserId, fresh).catch(() => {});
               return fresh;
             });
           }
@@ -1027,7 +1028,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       const txId = generateId();
       const txPayload = {
         id: txId,
-        user_id: user.id,
+        user_id: effectiveUserId,
         type: 'expense',
         description: payable.description,
         category_id: payable.categoryId,
@@ -1041,14 +1042,14 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
         await supabase.from('transactions').insert(txPayload);
       } else {
         await enqueueMutation({
-          userId: user.id,
+          userId: effectiveUserId,
           type: 'INSERT',
           payload: { table: 'transactions', data: txPayload }
         });
         const newTx = mapTransaction(txPayload);
         setData(prev => {
           const fresh = { ...prev, transactions: [newTx, ...prev.transactions] };
-          saveSnapshot(user.id, fresh).catch(() => {});
+          saveSnapshot(effectiveUserId, fresh).catch(() => {});
           return fresh;
         });
       }
@@ -1085,24 +1086,24 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     };
 
     if (isOnline) {
-      const { error: updErr } = await supabase.from('payables').update(updatePayload).eq('id', id).eq('user_id', user.id);
+      const { error: updErr } = await supabase.from('payables').update(updatePayload).eq('id', id).eq('user_id', effectiveUserId);
       if (updErr) { console.error('partial payable update error:', updErr); toast.error('Erro ao registrar pagamento parcial'); return; }
     } else {
       await enqueueMutation({
-        userId: user.id,
+        userId: effectiveUserId,
         type: 'UPDATE',
         payload: { table: 'payables', data: updatePayload, match: { id } }
       });
       setData(prev => {
         const fresh = { ...prev, payables: prev.payables.map(p => p.id === id ? { ...p, ...updatePayload, paymentDate: today, accountId } : p) };
-        saveSnapshot(user.id, fresh).catch(() => {});
+        saveSnapshot(effectiveUserId, fresh).catch(() => {});
         return fresh;
       });
     }
 
     // 2) Cria novo registro pendente com o valor restante (mantém os demais dados)
     const insertPayload = {
-      user_id: user.id,
+      user_id: effectiveUserId,
       description: `${payable.description} (Saldo restante)`,
       supplier: payable.supplier,
       category_id: payable.categoryId,
@@ -1119,14 +1120,14 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       if (insErr) { console.error('partial payable insert error:', insErr); toast.error('Erro ao criar saldo restante'); return; }
     } else {
       await enqueueMutation({
-        userId: user.id,
+        userId: effectiveUserId,
         type: 'INSERT',
         payload: { table: 'payables', data: insertPayload }
       });
       const newPayable = mapPayable({ id: generateId(), ...insertPayload });
       setData(prev => {
         const fresh = { ...prev, payables: [...prev.payables, newPayable] };
-        saveSnapshot(user.id, fresh).catch(() => {});
+        saveSnapshot(effectiveUserId, fresh).catch(() => {});
         return fresh;
       });
     }
@@ -1141,13 +1142,13 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
           if (balErr) console.error('decrement balance error:', balErr);
         } else {
           await enqueueMutation({
-            userId: user.id,
+            userId: effectiveUserId,
             type: 'RPC',
             payload: { rpc: 'decrement_account_balance', args: { p_account_id: accountId, p_amount: paidAmount } }
           });
           setData(prev => {
             const fresh = { ...prev, accounts: prev.accounts.map(a => a.id === accountId ? { ...a, balance: a.balance - paidAmount } : a) };
-            saveSnapshot(user.id, fresh).catch(() => {});
+            saveSnapshot(effectiveUserId, fresh).catch(() => {});
             return fresh;
           });
         }
@@ -1157,7 +1158,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     const txId = generateId();
     const txPayload = {
       id: txId,
-      user_id: user.id,
+      user_id: effectiveUserId,
       type: 'expense',
       description: payable.description,
       category_id: payable.categoryId,
@@ -1171,14 +1172,14 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       await supabase.from('transactions').insert(txPayload);
     } else {
       await enqueueMutation({
-        userId: user.id,
+        userId: effectiveUserId,
         type: 'INSERT',
         payload: { table: 'transactions', data: txPayload }
       });
       const newTx = mapTransaction(txPayload);
       setData(prev => {
         const fresh = { ...prev, transactions: [newTx, ...prev.transactions] };
-        saveSnapshot(user.id, fresh).catch(() => {});
+        saveSnapshot(effectiveUserId, fresh).catch(() => {});
         return fresh;
       });
     }
@@ -1207,7 +1208,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
         const id = generateId();
         const payload = {
           id,
-          user_id: user.id, client_name: r.clientName, description: desc,
+          user_id: effectiveUserId, client_name: r.clientName, description: desc,
           category_id: r.categoryId, account_id: r.accountId || null,
           amount: r.amount, due_date: dueStr, status: 'pending',
           notes: r.notes || null,
@@ -1218,11 +1219,11 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
         if (isOnline) {
           await supabase.from('receivables').insert(payload);
         } else {
-          await enqueueMutation({ userId: user.id, type: 'INSERT', payload: { table: 'receivables', data: payload } });
+          await enqueueMutation({ userId: effectiveUserId, type: 'INSERT', payload: { table: 'receivables', data: payload } });
           const newReceivable = mapReceivable(payload);
           setData(prev => {
             const fresh = { ...prev, receivables: [...prev.receivables, newReceivable] };
-            saveSnapshot(user.id, fresh).catch(() => { });
+            saveSnapshot(effectiveUserId, fresh).catch(() => { });
             return fresh;
           });
         }
@@ -1247,7 +1248,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
         const id = generateId();
         const payload = {
           id,
-          user_id: user.id, client_name: r.clientName, description: desc,
+          user_id: effectiveUserId, client_name: r.clientName, description: desc,
           category_id: r.categoryId, account_id: r.accountId || null,
           amount: installmentAmount, due_date: dueStr, status: 'pending',
           notes: r.notes || null,
@@ -1256,11 +1257,11 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
         if (isOnline) {
           await supabase.from('receivables').insert(payload);
         } else {
-          await enqueueMutation({ userId: user.id, type: 'INSERT', payload: { table: 'receivables', data: payload } });
+          await enqueueMutation({ userId: effectiveUserId, type: 'INSERT', payload: { table: 'receivables', data: payload } });
           const newReceivable = mapReceivable(payload);
           setData(prev => {
             const fresh = { ...prev, receivables: [...prev.receivables, newReceivable] };
-            saveSnapshot(user.id, fresh).catch(() => { });
+            saveSnapshot(effectiveUserId, fresh).catch(() => { });
             return fresh;
           });
         }
@@ -1274,7 +1275,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     const id = generateId();
     const payload = {
       id,
-      user_id: user.id, 
+      user_id: effectiveUserId, 
       client_name: r.clientName, 
       description: r.description,
       category_id: r.categoryId, 
@@ -1292,11 +1293,11 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       const { error } = await supabase.from('receivables').insert(payload);
       if (error) {
         if (error.message?.includes('Failed to fetch')) {
-          await enqueueMutation({ userId: user.id, type: 'INSERT', payload: { table: 'receivables', data: payload } });
+          await enqueueMutation({ userId: effectiveUserId, type: 'INSERT', payload: { table: 'receivables', data: payload } });
           const newReceivable = mapReceivable(payload);
           setData(prev => {
             const fresh = { ...prev, receivables: [...prev.receivables, newReceivable] };
-            saveSnapshot(user.id, fresh).catch(() => { });
+            saveSnapshot(effectiveUserId, fresh).catch(() => { });
             return fresh;
           });
           toast.success('Salvo offline. Será sincronizado depois.');
@@ -1308,11 +1309,11 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       }
       await fetchAll();
     } else {
-      await enqueueMutation({ userId: user.id, type: 'INSERT', payload: { table: 'receivables', data: payload } });
+      await enqueueMutation({ userId: effectiveUserId, type: 'INSERT', payload: { table: 'receivables', data: payload } });
       const newReceivable = mapReceivable(payload);
       setData(prev => {
         const fresh = { ...prev, receivables: [...prev.receivables, newReceivable] };
-        saveSnapshot(user.id, fresh).catch(() => { });
+        saveSnapshot(effectiveUserId, fresh).catch(() => { });
         return fresh;
       });
       toast.success('Salvo offline. Será sincronizado depois.');
@@ -1338,17 +1339,17 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     };
 
     if (isOnline) {
-      const { error } = await supabase.from('receivables').update(payload).eq('id', r.id).eq('user_id', user.id);
+      const { error } = await supabase.from('receivables').update(payload).eq('id', r.id).eq('user_id', effectiveUserId);
       if (error) { console.error('updateReceivable error:', error); toast.error('Erro ao atualizar conta a receber'); return; }
     } else {
       await enqueueMutation({
-        userId: user.id,
+        userId: effectiveUserId,
         type: 'UPDATE',
         payload: { table: 'receivables', data: payload, match: { id: r.id } }
       });
       setData(prev => {
         const fresh = { ...prev, receivables: prev.receivables.map(x => x.id === r.id ? r : x) };
-        saveSnapshot(user.id, fresh).catch(() => {});
+        saveSnapshot(effectiveUserId, fresh).catch(() => {});
         return fresh;
       });
       toast.success('Alteração salva offline');
@@ -1362,17 +1363,17 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
 
     if (isOnline) {
-      const { error } = await supabase.from('receivables').delete().eq('id', id).eq('user_id', user.id);
+      const { error } = await supabase.from('receivables').delete().eq('id', id).eq('user_id', effectiveUserId);
       if (error) { console.error('deleteReceivable error:', error); toast.error('Erro ao excluir conta a receber'); return; }
     } else {
       await enqueueMutation({
-        userId: user.id,
+        userId: effectiveUserId,
         type: 'DELETE',
         payload: { table: 'receivables', match: { id } }
       });
       setData(prev => {
         const fresh = { ...prev, receivables: prev.receivables.filter(r => r.id !== id) };
-        saveSnapshot(user.id, fresh).catch(() => {});
+        saveSnapshot(effectiveUserId, fresh).catch(() => {});
         return fresh;
       });
       toast.success('Exclusão salva offline');
@@ -1393,11 +1394,11 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     if (isOnline) {
       const { error } = await supabase.from('receivables').update({
         status: 'received', payment_date: paymentDate, account_id: targetAccountId || null,
-      }).eq('id', id).eq('user_id', user.id);
+      }).eq('id', id).eq('user_id', effectiveUserId);
       if (error) { console.error('markReceivableReceived error:', error); toast.error('Erro ao marcar como recebido'); return; }
     } else {
       await enqueueMutation({
-        userId: user.id,
+        userId: effectiveUserId,
         type: 'UPDATE',
         payload: { table: 'receivables', data: { status: 'received', payment_date: paymentDate, account_id: targetAccountId || null }, match: { id } }
       });
@@ -1409,7 +1410,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
         ...prev, 
         receivables: prev.receivables.map(r => r.id === id ? { ...r, status: 'received' as const, paymentDate: paymentDate, accountId: targetAccountId } : r) 
       };
-      saveSnapshot(user.id, fresh).catch(() => {});
+      saveSnapshot(effectiveUserId, fresh).catch(() => {});
       return fresh;
     });
 
@@ -1421,13 +1422,13 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
           if (balErr) console.error('increment balance error:', balErr);
         } else {
           await enqueueMutation({
-            userId: user.id,
+            userId: effectiveUserId,
             type: 'RPC',
             payload: { rpc: 'increment_account_balance', args: { p_account_id: targetAccountId, p_amount: receivable.amount } }
           });
           setData(prev => {
             const fresh = { ...prev, accounts: prev.accounts.map(a => a.id === targetAccountId ? { ...a, balance: a.balance + receivable.amount } : a) };
-            saveSnapshot(user.id, fresh).catch(() => {});
+            saveSnapshot(effectiveUserId, fresh).catch(() => {});
             return fresh;
           });
         }
@@ -1437,7 +1438,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       const txId = generateId();
       const txPayload = {
         id: txId,
-        user_id: user.id,
+        user_id: effectiveUserId,
         type: 'income',
         description: receivable.description,
         category_id: receivable.categoryId,
@@ -1451,14 +1452,14 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
         await supabase.from('transactions').insert(txPayload);
       } else {
         await enqueueMutation({
-          userId: user.id,
+          userId: effectiveUserId,
           type: 'INSERT',
           payload: { table: 'transactions', data: txPayload }
         });
         const newTx = mapTransaction(txPayload);
         setData(prev => {
           const fresh = { ...prev, transactions: [newTx, ...prev.transactions] };
-          saveSnapshot(user.id, fresh).catch(() => {});
+          saveSnapshot(effectiveUserId, fresh).catch(() => {});
           return fresh;
         });
       }
@@ -1499,17 +1500,17 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     };
 
     if (isOnline) {
-      const { error: updErr } = await supabase.from('receivables').update(updatePayload).eq('id', id).eq('user_id', user.id);
+      const { error: updErr } = await supabase.from('receivables').update(updatePayload).eq('id', id).eq('user_id', effectiveUserId);
       if (updErr) { console.error('partial receivable update error:', updErr); toast.error('Erro ao registrar recebimento parcial'); return; }
     } else {
       await enqueueMutation({
-        userId: user.id,
+        userId: effectiveUserId,
         type: 'UPDATE',
         payload: { table: 'receivables', data: updatePayload, match: { id } }
       });
       setData(prev => {
         const fresh = { ...prev, receivables: prev.receivables.map(r => r.id === id ? { ...r, ...updatePayload, paymentDate: today, accountId } : r) };
-        saveSnapshot(user.id, fresh).catch(() => {});
+        saveSnapshot(effectiveUserId, fresh).catch(() => {});
         return fresh;
       });
     }
@@ -1518,7 +1519,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     const newReceivableId = generateId();
     const insertPayload = {
       id: newReceivableId,
-      user_id: user.id,
+      user_id: effectiveUserId,
       client_name: receivable.clientName,
       description: `${receivable.description} (Saldo restante)`,
       category_id: receivable.categoryId,
@@ -1534,14 +1535,14 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       if (insErr) { console.error('partial receivable insert error:', insErr); toast.error('Erro ao criar saldo restante'); return; }
     } else {
       await enqueueMutation({
-        userId: user.id,
+        userId: effectiveUserId,
         type: 'INSERT',
         payload: { table: 'receivables', data: insertPayload }
       });
       const newReceivable = mapReceivable(insertPayload);
       setData(prev => {
         const fresh = { ...prev, receivables: [...prev.receivables, newReceivable] };
-        saveSnapshot(user.id, fresh).catch(() => {});
+        saveSnapshot(effectiveUserId, fresh).catch(() => {});
         return fresh;
       });
     }
@@ -1552,13 +1553,13 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       if (balErr) console.error('increment balance error:', balErr);
     } else {
       await enqueueMutation({
-        userId: user.id,
+        userId: effectiveUserId,
         type: 'RPC',
         payload: { rpc: 'increment_account_balance', args: { p_account_id: accountId, p_amount: receivedAmount } }
       });
       setData(prev => {
         const fresh = { ...prev, accounts: prev.accounts.map(a => a.id === accountId ? { ...a, balance: a.balance + receivedAmount } : a) };
-        saveSnapshot(user.id, fresh).catch(() => {});
+        saveSnapshot(effectiveUserId, fresh).catch(() => {});
         return fresh;
       });
     }
@@ -1566,7 +1567,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     const txId = generateId();
     const txPayload = {
       id: txId,
-      user_id: user.id,
+      user_id: effectiveUserId,
       type: 'income',
       description: receivable.description,
       category_id: receivable.categoryId,
@@ -1580,14 +1581,14 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       await supabase.from('transactions').insert(txPayload);
     } else {
       await enqueueMutation({
-        userId: user.id,
+        userId: effectiveUserId,
         type: 'INSERT',
         payload: { table: 'transactions', data: txPayload }
       });
       const newTx = mapTransaction(txPayload);
       setData(prev => {
         const fresh = { ...prev, transactions: [newTx, ...prev.transactions] };
-        saveSnapshot(user.id, fresh).catch(() => {});
+        saveSnapshot(effectiveUserId, fresh).catch(() => {});
         return fresh;
       });
     }
@@ -1610,7 +1611,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     // Defensive payload construction
     const payload = {
       id,
-      user_id: user.id,
+      user_id: effectiveUserId,
       name: (a.name || '').trim(),
       type: a.type || 'checking',
       balance: isNaN(Number(a.balance)) ? 0 : Number(a.balance),
@@ -1629,12 +1630,18 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
         toast.error('Erro ao criar conta: ' + (error.message || 'Verifique os dados')); 
         return; 
       }
-    } else {
-      await enqueueMutation({ userId: user.id, type: 'INSERT', payload: { table: 'financial_accounts', data: payload } });
       const newAcc = mapAccount(payload);
       setData(prev => {
         const fresh = { ...prev, accounts: [...prev.accounts, newAcc] };
-        saveSnapshot(user.id, fresh).catch(() => {});
+        saveSnapshot(effectiveUserId, fresh).catch(() => {});
+        return fresh;
+      });
+    } else {
+      await enqueueMutation({ userId: effectiveUserId, type: 'INSERT', payload: { table: 'financial_accounts', data: payload } });
+      const newAcc = mapAccount(payload);
+      setData(prev => {
+        const fresh = { ...prev, accounts: [...prev.accounts, newAcc] };
+        saveSnapshot(effectiveUserId, fresh).catch(() => {});
         return fresh;
       });
       toast.success('Conta criada offline');
@@ -1660,21 +1667,26 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     };
 
     if (isOnline) {
-      const { error } = await supabase.from('financial_accounts').update(payload).eq('id', a.id).eq('user_id', user.id);
+      const { error } = await supabase.from('financial_accounts').update(payload).eq('id', a.id).eq('user_id', effectiveUserId);
       if (error) { 
         console.error('updateAccount error detailed:', error); 
         toast.error('Erro ao atualizar conta: ' + (error.message || 'Verifique os dados')); 
         return; 
       }
+      setData(prev => {
+        const fresh = { ...prev, accounts: prev.accounts.map(x => x.id === a.id ? a : x) };
+        saveSnapshot(effectiveUserId, fresh).catch(() => {});
+        return fresh;
+      });
     } else {
       await enqueueMutation({
-        userId: user.id,
+        userId: effectiveUserId,
         type: 'UPDATE',
         payload: { table: 'financial_accounts', data: payload, match: { id: a.id } }
       });
       setData(prev => {
         const fresh = { ...prev, accounts: prev.accounts.map(x => x.id === a.id ? a : x) };
-        saveSnapshot(user.id, fresh).catch(() => {});
+        saveSnapshot(effectiveUserId, fresh).catch(() => {});
         return fresh;
       });
       toast.success('Alteração salva offline');
@@ -1688,17 +1700,22 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
 
     if (isOnline) {
-      const { error } = await supabase.from('financial_accounts').delete().eq('id', id).eq('user_id', user.id);
+      const { error } = await supabase.from('financial_accounts').delete().eq('id', id).eq('user_id', effectiveUserId);
       if (error) { console.error('deleteAccount error:', error); toast.error('Não é possível excluir conta com transações vinculadas'); return; }
+      setData(prev => {
+        const fresh = { ...prev, accounts: prev.accounts.filter(a => a.id !== id) };
+        saveSnapshot(effectiveUserId, fresh).catch(() => {});
+        return fresh;
+      });
     } else {
       await enqueueMutation({
-        userId: user.id,
+        userId: effectiveUserId,
         type: 'DELETE',
         payload: { table: 'financial_accounts', match: { id } }
       });
       setData(prev => {
         const fresh = { ...prev, accounts: prev.accounts.filter(a => a.id !== id) };
-        saveSnapshot(user.id, fresh).catch(() => {});
+        saveSnapshot(effectiveUserId, fresh).catch(() => {});
         return fresh;
       });
       toast.success('Exclusão salva offline');
@@ -1721,12 +1738,12 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       ]);
     } else {
       await enqueueMutation({
-        userId: user.id,
+        userId: effectiveUserId,
         type: 'UPDATE',
         payload: { table: 'financial_accounts', data: { balance: fromAcc.balance - amount }, match: { id: fromId } }
       });
       await enqueueMutation({
-        userId: user.id,
+        userId: effectiveUserId,
         type: 'UPDATE',
         payload: { table: 'financial_accounts', data: { balance: toAcc.balance + amount }, match: { id: toId } }
       });
@@ -1739,7 +1756,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
             return a;
           })
         };
-        saveSnapshot(user.id, fresh).catch(() => {});
+        saveSnapshot(effectiveUserId, fresh).catch(() => {});
         return fresh;
       });
       toast.success('Transferência salva offline');
@@ -1755,18 +1772,18 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     const id = generateId();
     const payload = {
       id,
-      user_id: user.id, category_id: b.categoryId, amount: b.amount, month: b.month,
+      user_id: effectiveUserId, category_id: b.categoryId, amount: b.amount, month: b.month,
     };
 
     if (isOnline) {
       const { error } = await supabase.from('budgets').insert(payload);
       if (error) { console.error('addBudget error:', error); toast.error('Erro ao criar orçamento'); return; }
     } else {
-      await enqueueMutation({ userId: user.id, type: 'INSERT', payload: { table: 'budgets', data: payload } });
+      await enqueueMutation({ userId: effectiveUserId, type: 'INSERT', payload: { table: 'budgets', data: payload } });
       const newBudget = mapBudget(payload);
       setData(prev => {
         const fresh = { ...prev, budgets: [...prev.budgets, newBudget] };
-        saveSnapshot(user.id, fresh).catch(() => {});
+        saveSnapshot(effectiveUserId, fresh).catch(() => {});
         return fresh;
       });
       toast.success('Orçamento criado offline');
@@ -1781,17 +1798,17 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     const payload = { category_id: b.categoryId, amount: b.amount, month: b.month };
 
     if (isOnline) {
-      const { error } = await supabase.from('budgets').update(payload).eq('id', b.id).eq('user_id', user.id);
+      const { error } = await supabase.from('budgets').update(payload).eq('id', b.id).eq('user_id', effectiveUserId);
       if (error) { console.error('updateBudget error:', error); toast.error('Erro ao atualizar orçamento'); return; }
     } else {
       await enqueueMutation({
-        userId: user.id,
+        userId: effectiveUserId,
         type: 'UPDATE',
         payload: { table: 'budgets', data: payload, match: { id: b.id } }
       });
       setData(prev => {
         const fresh = { ...prev, budgets: prev.budgets.map(x => x.id === b.id ? b : x) };
-        saveSnapshot(user.id, fresh).catch(() => {});
+        saveSnapshot(effectiveUserId, fresh).catch(() => {});
         return fresh;
       });
       toast.success('Alteração salva offline');
@@ -1805,17 +1822,17 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
 
     if (isOnline) {
-      const { error } = await supabase.from('budgets').delete().eq('id', id).eq('user_id', user.id);
+      const { error } = await supabase.from('budgets').delete().eq('id', id).eq('user_id', effectiveUserId);
       if (error) { console.error('deleteBudget error:', error); toast.error('Erro ao excluir orçamento'); return; }
     } else {
       await enqueueMutation({
-        userId: user.id,
+        userId: effectiveUserId,
         type: 'DELETE',
         payload: { table: 'budgets', match: { id } }
       });
       setData(prev => {
         const fresh = { ...prev, budgets: prev.budgets.filter(b => b.id !== id) };
-        saveSnapshot(user.id, fresh).catch(() => {});
+        saveSnapshot(effectiveUserId, fresh).catch(() => {});
         return fresh;
       });
       toast.success('Exclusão salva offline');
@@ -1831,18 +1848,18 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     const id = generateId();
     const payload = {
       id,
-      user_id: user.id, name: c.name, type: c.type, icon: c.icon, color: c.color,
+      user_id: effectiveUserId, name: c.name, type: c.type, icon: c.icon, color: c.color,
     };
 
     if (isOnline) {
       const { error } = await supabase.from('categories').insert(payload);
       if (error) { toast.error('Erro ao criar categoria'); return; }
     } else {
-      await enqueueMutation({ userId: user.id, type: 'INSERT', payload: { table: 'categories', data: payload } });
+      await enqueueMutation({ userId: effectiveUserId, type: 'INSERT', payload: { table: 'categories', data: payload } });
       const newCat = mapCategory(payload);
       setData(prev => {
         const fresh = { ...prev, categories: [...prev.categories, newCat] };
-        saveSnapshot(user.id, fresh).catch(() => {});
+        saveSnapshot(effectiveUserId, fresh).catch(() => {});
         return fresh;
       });
       toast.success('Categoria criada offline');
@@ -1859,17 +1876,17 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     };
 
     if (isOnline) {
-      const { error } = await supabase.from('categories').update(payload).eq('id', c.id).eq('user_id', user.id);
+      const { error } = await supabase.from('categories').update(payload).eq('id', c.id).eq('user_id', effectiveUserId);
       if (error) { toast.error('Erro ao atualizar categoria'); return; }
     } else {
       await enqueueMutation({
-        userId: user.id,
+        userId: effectiveUserId,
         type: 'UPDATE',
         payload: { table: 'categories', data: payload, match: { id: c.id } }
       });
       setData(prev => {
         const fresh = { ...prev, categories: prev.categories.map(x => x.id === c.id ? c : x) };
-        saveSnapshot(user.id, fresh).catch(() => {});
+        saveSnapshot(effectiveUserId, fresh).catch(() => {});
         return fresh;
       });
       toast.success('Alteração salva offline');
@@ -1883,17 +1900,17 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
 
     if (isOnline) {
-      const { error } = await supabase.from('categories').delete().eq('id', id).eq('user_id', user.id);
+      const { error } = await supabase.from('categories').delete().eq('id', id).eq('user_id', effectiveUserId);
       if (error) { toast.error('Não é possível excluir categoria com dados vinculados'); return; }
     } else {
       await enqueueMutation({
-        userId: user.id,
+        userId: effectiveUserId,
         type: 'DELETE',
         payload: { table: 'categories', match: { id } }
       });
       setData(prev => {
         const fresh = { ...prev, categories: prev.categories.filter(c => c.id !== id) };
-        saveSnapshot(user.id, fresh).catch(() => {});
+        saveSnapshot(effectiveUserId, fresh).catch(() => {});
         return fresh;
       });
       toast.success('Exclusão salva offline');
@@ -1908,7 +1925,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     const id = generateId();
     const payload = {
       id,
-      user_id: user.id,
+      user_id: effectiveUserId,
       name: c.name,
       phone: c.phone || null,
       email: c.email || null,
@@ -1926,20 +1943,20 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       };
       setData(prev => {
         const fresh = { ...prev, contacts: [...prev.contacts, created].sort((a, b) => a.name.localeCompare(b.name)) };
-        saveSnapshot(user.id, fresh).catch(() => {});
+        saveSnapshot(effectiveUserId, fresh).catch(() => {});
         return fresh;
       });
       return created;
     } else {
       await enqueueMutation({
-        userId: user.id,
+        userId: effectiveUserId,
         type: 'INSERT',
         payload: { table: 'contacts', data: payload }
       });
       const created = { id, ...c };
       setData(prev => {
         const fresh = { ...prev, contacts: [...prev.contacts, created].sort((a, b) => a.name.localeCompare(b.name)) };
-        saveSnapshot(user.id, fresh).catch(() => {});
+        saveSnapshot(effectiveUserId, fresh).catch(() => {});
         return fresh;
       });
       toast.success('Contato salvo offline');
@@ -1959,11 +1976,11 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     };
 
     if (isOnline) {
-      const { error } = await supabase.from('contacts').update(payload).eq('id', c.id).eq('user_id', user.id);
+      const { error } = await supabase.from('contacts').update(payload).eq('id', c.id).eq('user_id', effectiveUserId);
       if (error) { toast.error('Erro ao atualizar contato'); return; }
     } else {
       await enqueueMutation({
-        userId: user.id,
+        userId: effectiveUserId,
         type: 'UPDATE',
         payload: { table: 'contacts', data: payload, match: { id: c.id } }
       });
@@ -1971,7 +1988,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     }
     setData(prev => {
       const fresh = { ...prev, contacts: prev.contacts.map(x => x.id === c.id ? c : x).sort((a, b) => a.name.localeCompare(b.name)) };
-      saveSnapshot(user.id, fresh).catch(() => {});
+      saveSnapshot(effectiveUserId, fresh).catch(() => {});
       return fresh;
     });
     if (isOnline) await fetchAll();
@@ -1982,11 +1999,11 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
 
     if (isOnline) {
-      const { error } = await supabase.from('contacts').delete().eq('id', id).eq('user_id', user.id);
+      const { error } = await supabase.from('contacts').delete().eq('id', id).eq('user_id', effectiveUserId);
       if (error) { toast.error('Erro ao excluir contato'); return; }
     } else {
       await enqueueMutation({
-        userId: user.id,
+        userId: effectiveUserId,
         type: 'DELETE',
         payload: { table: 'contacts', match: { id } }
       });
@@ -1994,7 +2011,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     }
     setData(prev => {
       const fresh = { ...prev, contacts: prev.contacts.filter(x => x.id !== id) };
-      saveSnapshot(user.id, fresh).catch(() => {});
+      saveSnapshot(effectiveUserId, fresh).catch(() => {});
       return fresh;
     });
     if (isOnline) await fetchAll();
@@ -2008,7 +2025,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     if (fresh.length === 0) return 0;
 
     const rows = fresh.map(c => ({
-      user_id: user.id,
+      user_id: effectiveUserId,
       name: c.name,
       phone: c.phone || null,
       email: c.email || null,
@@ -2026,14 +2043,14 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       }));
       setData(prev => {
         const fresh = { ...prev, contacts: [...prev.contacts, ...inserted].sort((a, b) => a.name.localeCompare(b.name)) };
-        saveSnapshot(user.id, fresh).catch(() => {});
+        saveSnapshot(effectiveUserId, fresh).catch(() => {});
         return fresh;
       });
       return inserted.length;
     } else {
       const insertions = rows.map(async (row) => {
         await enqueueMutation({
-          userId: user.id,
+          userId: effectiveUserId,
           type: 'INSERT',
           payload: { table: 'contacts', data: row }
         });
@@ -2043,7 +2060,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       const newContacts = fresh.map(c => ({ id: generateId(), ...c }));
       setData(prev => {
         const fresh = { ...prev, contacts: [...prev.contacts, ...newContacts].sort((a, b) => a.name.localeCompare(b.name)) };
-        saveSnapshot(user.id, fresh).catch(() => {});
+        saveSnapshot(effectiveUserId, fresh).catch(() => {});
         return fresh;
       });
       toast.success(`${fresh.length} contatos salvos offline`);
@@ -2066,30 +2083,30 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
     try {
       // 1. Delete in order to respect foreign keys
-      await supabase.from('transactions').delete().eq('user_id', user.id);
-      await supabase.from('payables').delete().eq('user_id', user.id);
-      await supabase.from('receivables').delete().eq('user_id', user.id);
-      await supabase.from('budgets').delete().eq('user_id', user.id);
-      await supabase.from('sales').delete().eq('user_id', user.id); // sale_items cascades
-      await supabase.from('products').delete().eq('user_id', user.id);
-      await supabase.from('financial_accounts').delete().eq('user_id', user.id);
-      await supabase.from('categories').delete().eq('user_id', user.id);
-      await supabase.from('contacts').delete().eq('user_id', user.id);
-      await supabase.from('user_settings').delete().eq('user_id', user.id);
+      await supabase.from('transactions').delete().eq('user_id', effectiveUserId);
+      await supabase.from('payables').delete().eq('user_id', effectiveUserId);
+      await supabase.from('receivables').delete().eq('user_id', effectiveUserId);
+      await supabase.from('budgets').delete().eq('user_id', effectiveUserId);
+      await supabase.from('sales').delete().eq('user_id', effectiveUserId); // sale_items cascades
+      await supabase.from('products').delete().eq('user_id', effectiveUserId);
+      await supabase.from('financial_accounts').delete().eq('user_id', effectiveUserId);
+      await supabase.from('categories').delete().eq('user_id', effectiveUserId);
+      await supabase.from('contacts').delete().eq('user_id', effectiveUserId);
+      await supabase.from('user_settings').delete().eq('user_id', effectiveUserId);
       
       // 2. Storage cleanup (receipt stamps)
       try {
-        const { data: files, error: listErr } = await supabase.storage.from('receipt-stamps').list(user.id);
+        const { data: files, error: listErr } = await supabase.storage.from('receipt-stamps').list(effectiveUserId);
         if (!listErr && files && files.length > 0) {
-          const paths = files.map(f => `${user.id}/${f.name}`);
+          const paths = files.map(f => `${effectiveUserId}/${f.name}`);
           await supabase.storage.from('receipt-stamps').remove(paths);
         }
       } catch (e) { console.error('Storage cleanup failed:', e); }
 
       // 3. Local Cleanup (IndexedDB)
       const { clearSnapshot, clearMutationsQueue } = await import('./offline-store');
-      await clearSnapshot(user.id);
-      await clearMutationsQueue(user.id);
+      await clearSnapshot(effectiveUserId);
+      await clearMutationsQueue(effectiveUserId);
 
       // 4. Refresh contexts
       await refreshPix();
@@ -2150,19 +2167,19 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       const bd = backup.data as FinanceData;
 
       // Clear existing data
-      await supabase.from('budgets').delete().eq('user_id', user.id);
-      await supabase.from('transactions').delete().eq('user_id', user.id);
-      await supabase.from('payables').delete().eq('user_id', user.id);
-      await supabase.from('receivables').delete().eq('user_id', user.id);
-      await supabase.from('financial_accounts').delete().eq('user_id', user.id);
-      await supabase.from('categories').delete().eq('user_id', user.id);
-      await supabase.from('contacts').delete().eq('user_id', user.id);
-      await supabase.from('user_settings').delete().eq('user_id', user.id);
+      await supabase.from('budgets').delete().eq('user_id', effectiveUserId);
+      await supabase.from('transactions').delete().eq('user_id', effectiveUserId);
+      await supabase.from('payables').delete().eq('user_id', effectiveUserId);
+      await supabase.from('receivables').delete().eq('user_id', effectiveUserId);
+      await supabase.from('financial_accounts').delete().eq('user_id', effectiveUserId);
+      await supabase.from('categories').delete().eq('user_id', effectiveUserId);
+      await supabase.from('contacts').delete().eq('user_id', effectiveUserId);
+      await supabase.from('user_settings').delete().eq('user_id', effectiveUserId);
 
       // Restore categories
       if (bd.categories.length > 0) {
         await supabase.from('categories').insert(bd.categories.map(c => ({
-          id: c.id, name: c.name, type: c.type, icon: c.icon, color: c.color, user_id: user.id,
+          id: c.id, name: c.name, type: c.type, icon: c.icon, color: c.color, user_id: effectiveUserId,
         })));
       }
 
@@ -2172,7 +2189,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
           id: a.id, name: a.name, type: a.type, balance: a.balance,
           savings_balance: a.savingsBalance || 0, credit_limit: a.creditLimit ?? null,
           credit_used: a.creditUsed ?? 0, billing_close_day: a.billingCloseDay ?? null,
-          due_day: a.dueDay ?? null, color: a.color, user_id: user.id,
+          due_day: a.dueDay ?? null, color: a.color, user_id: effectiveUserId,
         })));
       }
 
@@ -2181,7 +2198,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
         await supabase.from('transactions').insert(bd.transactions.map(t => ({
           id: t.id, type: t.type, description: t.description, category_id: t.categoryId,
           amount: t.amount, date: t.date, account_id: t.accountId,
-          notes: t.notes ?? null, is_credit: t.isCredit ?? false, user_id: user.id,
+          notes: t.notes ?? null, is_credit: t.isCredit ?? false, user_id: effectiveUserId,
         })));
       }
 
@@ -2194,7 +2211,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
           payment_method: p.paymentMethod ?? null, status: p.status === 'overdue' ? 'pending' : p.status,
           notes: p.notes ?? null, purchase_date: p.purchaseDate ?? null,
           recurring: p.recurring ?? false, recurrence_frequency: p.recurrenceFrequency ?? null,
-          recurrence_end_date: p.recurrenceEndDate ?? null, user_id: user.id,
+          recurrence_end_date: p.recurrenceEndDate ?? null, user_id: effectiveUserId,
         })));
       }
 
@@ -2207,14 +2224,14 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
           payment_method: r.paymentMethod ?? null, status: r.status === 'overdue' ? 'pending' : r.status,
           notes: r.notes ?? null, recurring: r.recurring ?? false,
           recurrence_frequency: r.recurrenceFrequency ?? null,
-          recurrence_end_date: r.recurrenceEndDate ?? null, user_id: user.id,
+          recurrence_end_date: r.recurrenceEndDate ?? null, user_id: effectiveUserId,
         })));
       }
 
       // Restore budgets
       if (bd.budgets.length > 0) {
         await supabase.from('budgets').insert(bd.budgets.map(b => ({
-          id: b.id, category_id: b.categoryId, amount: b.amount, month: b.month, user_id: user.id,
+          id: b.id, category_id: b.categoryId, amount: b.amount, month: b.month, user_id: effectiveUserId,
         })));
       }
 
@@ -2222,7 +2239,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       if (bd.contacts && bd.contacts.length > 0) {
         await supabase.from('contacts').insert(bd.contacts.map(c => ({
           id: c.id, name: c.name, phone: c.phone ?? null, email: c.email ?? null,
-          document: c.document ?? null, notes: c.notes ?? null, user_id: user.id,
+          document: c.document ?? null, notes: c.notes ?? null, user_id: effectiveUserId,
         })));
       }
 
@@ -2275,3 +2292,4 @@ export function useFinance() {
   if (!ctx) throw new Error('useFinance must be used within FinanceProvider');
   return ctx;
 }
+

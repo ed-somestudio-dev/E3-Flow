@@ -25,22 +25,20 @@ export default function AdminSubscriptionsPage() {
 
     async function loadData() {
       try {
-        // Query simplificada - auth.users joins não funcionam bem no cliente
-        const { data: subs, error } = await supabase
-          .from('subscriptions')
-          .select('*')
-          .order('created_at', { ascending: false });
+        // Usa a nova RPC segura que já faz o join com auth.users no backend
+        // @ts-expect-error - get_admin_subscriptions is a custom RPC not yet in types
+        const { data: subs, error } = await supabase.rpc('get_admin_subscriptions');
 
         if (error) {
           console.error(error);
           return;
         }
 
-        // Mapeia os dados sem depender de join com auth.users
+        // Mapeia os dados da RPC
         const mapped = (subs || []).map((s: any) => ({
           id: s.id,
-          user_email: 'user@email.com',
-          user_name: 'Usuário',
+          user_email: s.user_email || 'Email não encontrado',
+          user_name: s.user_name || 'Usuário',
           status: s.subscription_status,
           plan: s.subscription_plan,
           due_date: s.subscription_due_date,

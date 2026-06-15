@@ -96,7 +96,8 @@ interface SalesContextType {
 const SalesContext = createContext<SalesContextType | null>(null);
 
 export function SalesProvider({ children }: { children: React.ReactNode }) {
-  const { user } = useAuth();
+  const { user, tenantUserId } = useAuth();
+  const effectiveUserId = tenantUserId || user?.id;
   const finance = useFinance();
   const [products, setProducts] = useState<Product[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
@@ -116,19 +117,19 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
         const { data, error } = await supabase
           .from("products")
           .select("*")
-          .eq("user_id", user.id)
+          .eq("user_id", effectiveUserId)
           .order("name");
         if (error) throw error;
         const mapped = (data || []).map(mapProduct);
         setProducts(mapped);
-        saveSnapshot(user.id, mapped, SALES_SNAPSHOT_STORE).catch(() => {});
+        saveSnapshot(effectiveUserId, mapped, SALES_SNAPSHOT_STORE).catch(() => {});
       } else {
-        const snap = await loadSnapshot(user.id, SALES_SNAPSHOT_STORE);
+        const snap = await loadSnapshot(effectiveUserId, SALES_SNAPSHOT_STORE);
         if (snap) setProducts(snap.data);
       }
     } catch (err) {
       console.error("[SalesContext] Failed to load products:", err);
-      const snap = await loadSnapshot(user.id, SALES_SNAPSHOT_STORE);
+      const snap = await loadSnapshot(effectiveUserId, SALES_SNAPSHOT_STORE);
       if (snap) setProducts(snap.data);
     } finally {
       setLoadingProducts(false);
@@ -148,21 +149,21 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
         const { data, error } = await supabase
           .from("sales")
           .select("*, items:sale_items(*)")
-          .eq("user_id", user.id)
+          .eq("user_id", effectiveUserId)
           .order("created_at", { ascending: false });
         if (error) throw error;
         const mapped = (data || []).map((row) =>
           mapSale(row, (row.items || []).map(mapSaleItem)),
         );
         setSales(mapped);
-        saveSnapshot(user.id, mapped, SALES_LIST_SNAPSHOT_STORE).catch(() => {});
+        saveSnapshot(effectiveUserId, mapped, SALES_LIST_SNAPSHOT_STORE).catch(() => {});
       } else {
-        const snap = await loadSnapshot(user.id, SALES_LIST_SNAPSHOT_STORE);
+        const snap = await loadSnapshot(effectiveUserId, SALES_LIST_SNAPSHOT_STORE);
         if (snap) setSales(snap.data);
       }
     } catch (err) {
       console.error("[SalesContext] Failed to load sales:", err);
-      const snap = await loadSnapshot(user.id, SALES_LIST_SNAPSHOT_STORE);
+      const snap = await loadSnapshot(effectiveUserId, SALES_LIST_SNAPSHOT_STORE);
       if (snap) setSales(snap.data);
     } finally {
       setLoadingSales(false);
@@ -181,7 +182,7 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
       const id = generateId();
       const payload = {
         id,
-        user_id: user.id,
+        user_id: effectiveUserId,
         name: p.name,
         description: p.description || null,
         price: p.price,
@@ -193,7 +194,7 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
       const newProd = mapProduct(payload);
       setProducts(prev => {
         const next = [...prev, newProd].sort((a, b) => a.name.localeCompare(b.name));
-        saveSnapshot(user.id, next, SALES_SNAPSHOT_STORE).catch(() => {});
+        saveSnapshot(effectiveUserId, next, SALES_SNAPSHOT_STORE).catch(() => {});
         return next;
       });
 
@@ -202,7 +203,7 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
         if (error) {
           if (error.message?.includes('Failed to fetch')) {
             await enqueueMutation({
-              userId: user.id,
+              userId: effectiveUserId,
               type: 'INSERT',
               payload: { table: 'products', data: payload }
             });
@@ -215,7 +216,7 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
         }
       } else {
         await enqueueMutation({
-          userId: user.id,
+          userId: effectiveUserId,
           type: 'INSERT',
           payload: { table: 'products', data: payload }
         });
@@ -241,7 +242,7 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
 
       setProducts(prev => {
         const next = prev.map(x => x.id === p.id ? p : x);
-        saveSnapshot(user.id, next, SALES_SNAPSHOT_STORE).catch(() => {});
+        saveSnapshot(effectiveUserId, next, SALES_SNAPSHOT_STORE).catch(() => {});
         return next;
       });
 
@@ -253,7 +254,7 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
         if (error) {
           if (error.message?.includes('Failed to fetch')) {
             await enqueueMutation({
-              userId: user.id,
+              userId: effectiveUserId,
               type: 'UPDATE',
               payload: { table: 'products', data: payload, match: { id: p.id } }
             });
@@ -266,7 +267,7 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
         }
       } else {
         await enqueueMutation({
-          userId: user.id,
+          userId: effectiveUserId,
           type: 'UPDATE',
           payload: { table: 'products', data: payload, match: { id: p.id } }
         });
@@ -283,7 +284,7 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
 
       setProducts(prev => {
         const next = prev.filter(p => p.id !== id);
-        saveSnapshot(user.id, next, SALES_SNAPSHOT_STORE).catch(() => {});
+        saveSnapshot(effectiveUserId, next, SALES_SNAPSHOT_STORE).catch(() => {});
         return next;
       });
 
@@ -292,7 +293,7 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
         if (error) {
           if (error.message?.includes('Failed to fetch')) {
             await enqueueMutation({
-              userId: user.id,
+              userId: effectiveUserId,
               type: 'DELETE',
               payload: { table: 'products', match: { id } }
             });
@@ -305,7 +306,7 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
         }
       } else {
         await enqueueMutation({
-          userId: user.id,
+          userId: effectiveUserId,
           type: 'DELETE',
           payload: { table: 'products', match: { id } }
         });
@@ -330,7 +331,7 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
 
       const salePayload = {
         id: saleId,
-        user_id: user.id,
+        user_id: effectiveUserId,
         client_name: payload.clientName || null,
         status: payload.status,
         total,
@@ -364,7 +365,7 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
 
       setSales(prev => {
         const next = [newSale, ...prev];
-        saveSnapshot(user.id, next, SALES_LIST_SNAPSHOT_STORE).catch(() => {});
+        saveSnapshot(effectiveUserId, next, SALES_LIST_SNAPSHOT_STORE).catch(() => {});
         return next;
       });
 
@@ -372,8 +373,8 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
         const { error: saleError } = await supabase.from("sales").insert(salePayload);
         if (saleError) {
           if (saleError.message?.includes('Failed to fetch')) {
-            await enqueueMutation({ userId: user.id, type: 'INSERT', payload: { table: 'sales', data: salePayload } });
-            await enqueueMutation({ userId: user.id, type: 'INSERT', payload: { table: 'sale_items', data: itemsPayload } });
+            await enqueueMutation({ userId: effectiveUserId, type: 'INSERT', payload: { table: 'sales', data: salePayload } });
+            await enqueueMutation({ userId: effectiveUserId, type: 'INSERT', payload: { table: 'sale_items', data: itemsPayload } });
             toast.success("Venda salva offline (conexão instável)");
           } else {
             toast.error("Erro ao registrar venda: " + saleError.message);
@@ -385,12 +386,12 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
         }
       } else {
         await enqueueMutation({
-          userId: user.id,
+          userId: effectiveUserId,
           type: 'INSERT',
           payload: { table: 'sales', data: salePayload }
         });
         await enqueueMutation({
-          userId: user.id,
+          userId: effectiveUserId,
           type: 'INSERT',
           payload: { table: 'sale_items', data: itemsPayload }
         });
@@ -412,7 +413,7 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
               
               setProducts(prev => {
                 const next = prev.map(p => p.id === item.productId ? { ...p, stockQuantity: nextStock } : p);
-                saveSnapshot(user.id, next, SALES_SNAPSHOT_STORE).catch(() => {});
+                saveSnapshot(effectiveUserId, next, SALES_SNAPSHOT_STORE).catch(() => {});
                 return next;
               });
 
@@ -420,14 +421,14 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
                 const { error: stockErr } = await supabase.from("products").update(stockPayload).eq("id", item.productId);
                 if (stockErr && stockErr.message?.includes('Failed to fetch')) {
                   await enqueueMutation({
-                    userId: user.id,
+                    userId: effectiveUserId,
                     type: 'UPDATE',
                     payload: { table: 'products', data: stockPayload, match: { id: item.productId } }
                   });
                 }
               } else {
                 await enqueueMutation({
-                  userId: user.id,
+                  userId: effectiveUserId,
                   type: 'UPDATE',
                   payload: { table: 'products', data: stockPayload, match: { id: item.productId } }
                 });
@@ -474,7 +475,7 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
             
             setSales(prev => {
               const next = prev.map(s => s.id === saleId ? { ...s, receivableId: rec.id } : s);
-              saveSnapshot(user.id, next, SALES_LIST_SNAPSHOT_STORE).catch(() => {});
+              saveSnapshot(effectiveUserId, next, SALES_LIST_SNAPSHOT_STORE).catch(() => {});
               return next;
             });
 
@@ -482,7 +483,7 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
               await supabase.from("sales").update(updateSalePayload).eq("id", saleId);
             } else {
               await enqueueMutation({
-                userId: user.id,
+                userId: effectiveUserId,
                 type: 'UPDATE',
                 payload: { table: 'sales', data: updateSalePayload, match: { id: saleId } }
               });
@@ -506,7 +507,7 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
       // Optimistic update for sale status
       setSales(prev => {
         const next = prev.map(s => s.id === id ? { ...s, status } : s);
-        saveSnapshot(user.id, next, SALES_LIST_SNAPSHOT_STORE).catch(() => {});
+        saveSnapshot(effectiveUserId, next, SALES_LIST_SNAPSHOT_STORE).catch(() => {});
         return next;
       });
 
@@ -545,14 +546,14 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
               
               setProducts(prev => {
                 const next = prev.map(p => p.id === item.productId ? { ...p, stockQuantity: nextStock } : p);
-                saveSnapshot(user.id, next, SALES_SNAPSHOT_STORE).catch(() => {});
+                saveSnapshot(effectiveUserId, next, SALES_SNAPSHOT_STORE).catch(() => {});
                 return next;
               });
 
               if (isOnline) {
                 await supabase.from("products").update(stockPayload).eq("id", item.productId);
               } else {
-                await enqueueMutation({ userId: user.id, type: 'UPDATE', payload: { table: 'products', data: stockPayload, match: { id: item.productId } } });
+                await enqueueMutation({ userId: effectiveUserId, type: 'UPDATE', payload: { table: 'products', data: stockPayload, match: { id: item.productId } } });
               }
             }
           }
@@ -567,14 +568,14 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
               
               setProducts(prev => {
                 const next = prev.map(p => p.id === item.productId ? { ...p, stockQuantity: nextStock } : p);
-                saveSnapshot(user.id, next, SALES_SNAPSHOT_STORE).catch(() => {});
+                saveSnapshot(effectiveUserId, next, SALES_SNAPSHOT_STORE).catch(() => {});
                 return next;
               });
 
               if (isOnline) {
                 await supabase.from("products").update(stockPayload).eq("id", item.productId);
               } else {
-                await enqueueMutation({ userId: user.id, type: 'UPDATE', payload: { table: 'products', data: stockPayload, match: { id: item.productId } } });
+                await enqueueMutation({ userId: effectiveUserId, type: 'UPDATE', payload: { table: 'products', data: stockPayload, match: { id: item.productId } } });
               }
             }
           }
@@ -590,7 +591,7 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
           return;
         }
       } else {
-        await enqueueMutation({ userId: user.id, type: 'UPDATE', payload: { table: 'sales', data: { status }, match: { id } } });
+        await enqueueMutation({ userId: effectiveUserId, type: 'UPDATE', payload: { table: 'sales', data: { status }, match: { id } } });
       }
 
       toast.success("Venda atualizada!");
@@ -608,7 +609,7 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
       // Optimistic delete for sale
       setSales(prev => {
         const next = prev.filter(s => s.id !== id);
-        saveSnapshot(user.id, next, SALES_LIST_SNAPSHOT_STORE).catch(() => {});
+        saveSnapshot(effectiveUserId, next, SALES_LIST_SNAPSHOT_STORE).catch(() => {});
         return next;
       });
 
@@ -630,14 +631,14 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
               
               setProducts(prev => {
                 const next = prev.map(p => p.id === item.productId ? { ...p, stockQuantity: nextStock } : p);
-                saveSnapshot(user.id, next, SALES_SNAPSHOT_STORE).catch(() => {});
+                saveSnapshot(effectiveUserId, next, SALES_SNAPSHOT_STORE).catch(() => {});
                 return next;
               });
 
               if (isOnline) {
                 await supabase.from("products").update(stockPayload).eq("id", item.productId);
               } else {
-                await enqueueMutation({ userId: user.id, type: 'UPDATE', payload: { table: 'products', data: stockPayload, match: { id: item.productId } } });
+                await enqueueMutation({ userId: effectiveUserId, type: 'UPDATE', payload: { table: 'products', data: stockPayload, match: { id: item.productId } } });
               }
             }
           }
@@ -653,8 +654,8 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
           return;
         }
       } else {
-        await enqueueMutation({ userId: user.id, type: 'DELETE', payload: { table: 'sales', match: { id } } });
-        await enqueueMutation({ userId: user.id, type: 'DELETE', payload: { table: 'sale_items', match: { sale_id: id } } });
+        await enqueueMutation({ userId: effectiveUserId, type: 'DELETE', payload: { table: 'sales', match: { id } } });
+        await enqueueMutation({ userId: effectiveUserId, type: 'DELETE', payload: { table: 'sale_items', match: { sale_id: id } } });
       }
 
       toast.success("Venda excluída!");
@@ -709,13 +710,13 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
             const { error } = await supabase.from('sales').update(updatePayload).eq('id', sale.id);
             if (error) {
               if (error.message?.includes('Failed to fetch')) {
-                await enqueueMutation({ userId: user.id, type: 'UPDATE', payload: { table: 'sales', data: updatePayload, match: { id: sale.id } } });
+                await enqueueMutation({ userId: effectiveUserId, type: 'UPDATE', payload: { table: 'sales', data: updatePayload, match: { id: sale.id } } });
               } else {
                 console.error('[SalesContext] Error updating sale receivable link:', error);
               }
             }
           } else {
-            await enqueueMutation({ userId: user.id, type: 'UPDATE', payload: { table: 'sales', data: updatePayload, match: { id: sale.id } } });
+            await enqueueMutation({ userId: effectiveUserId, type: 'UPDATE', payload: { table: 'sales', data: updatePayload, match: { id: sale.id } } });
           }
         }
       }
@@ -727,8 +728,8 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
       setSales([]);
       if (user) {
         import('./offline-store').then(m => {
-          m.clearSnapshot(user.id, SALES_SNAPSHOT_STORE);
-          m.clearSnapshot(user.id, SALES_LIST_SNAPSHOT_STORE);
+          m.clearSnapshot(effectiveUserId, SALES_SNAPSHOT_STORE);
+          m.clearSnapshot(effectiveUserId, SALES_LIST_SNAPSHOT_STORE);
         });
       }
     };

@@ -1,10 +1,9 @@
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { lovable } from '@/integrations/lovable/index';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Mail, Lock, Chrome, ArrowLeft } from 'lucide-react';
+import { Mail, Lock, Chrome, ArrowLeft, PieChart, QrCode, Package, Users } from 'lucide-react';
 import logoFluxoPro from '@/assets/Logo_FluxoPro.png';
 import { toast } from 'sonner';
 import { useAuth } from '@/lib/auth-context';
@@ -12,6 +11,7 @@ import { useAuth } from '@/lib/auth-context';
 export default function AuthPage() {
   const { signInAsGuest } = useAuth();
   const [mode, setMode] = useState<'login' | 'signup' | 'forgot'>('login');
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -28,7 +28,12 @@ export default function AuthPage() {
       if (mode === 'signup') {
         const { error } = await supabase.auth.signUp({
           email, password,
-          options: { emailRedirectTo: redirectUri }
+          options: { 
+            emailRedirectTo: redirectUri,
+            data: {
+              full_name: name
+            }
+          }
         });
         if (error) throw error;
         toast.success('Conta criada! Verifique seu email para confirmar.');
@@ -67,14 +72,16 @@ export default function AuthPage() {
     setLoading(true);
     try {
       const { Capacitor } = await import('@capacitor/core');
-      const redirectUri = Capacitor.isNativePlatform()
+      const isNative = Capacitor.isNativePlatform();
+      const redirectUri = isNative
         ? 'com.somestudio.fluxopro://login-callback'
         : window.location.origin;
 
-      const { error } = await supabase.auth.signInWithOAuth({
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: redirectUri,
+          skipBrowserRedirect: isNative,
         }
       });
 
@@ -83,6 +90,14 @@ export default function AuthPage() {
         setLoading(false);
         return;
       }
+
+      if (isNative && data?.url) {
+        const { Browser } = await import('@capacitor/browser');
+        Browser.addListener('browserFinished', () => {
+          setLoading(false);
+        });
+        await Browser.open({ url: data.url });
+      }
     } catch (err: any) {
       toast.error(err?.message || 'Erro ao entrar com Google');
       setLoading(false);
@@ -90,85 +105,171 @@ export default function AuthPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <div className="w-full max-w-sm space-y-6">
-        <div className="text-center space-y-2">
-          <div className="flex items-center justify-center">
-            <img src={logoFluxoPro} alt="FluxoPro" className="h-48 object-contain" />
-          </div>
-          <p className="text-muted-foreground text-sm">
-            {mode === 'signup' ? 'Crie sua conta para começar' : 
-             mode === 'forgot' ? 'Recupere sua senha' : 'Entre na sua conta'}
-          </p>
+    <div className="min-h-screen flex w-full">
+      {/* Lado Esquerdo - Apresentação (Oculto em telas menores) */}
+      <div className="hidden lg:flex flex-col flex-1 bg-gradient-to-br from-primary/90 via-primary to-primary/80 text-primary-foreground p-12 justify-center relative overflow-hidden">
+        {/* Efeito visual de fundo */}
+        <div className="absolute top-0 left-0 w-full h-full overflow-hidden opacity-10 pointer-events-none">
+          <div className="absolute -top-[20%] -left-[10%] w-[50%] h-[50%] rounded-full bg-white blur-3xl"></div>
+          <div className="absolute bottom-[10%] -right-[10%] w-[60%] h-[60%] rounded-full bg-white blur-3xl"></div>
         </div>
 
-        <div className="finance-card p-6 space-y-4">
-          {mode === 'forgot' ? (
-            <form onSubmit={handleForgotPassword} className="space-y-4">
+        <div className="relative z-10 max-w-lg">
+          <img src={logoFluxoPro} alt="FluxoPro" className="h-24 object-contain brightness-0 invert mb-8" />
+          
+          <h1 className="text-4xl font-bold mb-4 tracking-tight">
+            Seu financeiro sob controle, em qualquer lugar.
+          </h1>
+          <p className="text-primary-foreground/80 text-lg mb-12">
+            A plataforma completa e inteligente para simplificar a gestão do seu negócio.
+          </p>
+
+          <div className="space-y-8">
+            <div className="flex items-start gap-4">
+              <div className="p-3 bg-white/10 rounded-xl shrink-0">
+                <PieChart className="h-6 w-6" />
+              </div>
               <div>
-                <Label>Email</Label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input type="email" placeholder="seu@email.com" value={email} onChange={e => setEmail(e.target.value)} className="pl-9" required />
-                </div>
+                <h3 className="font-semibold text-lg">Dashboard Inteligente</h3>
+                <p className="text-primary-foreground/70 text-sm mt-1">Acompanhe suas receitas, despesas e fluxo de caixa com gráficos interativos e em tempo real.</p>
               </div>
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? 'Enviando...' : 'Enviar link de recuperação'}
-              </Button>
-              <button onClick={() => setMode('login')} className="flex items-center justify-center w-full text-sm text-muted-foreground hover:text-primary transition-colors">
-                <ArrowLeft className="h-4 w-4 mr-1" />
-                Voltar para o login
-              </button>
-            </form>
-          ) : (
-            <>
-              <Button variant="outline" className="w-full" onClick={handleGoogleLogin}>
-                <Chrome className="h-4 w-4 mr-2" />
-                Entrar com Google
-              </Button>
+            </div>
 
-              <Button variant="secondary" className="w-full" onClick={signInAsGuest}>
-                Entrar como Visitante (Offline)
-              </Button>
-
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-border" /></div>
-                <div className="relative flex justify-center text-xs uppercase"><span className="bg-card px-2 text-muted-foreground">ou</span></div>
+            <div className="flex items-start gap-4">
+              <div className="p-3 bg-white/10 rounded-xl shrink-0">
+                <QrCode className="h-6 w-6" />
               </div>
+              <div>
+                <h3 className="font-semibold text-lg">Cobranças via PIX</h3>
+                <p className="text-primary-foreground/70 text-sm mt-1">Gere cobranças com QR Code PIX de forma rápida e segura para seus clientes.</p>
+              </div>
+            </div>
 
-              <form onSubmit={handleEmailAuth} className="space-y-4">
-                <div>
-                  <Label>Email</Label>
+            <div className="flex items-start gap-4">
+              <div className="p-3 bg-white/10 rounded-xl shrink-0">
+                <Package className="h-6 w-6" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-lg">Gestão de Produtos</h3>
+                <p className="text-primary-foreground/70 text-sm mt-1">Controle de estoque impecável, com PDV integrado e histórico completo de vendas.</p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-4">
+              <div className="p-3 bg-white/10 rounded-xl shrink-0">
+                <Users className="h-6 w-6" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-lg">Compartilhamento de Conta</h3>
+                <p className="text-primary-foreground/70 text-sm mt-1">Gerencie sua empresa ou finanças da família em conjunto com seu sócio ou cônjuge.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Lado Direito - Formulário */}
+      <div className="flex-1 flex flex-col justify-center items-center p-6 bg-background">
+        <div className="w-full max-w-sm space-y-8">
+          
+          <div className="text-center space-y-2 lg:hidden">
+            <div className="flex items-center justify-center">
+              <img src={logoFluxoPro} alt="FluxoPro" className="h-24 object-contain" />
+            </div>
+            <h1 className="text-2xl font-bold tracking-tight mt-4">Bem-vindo(a)</h1>
+            <p className="text-muted-foreground text-sm">
+              A melhor gestão financeira na palma da mão
+            </p>
+          </div>
+
+          <div className="text-center space-y-2 hidden lg:block">
+            <h2 className="text-3xl font-bold tracking-tight">
+              {mode === 'signup' ? 'Crie sua conta' : 
+               mode === 'forgot' ? 'Recuperação' : 'Acesse o sistema'}
+            </h2>
+            <p className="text-muted-foreground">
+              {mode === 'signup' ? 'Preencha os dados para começar' : 
+               mode === 'forgot' ? 'Siga os passos para redefinir' : 'Bem-vindo(a) de volta!'}
+            </p>
+          </div>
+
+          <div className="space-y-4 pt-4">
+            {mode === 'forgot' ? (
+              <form onSubmit={handleForgotPassword} className="space-y-5">
+                <div className="space-y-2">
+                  <Label>Email cadastrado</Label>
                   <div className="relative">
                     <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input type="email" placeholder="seu@email.com" value={email} onChange={e => setEmail(e.target.value)} className="pl-9" required />
+                    <Input type="email" placeholder="seu@email.com" value={email} onChange={e => setEmail(e.target.value)} className="pl-9 h-11" required />
                   </div>
                 </div>
-                <div>
-                  <Label>Senha</Label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} className="pl-9" required minLength={6} />
-                  </div>
-                </div>
-                <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? 'Carregando...' : mode === 'signup' ? 'Criar Conta' : 'Entrar'}
+                <Button type="submit" className="w-full h-11 text-base font-semibold" disabled={loading}>
+                  {loading ? 'Enviando...' : 'Enviar link de recuperação'}
                 </Button>
-              </form>
-
-              <div className="flex flex-col items-center gap-2">
-                <button onClick={() => setMode('forgot')} className="text-sm text-muted-foreground hover:text-primary transition-colors">
-                  Esqueceu a senha?
+                <button type="button" onClick={() => setMode('login')} className="flex items-center justify-center w-full text-sm text-muted-foreground hover:text-primary transition-colors mt-2">
+                  <ArrowLeft className="h-4 w-4 mr-1" />
+                  Voltar para o login
                 </button>
-                <p className="text-center text-sm text-muted-foreground">
-                  {mode === 'signup' ? 'Já tem uma conta?' : 'Não tem uma conta?'}{' '}
-                  <button onClick={() => setMode(mode === 'signup' ? 'login' : 'signup')} className="text-primary hover:underline font-medium">
-                    {mode === 'signup' ? 'Entrar' : 'Criar conta'}
-                  </button>
-                </p>
-              </div>
-            </>
-          )}
+              </form>
+            ) : (
+              <>
+                <Button variant="outline" className="w-full h-11 font-medium bg-card" onClick={handleGoogleLogin}>
+                  <Chrome className="h-4 w-4 mr-2" />
+                  Entrar com Google
+                </Button>
+
+                <Button variant="secondary" className="w-full h-11 font-medium" onClick={signInAsGuest}>
+                  Entrar como Visitante (Offline)
+                </Button>
+
+                <div className="relative my-6">
+                  <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-border" /></div>
+                  <div className="relative flex justify-center text-xs uppercase"><span className="bg-background px-2 text-muted-foreground">ou com email</span></div>
+                </div>
+
+                <form onSubmit={handleEmailAuth} className="space-y-5">
+                  {mode === 'signup' && (
+                    <div className="space-y-2">
+                      <Label>Nome Completo</Label>
+                      <Input type="text" placeholder="Seu nome" value={name} onChange={e => setName(e.target.value)} className="h-11" required />
+                    </div>
+                  )}
+                  <div className="space-y-2">
+                    <Label>Email</Label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input type="email" placeholder="seu@email.com" value={email} onChange={e => setEmail(e.target.value)} className="pl-9 h-11" required />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Senha</Label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} className="pl-9 h-11" required minLength={6} />
+                    </div>
+                  </div>
+                  
+                  <Button type="submit" className="w-full h-11 text-base font-semibold shadow-sm" disabled={loading}>
+                    {loading ? 'Carregando...' : mode === 'signup' ? 'Criar Conta' : 'Entrar na Conta'}
+                  </Button>
+                </form>
+
+                <div className="flex flex-col items-center gap-4 pt-4">
+                  {mode === 'login' && (
+                    <button onClick={() => setMode('forgot')} className="text-sm text-muted-foreground hover:text-primary transition-colors">
+                      Esqueceu a senha?
+                    </button>
+                  )}
+                  <p className="text-center text-sm text-muted-foreground">
+                    {mode === 'signup' ? 'Já tem uma conta?' : 'Não tem uma conta?'}{' '}
+                    <button onClick={() => setMode(mode === 'signup' ? 'login' : 'signup')} className="text-primary hover:underline font-semibold">
+                      {mode === 'signup' ? 'Fazer login' : 'Cadastre-se grátis'}
+                    </button>
+                  </p>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
     </div>

@@ -14,6 +14,24 @@ export type Database = {
   }
   public: {
     Tables: {
+      transactions: {
+        Row: any
+        Insert: any
+        Update: any
+        Relationships: any
+      }
+      sales: {
+        Row: any
+        Insert: any
+        Update: any
+        Relationships: any
+      }
+      products: {
+        Row: any
+        Insert: any
+        Update: any
+        Relationships: any
+      }
       budgets: {
         Row: {
           amount: number
@@ -207,6 +225,35 @@ export type Database = {
           used_at?: string | null
         }
         Relationships: []
+      }
+      family_members: {
+        Row: {
+          id: string
+          owner_id: string
+          member_email: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          owner_id: string
+          member_email: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          owner_id?: string
+          member_email?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "family_members_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
       }
       financial_accounts: {
         Row: {

@@ -16,12 +16,20 @@ export interface PixSettingsRow {
   remindersEnabled: boolean;
   reminderDaysBefore: number;
   salesModuleEnabled: boolean;
+  whatsappReminderDays: number;
+  whatsappReminderMsg: string;
+  whatsappOverdueDays: number;
+  whatsappOverdueMsg: string;
 }
 
 const empty: PixSettingsRow = {
   pixKey: '', pixKeyType: 'cpf', beneficiaryName: '',
   beneficiaryCity: '', beneficiaryDocument: '', receiptStampUrl: '',
   remindersEnabled: true, reminderDaysBefore: 3, salesModuleEnabled: false,
+  whatsappReminderDays: 3,
+  whatsappReminderMsg: 'Olá {nome}, este é um lembrete de que sua conta no valor de {valor} vence no dia {vencimento}.',
+  whatsappOverdueDays: 1,
+  whatsappOverdueMsg: 'Olá {nome}, informamos que sua conta no valor de {valor} que venceu no dia {vencimento} encontra-se em atraso.',
 };
 
 interface Ctx {
@@ -38,7 +46,8 @@ interface Ctx {
 const PixSettingsContext = createContext<Ctx | null>(null);
 
 export function PixSettingsProvider({ children }: { children: React.ReactNode }) {
-  const { user } = useAuth();
+  const { user, tenantUserId } = useAuth();
+  const effectiveUserId = tenantUserId || user?.id;
   const [settings, setSettings] = useState<PixSettingsRow>(empty);
   const [loaded, setLoaded] = useState(false);
 
@@ -51,7 +60,7 @@ export function PixSettingsProvider({ children }: { children: React.ReactNode })
       const { data, error } = await supabase
         .from('user_settings')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', effectiveUserId)
         .maybeSingle();
       if (error) console.error(error);
       if (data) {
@@ -65,9 +74,13 @@ export function PixSettingsProvider({ children }: { children: React.ReactNode })
           remindersEnabled: (data as any).reminders_enabled ?? true,
           reminderDaysBefore: (data as any).reminder_days_before ?? 3,
           salesModuleEnabled: (data as any).sales_module_enabled ?? false,
+          whatsappReminderDays: (data as any).whatsapp_reminder_days ?? 3,
+          whatsappReminderMsg: (data as any).whatsapp_reminder_msg ?? 'Olá {nome}, este é um lembrete de que sua conta no valor de {valor} vence no dia {vencimento}.',
+          whatsappOverdueDays: (data as any).whatsapp_overdue_days ?? 1,
+          whatsappOverdueMsg: (data as any).whatsapp_overdue_msg ?? 'Olá {nome}, informamos que sua conta no valor de {valor} que venceu no dia {vencimento} encontra-se em atraso.',
         };
         setSettings(newSettings);
-        await Preferences.set({ key: `pix_settings_${user.id}`, value: JSON.stringify(newSettings) });
+        await Preferences.set({ key: `pix_settings_${effectiveUserId}`, value: JSON.stringify(newSettings) });
         
         // Cache da imagem da assinatura para funcionar offline
         if (newSettings.receiptStampUrl) {
@@ -85,10 +98,10 @@ export function PixSettingsProvider({ children }: { children: React.ReactNode })
         }
       } else {
         setSettings(empty);
-        if (!error) await Preferences.set({ key: `pix_settings_${user.id}`, value: JSON.stringify(empty) });
+        if (!error) await Preferences.set({ key: `pix_settings_${effectiveUserId}`, value: JSON.stringify(empty) });
       }
     } else {
-      const { value } = await Preferences.get({ key: `pix_settings_${user.id}` });
+      const { value } = await Preferences.get({ key: `pix_settings_${effectiveUserId}` });
       if (value) {
         try { setSettings(JSON.parse(value)); } catch (e) { setSettings(empty); }
       } else {
@@ -107,7 +120,7 @@ export function PixSettingsProvider({ children }: { children: React.ReactNode })
     const isOnline = assertOnline() && !user.id.startsWith('guest_');
 
     const payload = {
-      user_id: user.id,
+      user_id: effectiveUserId,
       pix_key: s.pixKey || null,
       pix_key_type: s.pixKeyType || null,
       beneficiary_name: s.beneficiaryName || null,
@@ -117,6 +130,10 @@ export function PixSettingsProvider({ children }: { children: React.ReactNode })
       reminders_enabled: s.remindersEnabled,
       reminder_days_before: s.reminderDaysBefore,
       sales_module_enabled: s.salesModuleEnabled,
+      whatsapp_reminder_days: s.whatsappReminderDays,
+      whatsapp_reminder_msg: s.whatsappReminderMsg,
+      whatsapp_overdue_days: s.whatsappOverdueDays,
+      whatsapp_overdue_msg: s.whatsappOverdueMsg,
     } as any;
 
     if (isOnline) {
@@ -124,15 +141,15 @@ export function PixSettingsProvider({ children }: { children: React.ReactNode })
       if (error) { toast.error('Erro ao salvar: ' + error.message); throw error; }
     } else {
       await enqueueMutation({
-        userId: user.id,
+        userId: effectiveUserId,
         type: 'UPDATE', // We use UPDATE with match user_id as a proxy for upsert since it's 1:1
-        payload: { table: 'user_settings', data: payload, match: { user_id: user.id } }
+        payload: { table: 'user_settings', data: payload, match: { user_id: effectiveUserId } }
       });
       toast.info('Alteração salva offline. Será sincronizada depois.');
     }
 
     setSettings(s);
-    await Preferences.set({ key: `pix_settings_${user.id}`, value: JSON.stringify(s) });
+    await Preferences.set({ key: `pix_settings_${effectiveUserId}`, value: JSON.stringify(s) });
     // Somente mostra toast de sucesso se não for offline
     if (isOnline) {
       toast.success('Configurações salvas');
@@ -144,7 +161,7 @@ export function PixSettingsProvider({ children }: { children: React.ReactNode })
     if (!assertOnline()) throw new Error('É necessário conexão com a internet para enviar uma nova assinatura.');
     if (file.size > 2 * 1024 * 1024) throw new Error('Imagem deve ter no máximo 2MB');
     const ext = file.name.split('.').pop()?.toLowerCase() || 'png';
-    const path = `${user.id}/stamp-${Date.now()}.${ext}`;
+    const path = `${effectiveUserId}/stamp-${Date.now()}.${ext}`;
     const { error } = await supabase.storage.from('receipt-stamps').upload(path, file, {
       cacheControl: '3600', upsert: true, contentType: file.type,
     });
@@ -173,7 +190,7 @@ export function PixSettingsProvider({ children }: { children: React.ReactNode })
     const blob = await res.blob();
     const ext = blob.type.split('/')[1] || 'png';
     
-    const path = `${user.id}/stamp-${Date.now()}.${ext}`;
+    const path = `${effectiveUserId}/stamp-${Date.now()}.${ext}`;
     const { error } = await supabase.storage.from('receipt-stamps').upload(path, blob, {
       cacheControl: '3600', upsert: true, contentType: blob.type,
     });

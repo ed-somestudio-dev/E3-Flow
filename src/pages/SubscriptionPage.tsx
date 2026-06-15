@@ -8,6 +8,7 @@ import { Check, Crown, Loader2, Sparkles } from 'lucide-react';
 import { useSubscription, PLANS, TRIAL_DAYS } from '@/lib/subscription-context';
 import { useAuth } from '@/lib/auth-context';
 import { toast } from 'sonner';
+import { FamilyShare } from '@/components/FamilyShare';
 
 export default function SubscriptionPage() {
   const { user } = useAuth();
@@ -84,6 +85,8 @@ export default function SubscriptionPage() {
             </div>
           </CardContent>
         </Card>
+
+        <FamilyShare />
       </div>
     );
   }

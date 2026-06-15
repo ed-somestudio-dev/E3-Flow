@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { QrCode, Save, Stamp, Upload, Trash2, Bell, ShoppingCart, Crown } from 'lucide-react';
+import { QrCode, Save, Stamp, Upload, Trash2, Bell, ShoppingCart, Crown, MessageCircle, AlertTriangle } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import { useSubscription } from '@/lib/subscription-context';
@@ -214,8 +214,71 @@ export default function SettingsPage() {
             Contas que vencem nos próximos {form.reminderDaysBefore} dia{form.reminderDaysBefore !== 1 ? 's' : ''} aparecerão como aviso. Vencidas sempre aparecem.
           </p>
         </div>
+      </div>
 
-        {/* Botão de salvar removido - salvamento automático */}
+      {/* Mensagens Automáticas de WhatsApp */}
+      <div className="finance-card p-6 space-y-4">
+        <div className="flex items-center gap-2 pb-2 border-b border-border">
+          <MessageCircle className="h-5 w-5 text-green-500" />
+          <h2 className="font-semibold">Mensagens de WhatsApp</h2>
+        </div>
+
+        <p className="text-sm text-muted-foreground">
+          Configure os textos automáticos usados ao enviar cobranças pelo WhatsApp.
+          <br/>Você pode usar as variáveis <strong className="text-primary">{'{nome}'}</strong>, <strong className="text-primary">{'{valor}'}</strong> e <strong className="text-primary">{'{vencimento}'}</strong> para personalizar a mensagem.
+        </p>
+
+        <div className="space-y-4 mt-4">
+          <div className="p-4 rounded-md border border-border bg-secondary/20 space-y-3">
+            <h3 className="text-sm font-semibold flex items-center gap-2"><Bell className="h-4 w-4" /> Lembrete de Vencimento</h3>
+            <div>
+              <Label>Avisar quantos dias antes?</Label>
+              <Input
+                type="number" min={0} max={30}
+                value={form.whatsappReminderDays}
+                onChange={e => setForm({ ...form, whatsappReminderDays: Math.max(0, parseInt(e.target.value) || 0) })}
+                onBlur={() => handleSaveField('whatsappReminderDays', form.whatsappReminderDays)}
+                placeholder="3"
+                className="max-w-[120px]"
+              />
+            </div>
+            <div>
+              <Label>Texto da Mensagem</Label>
+              <textarea
+                className="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                value={form.whatsappReminderMsg}
+                onChange={e => setForm({ ...form, whatsappReminderMsg: e.target.value })}
+                onBlur={() => handleSaveField('whatsappReminderMsg', form.whatsappReminderMsg)}
+                placeholder="Olá {nome}, sua conta de {valor} vence..."
+              />
+            </div>
+          </div>
+
+          <div className="p-4 rounded-md border border-border bg-destructive/5 space-y-3">
+            <h3 className="text-sm font-semibold flex items-center gap-2 text-destructive"><AlertTriangle className="h-4 w-4" /> Cobrança de Atraso</h3>
+            <div>
+              <Label>Cobrar quantos dias depois?</Label>
+              <Input
+                type="number" min={0} max={30}
+                value={form.whatsappOverdueDays}
+                onChange={e => setForm({ ...form, whatsappOverdueDays: Math.max(0, parseInt(e.target.value) || 0) })}
+                onBlur={() => handleSaveField('whatsappOverdueDays', form.whatsappOverdueDays)}
+                placeholder="1"
+                className="max-w-[120px]"
+              />
+            </div>
+            <div>
+              <Label>Texto da Mensagem</Label>
+              <textarea
+                className="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                value={form.whatsappOverdueMsg}
+                onChange={e => setForm({ ...form, whatsappOverdueMsg: e.target.value })}
+                onBlur={() => handleSaveField('whatsappOverdueMsg', form.whatsappOverdueMsg)}
+                placeholder="Olá {nome}, sua conta venceu..."
+              />
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Módulo de Vendas */}

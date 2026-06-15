@@ -3,7 +3,7 @@ import { useFinance } from '@/lib/finance-context';
 import { supabase } from '@/integrations/supabase/client';
 import { usePixSettings } from '@/lib/pix-settings-context';
 import { Receivable, ReceivableStatus, RecurrenceFrequency } from '@/lib/types';
-import { Plus, Trash2, Edit2, CheckCircle, CreditCard, CalendarIcon, X, RefreshCw, QrCode, Receipt, AlertTriangle, ChevronDown, ChevronRight, Upload } from 'lucide-react';
+import { Plus, Trash2, Edit2, CheckCircle, CreditCard, CalendarIcon, X, RefreshCw, QrCode, Receipt, AlertTriangle, ChevronDown, ChevronRight, Upload, MessageCircle, FileText } from 'lucide-react';
 import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog';
 import { CalculatorInput } from '@/components/CalculatorInput';
 import { ContactAutocomplete } from '@/components/ContactAutocomplete';
@@ -27,7 +27,7 @@ import { cn } from '@/lib/utils';
 import { Link } from 'react-router-dom';
 import {
   generateChargePDF, generateChargePNG, generateChargesPDF,
-  generateReceiptPDF, generateReceiptPNG,
+  generateReceiptPDF, generateReceiptPNG, generateReceivablesReportPDF, generateReceivablesReportPNG
 } from '@/lib/documents';
 import { toast } from 'sonner';
 
@@ -328,6 +328,20 @@ export default function ReceivablesPage() {
     setShareOpen(true);
   };
 
+  const handleWhatsAppReminder = (r: Receivable) => {
+    let msgTemplate = pixSettings.whatsappReminderMsg;
+    if (r.status === 'overdue') {
+      msgTemplate = pixSettings.whatsappOverdueMsg;
+    }
+    const msg = msgTemplate
+      .replace(/{nome}/g, r.clientName || 'Cliente')
+      .replace(/{valor}/g, fmt(r.amount))
+      .replace(/{vencimento}/g, fmtDate(r.dueDate));
+    
+    const url = `https://wa.me/?text=${encodeURIComponent(msg)}`;
+    window.open(url, '_blank');
+  };
+
   const handleGenerateCharge = (r: Receivable) => {
     if (!isConfigured) {
       setPixWarningOpen(true);
@@ -372,6 +386,18 @@ export default function ReceivablesPage() {
         id: r.id, clientName: r.clientName, description: r.description,
         amount: r.amount, receivedDate, accountName: accName,
       }, pixSettings),
+    });
+  };
+
+  const handleGenerateReportSelected = () => {
+    const items = Array.from(selectedIds).map(id => data.receivables.find(r => r.id === id)).filter(Boolean) as Receivable[];
+    if (items.length === 0) return;
+    const clientNames = Array.from(new Set(items.map(i => i.clientName))).join(', ');
+    openShare({
+      title: 'Relatório de Contas a Receber',
+      filenameBase: `relatorio-contas-${clientNames.replace(/\s+/g, '_')}-${format(new Date(), 'yyyy-MM-dd')}`,
+      generatePDF: () => generateReceivablesReportPDF(items, pixSettings),
+      generatePNG: () => generateReceivablesReportPNG(items, pixSettings),
     });
   };
 
@@ -589,10 +615,14 @@ export default function ReceivablesPage() {
                   ? `Boleto PIX ${fmt(parseFloat(bulkPartialAmount))}`
                   : 'Gerar boleto PIX'}
               </Button>
-              <Button size="sm" className="bg-success text-success-foreground hover:bg-success/90" onClick={handleReceiveSelected}>
-                <CheckCircle className="h-4 w-4 mr-1" />
-                {bulkPartialMode ? 'Receber parcial' : 'Receber selecionados'}
-              </Button>
+                <Button size="sm" variant="outline" onClick={handleGenerateReportSelected}>
+                  <FileText className="h-4 w-4 mr-1" />
+                  Gerar Relatório
+                </Button>
+                <Button size="sm" className="bg-success text-success-foreground hover:bg-success/90" onClick={handleReceiveSelected}>
+                  <CheckCircle className="h-4 w-4 mr-1" />
+                  {bulkPartialMode ? 'Receber parcial' : 'Receber selecionados'}
+                </Button>
             </div>
           </div>
         )}
@@ -642,6 +672,9 @@ export default function ReceivablesPage() {
                         <>
                           <Button variant="ghost" size="icon" className="h-8 w-8 text-primary hover:text-primary" onClick={() => handleGenerateCharge(r)} title="Gerar boleto PIX">
                             <QrCode className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-green-500 hover:text-green-600" onClick={() => handleWhatsAppReminder(r)} title="Enviar cobrança via WhatsApp">
+                            <MessageCircle className="h-3.5 w-3.5" />
                           </Button>
                           <Button variant="ghost" size="icon" className="h-8 w-8 text-success hover:text-success" onClick={() => handleMarkReceived(r.id)} title="Marcar como recebido">
                             <CheckCircle className="h-3.5 w-3.5" />

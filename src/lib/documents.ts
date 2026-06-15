@@ -23,6 +23,8 @@ export interface ChargeData {
   dueDate: string;
 }
 
+import { Receivable } from './types';
+
 async function pixDataUrl(brcode: string): Promise<string> {
   return QRCode.toDataURL(brcode, { width: 360, margin: 1, errorCorrectionLevel: 'M' });
 }
@@ -44,7 +46,7 @@ async function renderChargeOnDoc(doc: jsPDF, charge: ChargeData, pix: PixSetting
   let y = 50;
 
   doc.setFont('helvetica', 'bold').setFontSize(20).setTextColor(15, 23, 42);
-  doc.text('Cobrança PIX', w / 2, y, { align: 'center' });
+  doc.text('CobranÃ§a PIX', w / 2, y, { align: 'center' });
   y += 30;
 
   doc.setLineWidth(0.5).setDrawColor(200);
@@ -52,7 +54,7 @@ async function renderChargeOnDoc(doc: jsPDF, charge: ChargeData, pix: PixSetting
   y += 25;
 
   doc.setFont('helvetica', 'bold').setFontSize(11).setTextColor(15, 23, 42);
-  doc.text('Beneficiário', 40, y); y += 16;
+  doc.text('BeneficiÃ¡rio', 40, y); y += 16;
   doc.setFont('helvetica', 'normal').setFontSize(11);
   doc.text(pix.beneficiaryName, 40, y); y += 14;
   if (pix.beneficiaryDocument) { doc.text(`Doc: ${pix.beneficiaryDocument}`, 40, y); y += 14; }
@@ -64,7 +66,7 @@ async function renderChargeOnDoc(doc: jsPDF, charge: ChargeData, pix: PixSetting
   doc.text(charge.clientName, 40, y); y += 24;
 
   doc.setFont('helvetica', 'bold');
-  doc.text('Descrição', 40, y); y += 16;
+  doc.text('DescriÃ§Ã£o', 40, y); y += 16;
   doc.setFont('helvetica', 'normal');
   const descLines = doc.splitTextToSize(charge.description, w - 80);
   doc.text(descLines, 40, y); y += descLines.length * 14 + 10;
@@ -81,7 +83,7 @@ async function renderChargeOnDoc(doc: jsPDF, charge: ChargeData, pix: PixSetting
   y += 80;
 
   doc.setFont('helvetica', 'bold').setFontSize(11);
-  doc.text('Pague com PIX – escaneie o QR Code', w / 2, y, { align: 'center' });
+  doc.text('Pague com PIX â€“ escaneie o QR Code', w / 2, y, { align: 'center' });
   y += 12;
   doc.addImage(qr, 'PNG', (w - 180) / 2, y, 180, 180);
   y += 195;
@@ -122,12 +124,12 @@ export async function generateChargePNG(charge: ChargeData, pix: PixSettings): P
   });
   const qr = await pixDataUrl(brcode);
   return renderCardPNG({
-    title: 'Cobrança PIX',
+    title: 'CobranÃ§a PIX',
     accent: '#0ea5e9',
     rows: [
-      ['Beneficiário', pix.beneficiaryName],
+      ['BeneficiÃ¡rio', pix.beneficiaryName],
       ['Pagador', charge.clientName],
-      ['Descrição', charge.description],
+      ['DescriÃ§Ã£o', charge.description],
       ['Vencimento', fmtDate(charge.dueDate)],
     ],
     amount: charge.amount,
@@ -157,7 +159,7 @@ export async function generateReceiptPDF(receipt: ReceiptData, pix: PixSettings 
   doc.text('RECIBO', w / 2, y, { align: 'center' });
   y += 18;
   doc.setFont('helvetica', 'normal').setFontSize(11);
-  doc.text(`Nº ${receipt.id.substring(0, 8).toUpperCase()}`, w / 2, y, { align: 'center' });
+  doc.text(`NÂº ${receipt.id.substring(0, 8).toUpperCase()}`, w / 2, y, { align: 'center' });
   y += 30;
   doc.setFont('helvetica', 'bold').setFontSize(16);
   doc.text(fmt(receipt.amount), w / 2, y, { align: 'center' });
@@ -167,8 +169,8 @@ export async function generateReceiptPDF(receipt: ReceiptData, pix: PixSettings 
   y += 24;
 
   doc.setFont('helvetica', 'normal').setFontSize(11);
-  const beneficiary = pix?.beneficiaryName || 'Beneficiário';
-  const intro = `Recebemos de ${receipt.clientName} a importância de ${fmt(receipt.amount)} (${valorPorExtenso(receipt.amount)}), referente a "${receipt.description}", creditado em ${receipt.accountName} na data de ${fmtDate(receipt.receivedDate)}.`;
+  const beneficiary = pix?.beneficiaryName || 'BeneficiÃ¡rio';
+  const intro = `Recebemos de ${receipt.clientName} a importÃ¢ncia de ${fmt(receipt.amount)} (${valorPorExtenso(receipt.amount)}), referente a "${receipt.description}", creditado em ${receipt.accountName} na data de ${fmtDate(receipt.receivedDate)}.`;
   const introLines = doc.splitTextToSize(intro, w - 80);
   doc.text(introLines, 40, y); y += introLines.length * 16 + 30;
 
@@ -183,7 +185,7 @@ export async function generateReceiptPDF(receipt: ReceiptData, pix: PixSettings 
       doc.addImage(stampData, 'PNG', (w - stampW) / 2, y - 20, stampW, stampH);
       y += stampH - 10;
     } catch (e) {
-      console.warn('Não foi possível carregar o carimbo:', e);
+      console.warn('NÃ£o foi possÃ­vel carregar o carimbo:', e);
     }
   }
 
@@ -207,11 +209,11 @@ export async function generateReceiptPNG(receipt: ReceiptData, pix: PixSettings 
     accent: '#10b981',
     rows: [
       ['Pagador', receipt.clientName],
-      ['Beneficiário', pix?.beneficiaryName || '—'],
-      ['Descrição', receipt.description],
-      ['Conta de crédito', receipt.accountName],
+      ['BeneficiÃ¡rio', pix?.beneficiaryName || 'â€”'],
+      ['DescriÃ§Ã£o', receipt.description],
+      ['Conta de crÃ©dito', receipt.accountName],
       ['Data', fmtDate(receipt.receivedDate)],
-      ['Nº', receipt.id.substring(0, 8).toUpperCase()],
+      ['NÂº', receipt.id.substring(0, 8).toUpperCase()],
     ],
     amount: receipt.amount,
     footer: 'Pagamento confirmado',
@@ -219,7 +221,7 @@ export async function generateReceiptPNG(receipt: ReceiptData, pix: PixSettings 
   });
 }
 
-// Carrega imagem externa e converte para data URL (necessário para incluir no PDF)
+// Carrega imagem externa e converte para data URL (necessÃ¡rio para incluir no PDF)
 async function loadImageAsDataUrl(url: string): Promise<string> {
   if (url.startsWith('data:image')) return url;
   
@@ -458,7 +460,7 @@ function valorPorExtenso(n: number): string {
 function numero(n: number): string {
   if (n === 0) return 'zero';
   if (n < 0) return 'menos ' + numero(-n);
-  const u = ['', 'um', 'dois', 'três', 'quatro', 'cinco', 'seis', 'sete', 'oito', 'nove'];
+  const u = ['', 'um', 'dois', 'trÃªs', 'quatro', 'cinco', 'seis', 'sete', 'oito', 'nove'];
   const e10 = ['dez', 'onze', 'doze', 'treze', 'quatorze', 'quinze', 'dezesseis', 'dezessete', 'dezoito', 'dezenove'];
   const d = ['', '', 'vinte', 'trinta', 'quarenta', 'cinquenta', 'sessenta', 'setenta', 'oitenta', 'noventa'];
   const c = ['', 'cento', 'duzentos', 'trezentos', 'quatrocentos', 'quinhentos', 'seiscentos', 'setecentos', 'oitocentos', 'novecentos'];
@@ -481,3 +483,84 @@ function numero(n: number): string {
   }
   return n.toString();
 }
+// ---------- Receivables Report ----------
+export async function generateReceivablesReportPDF(receivables: Receivable[], pix: PixSettings | null): Promise<Blob> {
+  const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+  const w = doc.internal.pageSize.getWidth();
+  let y = 50;
+
+  doc.setFont('helvetica', 'bold').setFontSize(20).setTextColor(15, 23, 42);
+  doc.text('Relatório de Contas a Receber', w / 2, y, { align: 'center' });
+  y += 30;
+
+  if (receivables.length > 0 && receivables[0].clientName) {
+    const clients = Array.from(new Set(receivables.map(r => r.clientName)));
+    doc.setFont('helvetica', 'normal').setFontSize(12);
+    doc.text(`Cliente(s): ${clients.join(', ')}`, 40, y);
+    y += 20;
+  }
+
+  doc.setLineWidth(0.5).setDrawColor(200);
+  doc.line(40, y, w - 40, y);
+  y += 25;
+
+  // Table Header
+  doc.setFont('helvetica', 'bold').setFontSize(10);
+  doc.text('Vencimento', 40, y);
+  doc.text('Descrição', 120, y);
+  doc.text('Status', w - 150, y);
+  doc.text('Valor', w - 40, y, { align: 'right' });
+  y += 15;
+  doc.line(40, y, w - 40, y);
+  y += 20;
+
+  doc.setFont('helvetica', 'normal').setFontSize(10);
+  let total = 0;
+
+  for (const r of receivables) {
+    total += r.amount;
+    const statusTxt = r.status === 'received' ? 'Recebido' : r.status === 'overdue' ? 'Vencida' : 'Pendente';
+    doc.text(fmtDate(r.dueDate), 40, y);
+    const descLines = doc.splitTextToSize(r.description, w - 300);
+    doc.text(descLines, 120, y);
+    doc.text(statusTxt, w - 150, y);
+    doc.text(fmt(r.amount), w - 40, y, { align: 'right' });
+    y += descLines.length * 12 + 8;
+
+    if (y > doc.internal.pageSize.getHeight() - 60) {
+      doc.addPage();
+      y = 50;
+    }
+  }
+
+  doc.line(40, y, w - 40, y);
+  y += 25;
+  
+  doc.setFont('helvetica', 'bold').setFontSize(14);
+  doc.text('Total:', w - 150, y);
+  doc.text(fmt(total), w - 40, y, { align: 'right' });
+  y += 40;
+
+  const beneficiary = pix?.beneficiaryName || 'Beneficiário';
+  doc.setFont('helvetica', 'normal').setFontSize(10);
+  doc.text(`Relatório gerado em ${fmtDate(new Date().toISOString())} por ${beneficiary}`, w / 2, y, { align: 'center' });
+
+  return doc.output('blob');
+}
+
+export async function generateReceivablesReportPNG(receivables: Receivable[], pix: PixSettings | null): Promise<Blob> {
+  const total = receivables.reduce((sum, r) => sum + r.amount, 0);
+  const rows = receivables.map(r => [
+    fmtDate(r.dueDate) + ' - ' + (r.status === 'received' ? '(Pago)' : r.status === 'overdue' ? '(Atraso)' : '(Pendente)'),
+    r.description + ' - ' + fmt(r.amount)
+  ] as [string, string]);
+  
+  return renderCardPNG({
+    title: 'Relatório de Contas',
+    accent: '#3b82f6',
+    rows: rows,
+    amount: total,
+    footer: `Gerado em ${fmtDate(new Date().toISOString())} por ${pix?.beneficiaryName || 'Beneficiário'}`,
+  });
+}
+

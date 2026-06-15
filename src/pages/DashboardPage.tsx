@@ -1,4 +1,5 @@
 import { useFinance } from '@/lib/finance-context';
+import { useAuth } from '@/lib/auth-context';
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Wallet, TrendingUp, TrendingDown, AlertTriangle, ArrowDownRight, ArrowUpRight, Bell } from 'lucide-react';
@@ -34,6 +35,12 @@ function StatCard({ label, value, icon: Icon, trend, color }: {
 export default function DashboardPage() {
   const { data, getCategoryName, getCategoryColor, getAccountName } = useFinance();
   const { settings, loaded: settingsLoaded } = usePixSettings();
+  const { user } = useAuth();
+  
+  const meta = user?.user_metadata || {};
+  const fullName = (meta.full_name || meta.name || '').trim();
+  const emailPrefix = user?.email ? user.email.split('@')[0] : '';
+  const userName = fullName ? fullName.split(' ')[0] : emailPrefix;
 
   const consolidated = useMemo(() => consolidatePayables(data.payables, getAccountName), [data.payables, getAccountName]);
 
@@ -135,7 +142,7 @@ export default function DashboardPage() {
     <div className="space-y-6 max-w-7xl">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold">Painel</h1>
+          <h1 className="text-2xl font-bold">Olá{userName ? `, ${userName}` : ''} 👋</h1>
           <p className="text-muted-foreground text-sm">Sua visão financeira geral</p>
         </div>
         <div className="text-right">
