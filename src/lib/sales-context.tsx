@@ -382,7 +382,7 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
             return null;
           }
         } else {
-          await supabase.from("sale_items").insert(itemsPayload);
+          await supabase.from("sale_items" as any).insert(itemsPayload);
         }
       } else {
         await enqueueMutation({
@@ -728,8 +728,7 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
       setSales([]);
       if (user) {
         import('./offline-store').then(m => {
-          m.clearSnapshot(effectiveUserId, SALES_SNAPSHOT_STORE);
-          m.clearSnapshot(effectiveUserId, SALES_LIST_SNAPSHOT_STORE);
+          m.clearSnapshot(effectiveUserId);
         });
       }
     };

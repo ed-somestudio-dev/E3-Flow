@@ -178,12 +178,15 @@ function InvoiceMonthGroup({ monthKey, items, invoiceDueDate, invoiceStatus, mon
 }
 
 export default function PayablesPage() {
-  const { data, addPayable, updatePayable, deletePayable, deletePayableWithFuture, markPayablePaid, markPayablePaidPartial, getCategoryName, getAccountName } = useFinance();
+  const { data, addPayable, updatePayable, updatePayableWithFuture, deletePayable, deletePayableWithFuture, markPayablePaid, markPayablePaidPartial, getCategoryName, getAccountName } = useFinance();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('pending_overdue');
   const [editingItem, setEditingItem] = useState<Payable | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [updateFuturePayload, setUpdateFuturePayload] = useState<Payable | null>(null);
+  const [updateFutureTarget, setUpdateFutureTarget] = useState<Payable | null>(null);
+  const [updateFutureCount, setUpdateFutureCount] = useState<number>(0);
   const [payDialogOpen, setPayDialogOpen] = useState(false);
   const [payAccountId, setPayAccountId] = useState('');
   const [partialMode, setPartialMode] = useState(false);
@@ -353,7 +356,40 @@ export default function PayablesPage() {
           <DialogContent className="max-h-[90vh] overflow-y-auto">
             <DialogHeader><DialogTitle>{editingItem ? 'Editar' : 'Nova'} {SAFE_LABELS.payable}</DialogTitle></DialogHeader>
             <PayableForm item={editingItem} categories={data.categories.filter(c => c.type === 'expense')} accounts={data.accounts}
-              onSave={(p) => { const { installments, isCredit, recurrence, ...payable } = p; if (editingItem) updatePayable({ ...payable, id: editingItem.id } as Payable); else addPayable(payable, installments, isCredit, recurrence); setDialogOpen(false); setEditingItem(null); }} />
+              onSave={(p) => {
+                const { installments, isCredit, recurrence, ...payable } = p;
+                if (editingItem) {
+                  const stripSuffix = (s: string) => s.replace(/\s*\(\d+\/\d+\)\s*$/, '').trim().toLowerCase();
+                  const baseDesc = stripSuffix(editingItem.description);
+                  const isLinked = editingItem.recurring || /\(\d+\/\d+\)\s*$/.test(editingItem.description);
+                  const linkedFuture = isLinked
+                    ? data.payables.filter(x =>
+                        x.id !== editingItem.id &&
+                        (x.recurring || /\(\d+\/\d+\)\s*$/.test(x.description)) &&
+                        x.supplier === editingItem.supplier &&
+                        x.categoryId === editingItem.categoryId &&
+                        x.dueDate >= editingItem.dueDate &&
+                        stripSuffix(x.description) === baseDesc &&
+                        x.status !== 'paid'
+                      )
+                    : [];
+                  if (linkedFuture.length > 0) {
+                    setUpdateFuturePayload(payable as Payable);
+                    setUpdateFutureTarget(editingItem);
+                    setUpdateFutureCount(linkedFuture.length);
+                    setDialogOpen(false);
+                    setEditingItem(null);
+                  } else {
+                    updatePayable({ ...payable, id: editingItem.id } as Payable);
+                    setDialogOpen(false);
+                    setEditingItem(null);
+                  }
+                } else {
+                  addPayable(payable, installments, isCredit, recurrence);
+                  setDialogOpen(false);
+                  setEditingItem(null);
+                }
+              }} />
           </DialogContent>
         </Dialog>
       </div>
@@ -649,10 +685,11 @@ export default function PayablesPage() {
         }
         const stripSuffix = (s: string) => s.replace(/\s*\(\d+\/\d+\)\s*$/, '').trim().toLowerCase();
         const baseDesc = stripSuffix(target.description);
-        const linkedFuture = target.recurring
+        const isLinked = target.recurring || /\(\d+\/\d+\)\s*$/.test(target.description);
+        const linkedFuture = isLinked
           ? data.payables.filter(p =>
               p.id !== target.id &&
-              p.recurring &&
+              (p.recurring || /\(\d+\/\d+\)\s*$/.test(p.description)) &&
               p.supplier === target.supplier &&
               p.categoryId === target.categoryId &&
               p.dueDate >= target.dueDate &&
@@ -700,6 +737,45 @@ export default function PayablesPage() {
           </AlertDialog>
         );
       })()}
+
+      <AlertDialog open={!!updateFutureTarget} onOpenChange={(o) => { if (!o) { setUpdateFutureTarget(null); setUpdateFuturePayload(null); } }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Alterar conta vinculada?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta conta faz parte de uma série recorrente ou parcelada. Existem <strong>{updateFutureCount}</strong> ocorrência(s) futura(s) pendente(s) vinculada(s). Deseja aplicar as alterações de fornecedor, categoria, valor e observações apenas nesta conta ou em todas as futuras também?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+            <AlertDialogCancel className="mt-0">Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-secondary text-secondary-foreground hover:bg-secondary/80"
+              onClick={() => {
+                if (updateFuturePayload && updateFutureTarget) {
+                  updatePayable({ ...updateFuturePayload, id: updateFutureTarget.id });
+                }
+                setUpdateFutureTarget(null);
+                setUpdateFuturePayload(null);
+              }}
+            >
+              Apenas esta
+            </AlertDialogAction>
+            <AlertDialogAction
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
+              onClick={async () => {
+                if (updateFuturePayload && updateFutureTarget) {
+                  const n = await updatePayableWithFuture({ ...updateFuturePayload, id: updateFutureTarget.id });
+                  if (n > 1) toast.success(`${n} contas vinculadas alteradas`);
+                }
+                setUpdateFutureTarget(null);
+                setUpdateFuturePayload(null);
+              }}
+            >
+              Esta e {updateFutureCount} futura(s)
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -204,9 +204,12 @@ export default function SettingsPage() {
           <Label>Antecedência (dias antes do vencimento)</Label>
           <Input
             type="number" min={0} max={30}
-            value={form.reminderDaysBefore}
-            onChange={e => setForm({ ...form, reminderDaysBefore: Math.max(0, Math.min(30, parseInt(e.target.value) || 0)) })}
-            onBlur={() => handleSaveField('reminderDaysBefore', form.reminderDaysBefore)}
+            value={form.reminderDaysBefore === '' as any ? '' : form.reminderDaysBefore}
+            onChange={e => {
+              const val = e.target.value;
+              setForm({ ...form, reminderDaysBefore: val === '' ? '' as any : Math.max(0, Math.min(30, parseInt(val) || 0)) });
+            }}
+            onBlur={() => handleSaveField('reminderDaysBefore', form.reminderDaysBefore === '' as any ? 0 : form.reminderDaysBefore)}
             disabled={!form.remindersEnabled}
             placeholder="3"
           />
@@ -235,9 +238,12 @@ export default function SettingsPage() {
               <Label>Avisar quantos dias antes?</Label>
               <Input
                 type="number" min={0} max={30}
-                value={form.whatsappReminderDays}
-                onChange={e => setForm({ ...form, whatsappReminderDays: Math.max(0, parseInt(e.target.value) || 0) })}
-                onBlur={() => handleSaveField('whatsappReminderDays', form.whatsappReminderDays)}
+                value={form.whatsappReminderDays === '' as any ? '' : form.whatsappReminderDays}
+                onChange={e => {
+                  const val = e.target.value;
+                  setForm({ ...form, whatsappReminderDays: val === '' ? '' as any : Math.max(0, parseInt(val) || 0) });
+                }}
+                onBlur={() => handleSaveField('whatsappReminderDays', form.whatsappReminderDays === '' as any ? 0 : form.whatsappReminderDays)}
                 placeholder="3"
                 className="max-w-[120px]"
               />
@@ -260,9 +266,12 @@ export default function SettingsPage() {
               <Label>Cobrar quantos dias depois?</Label>
               <Input
                 type="number" min={0} max={30}
-                value={form.whatsappOverdueDays}
-                onChange={e => setForm({ ...form, whatsappOverdueDays: Math.max(0, parseInt(e.target.value) || 0) })}
-                onBlur={() => handleSaveField('whatsappOverdueDays', form.whatsappOverdueDays)}
+                value={form.whatsappOverdueDays === '' as any ? '' : form.whatsappOverdueDays}
+                onChange={e => {
+                  const val = e.target.value;
+                  setForm({ ...form, whatsappOverdueDays: val === '' ? '' as any : Math.max(0, parseInt(val) || 0) });
+                }}
+                onBlur={() => handleSaveField('whatsappOverdueDays', form.whatsappOverdueDays === '' as any ? 0 : form.whatsappOverdueDays)}
                 placeholder="1"
                 className="max-w-[120px]"
               />

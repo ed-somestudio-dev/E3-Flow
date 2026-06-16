@@ -84,13 +84,15 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
     ? subscription || {
         id: 'bypass-sub-id',
         user_id: user?.id || 'bypass-user-id',
-        subscription_status: 'CONFIRMED',
+        asaas_customer_id: 'bypass',
+        asaas_subscription_id: 'bypass',
+        subscription_status: 'CONFIRMED' as const,
         subscription_plan: 'yearly',
         subscription_due_date: '2099-12-31',
         trial_end_date: null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
-      }
+      } as Subscription
     : subscription;
 
   const fetchSubscription = useCallback(async () => {
@@ -108,11 +110,11 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
       // 2. Upgrade PENDING subscriptions to TRIAL
       // 3. Create a new TRIAL subscription if none exists
       const { data: newSub, error: rpcError } = await supabase
-        .rpc('auto_provision_trial');
+        .rpc('auto_provision_trial' as any);
 
       if (!rpcError && newSub) {
         setSubscription({
-          ...(newSub as Subscription),
+          ...(newSub as unknown as Subscription),
           trial_end_date: (newSub as any).trial_end_date ?? null,
         });
       } else {

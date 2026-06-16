@@ -134,27 +134,27 @@ export function FamilyShare() {
       </CardHeader>
       <CardContent>
         {member ? (
-          <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/20">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3 border rounded-lg bg-muted/20 gap-3">
             <div>
               <p className="text-sm font-medium">Parceiro atual</p>
               <p className="text-sm text-muted-foreground">{member.email}</p>
             </div>
-            <Button variant="destructive" size="sm" onClick={handleRemove} disabled={loading}>
+            <Button variant="destructive" size="sm" onClick={handleRemove} disabled={loading} className="w-full sm:w-auto">
               <Trash2 className="h-4 w-4 mr-2" />
               Remover
             </Button>
           </div>
         ) : (
-          <form onSubmit={handleInvite} className="flex gap-2">
+          <form onSubmit={handleInvite} className="flex flex-col sm:flex-row gap-2">
             <Input 
               type="email" 
               placeholder="e-mail do parceiro" 
               value={email}
               onChange={e => setEmail(e.target.value)}
               required
-              className="max-w-xs"
+              className="w-full sm:max-w-xs"
             />
-            <Button type="submit" disabled={loading}>
+            <Button type="submit" disabled={loading} className="w-full sm:w-auto">
               <MailPlus className="h-4 w-4 mr-2" />
               Convidar
             </Button>

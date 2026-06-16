@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Badge } from '@/components/ui/badge';
 import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog';
 import { motion } from 'framer-motion';
-import { Plus, Search, Package, Pencil, Trash2, AlertCircle } from 'lucide-react';
+import { Plus, Search, Package, Pencil, Trash2, AlertCircle, Camera, Image as ImageIcon } from 'lucide-react';
 import { fmt } from '@/lib/format';
 import { toast } from 'sonner';
 import Cropper from 'react-easy-crop';
@@ -268,7 +268,7 @@ export default function ProductsPage() {
                 </div>
                 
                 <div className="flex flex-col gap-1.5 flex-1">
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 flex-wrap">
                     <Button 
                       type="button" 
                       variant="outline" 
@@ -276,7 +276,18 @@ export default function ProductsPage() {
                       className="text-xs gap-1.5"
                       onClick={() => document.getElementById('product-image-upload')?.click()}
                     >
-                      Upload / Câmera
+                      <ImageIcon className="h-3.5 w-3.5" />
+                      Upload
+                    </Button>
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      size="sm" 
+                      className="text-xs gap-1.5"
+                      onClick={() => document.getElementById('product-image-camera')?.click()}
+                    >
+                      <Camera className="h-3.5 w-3.5" />
+                      Câmera
                     </Button>
                     {(form as any).imageUrl && (
                       <Button 
@@ -296,6 +307,14 @@ export default function ProductsPage() {
                   type="file" 
                   id="product-image-upload" 
                   accept="image/*" 
+                  className="hidden" 
+                  onChange={handleImageFileChange} 
+                />
+                <input 
+                  type="file" 
+                  id="product-image-camera" 
+                  accept="image/*" 
+                  capture="environment"
                   className="hidden" 
                   onChange={handleImageFileChange} 
                 />

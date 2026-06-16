@@ -19,6 +19,7 @@ interface FinanceContextType {
   deleteTransaction: (id: string) => Promise<void>;
   addPayable: (p: Omit<Payable, 'id'>, installments?: number, isCredit?: boolean, recurrence?: { frequency: 'weekly' | 'monthly' | 'yearly'; occurrences: number }) => Promise<void>;
   updatePayable: (p: Payable) => Promise<void>;
+  updatePayableWithFuture: (p: Payable) => Promise<number>;
   deletePayable: (id: string) => Promise<void>;
   deletePayableWithFuture: (id: string) => Promise<number>;
   markPayablePaid: (id: string, accountId?: string) => Promise<void>;
@@ -945,7 +946,8 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     const baseDesc = stripSuffix(target.description);
     const ids = data.payables
       .filter(p =>
-        p.recurring &&
+        p.id !== id &&
+        (p.recurring || /\(\d+\/\d+\)\s*$/.test(p.description)) &&
         p.supplier === target.supplier &&
         p.categoryId === target.categoryId &&
         p.dueDate >= target.dueDate &&
@@ -973,6 +975,84 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     }
 
     if (isOnline) await fetchAll();
+    return allIds.length;
+  }, [user, data.payables, fetchAll]);
+
+  const updatePayableWithFuture = useCallback(async (p: Payable): Promise<number> => {
+    if (!user) return 0;
+    const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
+    const target = data.payables.find(x => x.id === p.id);
+    if (!target) return 0;
+
+    const stripSuffix = (s: string) => s.replace(/\s*\(\d+\/\d+\)\s*$/, '').trim().toLowerCase();
+    const baseDesc = stripSuffix(target.description);
+
+    const futureIds = data.payables
+      .filter(x =>
+        x.id !== target.id &&
+        (x.recurring || /\(\d+\/\d+\)\s*$/.test(x.description)) &&
+        x.supplier === target.supplier &&
+        x.categoryId === target.categoryId &&
+        x.dueDate >= target.dueDate &&
+        stripSuffix(x.description) === baseDesc &&
+        x.status !== 'paid'
+      )
+      .map(x => x.id);
+
+    const allIds = Array.from(new Set([p.id, ...futureIds]));
+
+    const payloadFuture = {
+      supplier: p.supplier,
+      category_id: p.categoryId,
+      account_id: p.accountId || null,
+      amount: Number(p.amount) || 0,
+      notes: p.notes || null,
+    };
+
+    const payloadMain = {
+      ...payloadFuture,
+      description: p.description,
+      due_date: p.dueDate,
+      status: p.status,
+      recurring: p.recurring || false,
+      recurrence_frequency: p.recurrenceFrequency || null,
+      recurrence_end_date: p.recurrenceEndDate || null,
+    };
+
+    if (isOnline) {
+      await supabase.from('payables').update(payloadMain).eq('id', p.id).eq('user_id', effectiveUserId);
+      if (futureIds.length > 0) {
+        await supabase.from('payables').update(payloadFuture).in('id', futureIds).eq('user_id', effectiveUserId);
+      }
+      await fetchAll();
+    } else {
+      await enqueueMutation({
+        userId: effectiveUserId,
+        type: 'UPDATE',
+        payload: { table: 'payables', data: payloadMain, match: { id: p.id } }
+      });
+      if (futureIds.length > 0) {
+        await enqueueMutation({
+          userId: effectiveUserId,
+          type: 'UPDATE',
+          payload: { table: 'payables', data: payloadFuture, matchIn: { column: 'id', values: futureIds } }
+        });
+      }
+      setData(prev => {
+        const fresh = {
+          ...prev,
+          payables: prev.payables.map(x => {
+            if (x.id === p.id) return { ...x, ...payloadMain, categoryId: p.categoryId, accountId: p.accountId, recurrenceFrequency: p.recurrenceFrequency, recurrenceEndDate: p.recurrenceEndDate };
+            if (futureIds.includes(x.id)) return { ...x, ...payloadFuture, categoryId: p.categoryId, accountId: p.accountId };
+            return x;
+          })
+        };
+        saveSnapshot(effectiveUserId, fresh).catch(() => {});
+        return fresh;
+      });
+      toast.success(`${allIds.length} contas alteradas offline`);
+    }
+
     return allIds.length;
   }, [user, data.payables, fetchAll]);
 
@@ -2273,7 +2353,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     <FinanceContext.Provider value={{
       data, loading,
       addTransaction, updateTransaction, deleteTransaction,
-      addPayable, updatePayable, deletePayable, deletePayableWithFuture, markPayablePaid, markPayablePaidPartial,
+      addPayable, updatePayable, updatePayableWithFuture, deletePayable, deletePayableWithFuture, markPayablePaid, markPayablePaidPartial,
       addReceivable, updateReceivable, deleteReceivable, markReceivableReceived, markReceivableReceivedPartial,
       addAccount, updateAccount, deleteAccount, transferBetweenAccounts,
       addBudget, updateBudget, deleteBudget,
