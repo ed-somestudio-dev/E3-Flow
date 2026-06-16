@@ -41,6 +41,7 @@ function SaleCard({ sale, onStatusChange, onDelete }: {
 }) {
   const [expanded, setExpanded] = useState(false);
   const [cancelConfirm, setCancelConfirm] = useState(false);
+  const [completeConfirm, setCompleteConfirm] = useState(false);
   const st = STATUS_MAP[sale.status];
 
   return (
@@ -85,7 +86,7 @@ function SaleCard({ sale, onStatusChange, onDelete }: {
           {sale.status === 'pending' && (
             <>
               <Button size="sm" variant="outline" className="h-7 text-xs gap-1 text-success border-success/40 hover:bg-success/10"
-                onClick={() => onStatusChange(sale.id, 'completed')}>
+                onClick={() => setCompleteConfirm(true)}>
                 <CheckCircle2 className="h-3 w-3" /> Concluir
               </Button>
               <Button size="sm" variant="outline" className="h-7 text-xs gap-1 text-destructive border-destructive/40 hover:bg-destructive/10"
@@ -128,6 +129,26 @@ function SaleCard({ sale, onStatusChange, onDelete }: {
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
+    {/* Complete Confirmation */}
+    <AlertDialog open={completeConfirm} onOpenChange={setCompleteConfirm}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Concluir venda?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Confirma a conclusão da venda de <strong>{sale.clientName || 'cliente não informado'}</strong> no valor de <strong>{fmt(sale.total)}</strong>?
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Voltar</AlertDialogCancel>
+          <AlertDialogAction
+            className="bg-primary text-primary-foreground hover:bg-primary/90"
+            onClick={() => { onStatusChange(sale.id, 'completed'); setCompleteConfirm(false); }}
+          >
+            Sim, concluir
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
     </>
   );
 }
@@ -138,6 +159,7 @@ export default function SalesPage() {
   const { contacts } = useContacts();
 
   const [tab, setTab] = useState<'all' | SaleStatus>('all');
+  const [paymentFilter, setPaymentFilter] = useState<string>('all');
   const [search, setSearch] = useState('');
   const [showSearchSuggestions, setShowSearchSuggestions] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -182,9 +204,10 @@ export default function SalesPage() {
 
   const filtered = useMemo(() => sales.filter(s => {
     if (tab !== 'all' && s.status !== tab) return false;
+    if (paymentFilter !== 'all' && s.paymentMethod !== paymentFilter) return false;
     if (search && !s.clientName?.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
-  }), [sales, tab, search]);
+  }), [sales, tab, paymentFilter, search]);
 
   const addToCart = (productId: string) => {
     const prod = products.find(p => p.id === productId);
@@ -294,16 +317,29 @@ export default function SalesPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <Tabs value={tab} onValueChange={v => setTab(v as 'all' | SaleStatus)} className="w-full sm:w-auto">
-          <TabsList>
-            <TabsTrigger value="all">Todas</TabsTrigger>
-            <TabsTrigger value="pending"><Clock className="h-3 w-3 mr-1" />Pendentes</TabsTrigger>
-            <TabsTrigger value="completed"><CheckCircle2 className="h-3 w-3 mr-1" />Concluídas</TabsTrigger>
-            <TabsTrigger value="cancelled"><XCircle className="h-3 w-3 mr-1" />Canceladas</TabsTrigger>
-          </TabsList>
-        </Tabs>
-        <div className="relative flex-1">
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-wrap gap-2">
+          <Tabs value={tab} onValueChange={v => setTab(v as 'all' | SaleStatus)} className="w-full sm:w-auto">
+            <TabsList className="w-full sm:w-auto flex flex-wrap h-auto">
+              <TabsTrigger value="all" className="flex-1 sm:flex-none">Todas</TabsTrigger>
+              <TabsTrigger value="pending" className="flex-1 sm:flex-none"><Clock className="h-3 w-3 mr-1" />Pendentes</TabsTrigger>
+              <TabsTrigger value="completed" className="flex-1 sm:flex-none"><CheckCircle2 className="h-3 w-3 mr-1" />Concluídas</TabsTrigger>
+              <TabsTrigger value="cancelled" className="flex-1 sm:flex-none"><XCircle className="h-3 w-3 mr-1" />Canceladas</TabsTrigger>
+            </TabsList>
+          </Tabs>
+          
+          <Select value={paymentFilter} onValueChange={setPaymentFilter}>
+            <SelectTrigger className="w-full sm:w-[160px]">
+              <SelectValue placeholder="Pagamento..." />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas as Formas</SelectItem>
+              {PAYMENT_METHODS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="relative w-full">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             ref={searchRef}
