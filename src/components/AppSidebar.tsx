@@ -171,15 +171,7 @@ export function AppSidebar() {
               </button>
             </CollapsibleContent>
           </Collapsible>
-          
-          {!collapsed && (
-            <div className="px-4 pt-4 pb-2 mt-auto">
-              <p className="text-[10px] text-center text-muted-foreground opacity-70">
-                Versão 2.1.0<br/>
-                Atualizado em 16/06/2026
-              </p>
-            </div>
-          )}
+
         </SidebarFooter>
       </Sidebar>
 
