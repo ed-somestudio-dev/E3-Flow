@@ -239,7 +239,7 @@ export default function ProductsPage() {
 
       {/* Add/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md" onInteractOutside={(e) => e.preventDefault()}>
           <DialogHeader>
             <DialogTitle>{editTarget ? 'Editar Produto' : 'Novo Produto'}</DialogTitle>
           </DialogHeader>

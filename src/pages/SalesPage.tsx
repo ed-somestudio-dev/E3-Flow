@@ -115,7 +115,7 @@ function SaleCard({ sale, onStatusChange, onDelete }: {
         <AlertDialogHeader>
           <AlertDialogTitle>Cancelar venda?</AlertDialogTitle>
           <AlertDialogDescription>
-            A venda de <strong>{sale.clientName || 'cliente não informado'}</strong> no valor de <strong>{fmt(sale.total)}</strong> será marcada como cancelada. Esta ação pode ser revertida depois.
+            A venda de <strong>{sale.clientName || 'cliente não informado'}</strong> no valor de <strong>{fmt(sale.total)}</strong> será marcada como cancelada. Esta ação não poderá ser desfeita.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
