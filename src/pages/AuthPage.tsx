@@ -3,8 +3,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Mail, Lock, Chrome, ArrowLeft, PieChart, QrCode, Package, Users, Eye, EyeOff } from 'lucide-react';
+import { Mail, Lock, Chrome, ArrowLeft, PieChart, QrCode, Package, Users, Eye, EyeOff, HelpCircle, Loader2 } from 'lucide-react';
 import logoFluxoPro from '@/assets/Logo_FluxoPro.png';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { useAuth } from '@/lib/auth-context';
 
@@ -16,6 +17,44 @@ export default function AuthPage() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  
+  const [supportOpen, setSupportOpen] = useState(false);
+  const [supportEmail, setSupportEmail] = useState('');
+  const [supportSubject, setSupportSubject] = useState('');
+  const [supportMessage, setSupportMessage] = useState('');
+  const [sendingSupport, setSendingSupport] = useState(false);
+
+  const handleSupportSubmit = async () => {
+    if (!supportEmail.trim() || !supportSubject.trim() || !supportMessage.trim()) {
+      toast.error('Preencha seu e-mail, assunto e mensagem.');
+      return;
+    }
+
+    setSendingSupport(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('send-support-email', {
+        body: {
+          visitorEmail: supportEmail,
+          subject: supportSubject,
+          message: supportMessage
+        }
+      });
+
+      if (error) throw new Error(error.message || 'Erro ao comunicar com o servidor');
+      if (data?.error) throw new Error(data.error);
+
+      toast.success('Mensagem enviada com sucesso! Retornaremos o contato em breve.');
+      setSupportEmail('');
+      setSupportSubject('');
+      setSupportMessage('');
+      setSupportOpen(false);
+    } catch (err: any) {
+      console.error('[Support] Error sending message:', err);
+      toast.error(err.message || 'Erro ao enviar mensagem.');
+    } finally {
+      setSendingSupport(false);
+    }
+  };
 
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -116,7 +155,9 @@ export default function AuthPage() {
         </div>
 
         <div className="relative z-10 max-w-lg">
-          <img src={logoFluxoPro} alt="FluxoPro" className="h-24 object-contain brightness-0 invert mb-8" />
+          <div className="bg-white p-1 rounded-[2rem] shadow-xl inline-flex items-center justify-center mb-10 w-40 h-40">
+            <img src={logoFluxoPro} alt="FluxoPro" className="w-full h-full object-contain" />
+          </div>
           
           <h1 className="text-4xl font-bold mb-4 tracking-tight">
             Seu financeiro sob controle, em qualquer lugar.
@@ -165,6 +206,13 @@ export default function AuthPage() {
                 <p className="text-primary-foreground/70 text-sm mt-1">Gerencie sua empresa ou finanças da família em conjunto com seu sócio ou cônjuge.</p>
               </div>
             </div>
+          </div>
+          
+          <div className="mt-12 pt-6 border-t border-primary-foreground/10">
+             <button onClick={() => setSupportOpen(true)} className="flex items-center gap-2 text-primary-foreground/80 hover:text-white transition-colors">
+               <HelpCircle className="h-5 w-5" />
+               <span className="font-medium">Precisa de ajuda ou está com problemas no acesso?</span>
+             </button>
           </div>
         </div>
       </div>
@@ -289,6 +337,56 @@ export default function AuthPage() {
           </div>
         </div>
       </div>
+
+      {/* Modal de Suporte para Visitantes */}
+      <Dialog open={supportOpen} onOpenChange={setSupportOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <HelpCircle className="h-5 w-5 text-primary" />
+              Fale com o Suporte
+            </DialogTitle>
+            <DialogDescription>
+              Está com problemas no acesso ou dúvidas sobre a plataforma? Deixe sua mensagem e retornaremos em breve.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label>Seu E-mail de Contato</Label>
+              <Input
+                type="email"
+                value={supportEmail}
+                onChange={e => setSupportEmail(e.target.value)}
+                placeholder="seu.email@exemplo.com"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Assunto</Label>
+              <Input
+                value={supportSubject}
+                onChange={e => setSupportSubject(e.target.value)}
+                placeholder="Ex: Problema com o login"
+                maxLength={100}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Mensagem</Label>
+              <textarea
+                className="flex min-h-[120px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                value={supportMessage}
+                onChange={e => setSupportMessage(e.target.value)}
+                placeholder="Descreva detalhadamente como podemos te ajudar..."
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={handleSupportSubmit} disabled={sendingSupport} className="w-full sm:w-auto">
+              {sendingSupport ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+              {sendingSupport ? 'Enviando...' : 'Enviar Mensagem'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

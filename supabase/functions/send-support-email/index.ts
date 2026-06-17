@@ -16,20 +16,22 @@ Deno.serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      throw new Error("Missing Authorization header");
+    let userEmail = "visitante@fluxopro.app.br";
+    let userId = "Visitante (Não logado)";
+
+    if (authHeader) {
+      const { data: { user }, error: userError } = await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
+      if (user && !userError && user.email) {
+        userEmail = user.email;
+        userId = user.id;
+      }
     }
 
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
+    const { subject, message, visitorEmail } = await req.json();
 
-    if (userError || !user) {
-      throw new Error("Unauthorized");
+    if (visitorEmail) {
+      userEmail = visitorEmail;
     }
-
-    const { subject, message } = await req.json();
 
     if (!subject || !message) {
       throw new Error("Subject and message are required");
@@ -44,7 +46,7 @@ Deno.serve(async (req) => {
     const htmlBody = `
       <div style="font-family: sans-serif; padding: 20px;">
         <h2>Novo Chamado de Suporte</h2>
-        <p><strong>Usuário:</strong> ${user.email} (ID: ${user.id})</p>
+        <p><strong>Usuário:</strong> ${userEmail} (ID: ${userId})</p>
         <p><strong>Assunto:</strong> ${subject}</p>
         <hr />
         <p><strong>Mensagem:</strong></p>
@@ -62,7 +64,7 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         from: "FluxoPro Suporte <contato@fluxopro.app.br>",
         to: ["suporte@fluxopro.app.br"],
-        reply_to: user.email,
+        reply_to: userEmail,
         subject: `[Suporte] ${subject}`,
         html: htmlBody,
       }),
