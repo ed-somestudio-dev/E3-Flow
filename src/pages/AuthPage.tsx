@@ -155,7 +155,7 @@ export default function AuthPage() {
         </div>
 
         <div className="relative z-10 max-w-lg">
-          <div className="bg-white p-1 rounded-[2rem] shadow-xl inline-flex items-center justify-center mb-10 w-40 h-40">
+          <div className="bg-white p-2 rounded-[2rem] shadow-xl inline-flex items-center justify-center mb-10 w-44 h-44">
             <img src={logoFluxoPro} alt="FluxoPro" className="w-full h-full object-contain" />
           </div>
           
