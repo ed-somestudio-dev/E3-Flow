@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSales } from '@/lib/sales-context';
 import { Product } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -10,11 +10,16 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Badge } from '@/components/ui/badge';
 import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog';
 import { motion } from 'framer-motion';
-import { Plus, Search, Package, Pencil, Trash2, AlertCircle, Camera, Image as ImageIcon } from 'lucide-react';
+import { Plus, Search, Package, Pencil, Trash2, AlertCircle, Camera, Image as ImageIcon, X } from 'lucide-react';
 import { fmt } from '@/lib/format';
 import { toast } from 'sonner';
 import Cropper from 'react-easy-crop';
 import { getCroppedImg } from '@/lib/cropImage';
+import { Camera as CapacitorCamera, CameraResultType, CameraSource } from '@capacitor/camera';
+import { App as CapacitorApp } from '@capacitor/app';
+import { Preferences } from '@capacitor/preferences';
+import Webcam from 'react-webcam';
+import { useCallback, useRef } from 'react';
 
 const UNITS = ['un', 'kg', 'g', 'L', 'mL', 'm', 'cm', 'cx', 'pct', 'par', 'h'];
 
@@ -39,6 +44,55 @@ export default function ProductsPage() {
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<any>(null);
 
+  const [webcamDialogOpen, setWebcamDialogOpen] = useState(false);
+  const webcamRef = useRef<Webcam>(null);
+
+  // Restaurar estado caso o Android mate o app em segundo plano
+  useEffect(() => {
+    const restoreState = async () => {
+      const { value: draft } = await Preferences.get({ key: 'product_draft_form' });
+      const { value: restoredImage } = await Preferences.get({ key: 'capacitor_restored_camera_image' });
+
+      if (draft) {
+        try {
+          const parsed = JSON.parse(draft);
+          if (parsed.form) setForm(parsed.form);
+          if (parsed.editTarget !== undefined) setEditTarget(parsed.editTarget);
+          setDialogOpen(true);
+        } catch (e) { console.error('Failed to parse draft', e); }
+      }
+
+      if (restoredImage) {
+        setImageToCrop(restoredImage);
+        setZoom(1);
+        setCrop({ x: 0, y: 0 });
+        setCropDialogOpen(true);
+        setDialogOpen(true);
+        await Preferences.remove({ key: 'capacitor_restored_camera_image' });
+        await Preferences.remove({ key: 'product_draft_form' });
+      }
+    };
+    restoreState();
+
+    const listener = CapacitorApp.addListener('appRestoredResult', async (data: any) => {
+      if (data.pluginId === 'Camera' && data.methodName === 'getPhoto' && data.success) {
+        const imageUrl = data.data.webPath || data.data.dataUrl;
+        if (imageUrl) {
+          setImageToCrop(imageUrl);
+          setZoom(1);
+          setCrop({ x: 0, y: 0 });
+          setCropDialogOpen(true);
+          setDialogOpen(true);
+        }
+      }
+      await Preferences.remove({ key: 'product_draft_form' });
+    });
+
+    return () => {
+      listener.then(l => l.remove());
+    };
+  }, []);
+
   const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -58,6 +112,22 @@ export default function ProductsPage() {
     };
     reader.readAsDataURL(file);
   };
+
+  const handleCapacitorCamera = async () => {
+    // Abrir a câmera embutida no DOM (bypassa o Intent do Android, evitando que o app morra)
+    setWebcamDialogOpen(true);
+  };
+
+  const captureWebcam = useCallback(() => {
+    const imageSrc = webcamRef.current?.getScreenshot();
+    if (imageSrc) {
+      setImageToCrop(imageSrc);
+      setZoom(1);
+      setCrop({ x: 0, y: 0 });
+      setWebcamDialogOpen(false);
+      setCropDialogOpen(true);
+    }
+  }, [webcamRef]);
 
   const handleApplyCrop = async () => {
     if (!imageToCrop || !croppedAreaPixels) return;
@@ -122,6 +192,7 @@ export default function ProductsPage() {
         await addProduct(form);
       }
       setDialogOpen(false);
+      await Preferences.remove({ key: 'product_draft_form' });
     } finally { setSaving(false); }
   };
 
@@ -239,7 +310,7 @@ export default function ProductsPage() {
 
       {/* Add/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-md" onInteractOutside={(e) => e.preventDefault()}>
+        <DialogContent className="max-w-md" onInteractOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
           <DialogHeader>
             <DialogTitle>{editTarget ? 'Editar Produto' : 'Novo Produto'}</DialogTitle>
           </DialogHeader>
@@ -284,7 +355,7 @@ export default function ProductsPage() {
                       variant="outline" 
                       size="sm" 
                       className="text-xs gap-1.5"
-                      onClick={() => document.getElementById('product-image-camera')?.click()}
+                      onClick={handleCapacitorCamera}
                     >
                       <Camera className="h-3.5 w-3.5" />
                       Câmera
@@ -307,14 +378,6 @@ export default function ProductsPage() {
                   type="file" 
                   id="product-image-upload" 
                   accept="image/*" 
-                  className="hidden" 
-                  onChange={handleImageFileChange} 
-                />
-                <input 
-                  type="file" 
-                  id="product-image-camera" 
-                  accept="image/*" 
-                  capture="environment"
                   className="hidden" 
                   onChange={handleImageFileChange} 
                 />
@@ -392,7 +455,7 @@ export default function ProductsPage() {
 
       {/* Crop Dialog */}
       <Dialog open={cropDialogOpen} onOpenChange={setCropDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md" onInteractOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
           <DialogHeader>
             <DialogTitle>Ajustar Imagem</DialogTitle>
           </DialogHeader>
@@ -413,6 +476,34 @@ export default function ProductsPage() {
             <Button variant="outline" onClick={() => { setCropDialogOpen(false); setImageToCrop(null); }}>Cancelar</Button>
             <Button onClick={handleApplyCrop}>Aplicar Recorte</Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* In-App Webcam Dialog */}
+      <Dialog open={webcamDialogOpen} onOpenChange={setWebcamDialogOpen}>
+        <DialogContent className="max-w-md p-0 overflow-hidden bg-black border-none" onInteractOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
+          <div className="relative w-full h-[80vh] bg-black flex items-center justify-center">
+            {webcamDialogOpen && (
+              <Webcam
+                audio={false}
+                ref={webcamRef}
+                screenshotFormat="image/jpeg"
+                screenshotQuality={0.9}
+                videoConstraints={{
+                  facingMode: "environment" // Usa a câmera traseira do celular
+                }}
+                className="w-full h-full object-cover"
+              />
+            )}
+            <div className="absolute bottom-6 left-0 right-0 flex justify-center gap-6 items-center px-6">
+              <Button variant="secondary" size="icon" className="rounded-full bg-white/20 hover:bg-white/40 text-white border-0" onClick={() => setWebcamDialogOpen(false)}>
+                <X className="h-6 w-6" />
+              </Button>
+              <Button size="icon" className="h-16 w-16 rounded-full bg-white hover:bg-gray-200 border-4 border-gray-400 p-0" onClick={captureWebcam}>
+                <span className="sr-only">Tirar foto</span>
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 

@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Mail, Lock, Chrome, ArrowLeft, PieChart, QrCode, Package, Users } from 'lucide-react';
+import { Mail, Lock, Chrome, ArrowLeft, PieChart, QrCode, Package, Users, Eye, EyeOff } from 'lucide-react';
 import logoFluxoPro from '@/assets/Logo_FluxoPro.png';
 import { toast } from 'sonner';
 import { useAuth } from '@/lib/auth-context';
@@ -14,6 +14,7 @@ export default function AuthPage() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const handleEmailAuth = async (e: React.FormEvent) => {
@@ -245,7 +246,23 @@ export default function AuthPage() {
                     <Label>Senha</Label>
                     <div className="relative">
                       <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} className="pl-9 h-11" required minLength={6} />
+                      <Input 
+                        type={showPassword ? "text" : "password"} 
+                        placeholder="••••••••" 
+                        value={password} 
+                        onChange={e => setPassword(e.target.value)} 
+                        className="pl-9 pr-10 h-11" 
+                        required 
+                        minLength={6} 
+                      />
+                      <button 
+                        type="button" 
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                        tabIndex={-1}
+                      >
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
                     </div>
                   </div>
                   
