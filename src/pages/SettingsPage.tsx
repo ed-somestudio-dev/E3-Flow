@@ -4,11 +4,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { QrCode, Save, Stamp, Upload, Trash2, Bell, ShoppingCart, Crown, MessageCircle, AlertTriangle } from 'lucide-react';
+import { QrCode, Save, Stamp, Upload, Trash2, Bell, ShoppingCart, Crown, MessageCircle, AlertTriangle, HelpCircle, Loader2 } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import { useSubscription } from '@/lib/subscription-context';
 import { Link } from 'react-router-dom';
+import { supabase } from '@/integrations/supabase/client';
 
 export default function SettingsPage() {
   const { settings, save, loaded, uploadStamp, removeStamp } = usePixSettings();
@@ -16,6 +17,9 @@ export default function SettingsPage() {
   const [form, setForm] = useState<PixSettingsRow>(settings);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [supportSubject, setSupportSubject] = useState('');
+  const [supportMessage, setSupportMessage] = useState('');
+  const [sendingSupport, setSendingSupport] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { setForm(settings); }, [settings]);
@@ -65,6 +69,35 @@ export default function SettingsPage() {
     setUploading(true);
     try { await removeStamp(); toast.success('Carimbo removido'); }
     finally { setUploading(false); }
+  };
+
+  const handleSupportSubmit = async () => {
+    if (!supportSubject.trim() || !supportMessage.trim()) {
+      toast.error('Preencha o assunto e a mensagem.');
+      return;
+    }
+
+    setSendingSupport(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('send-support-email', {
+        body: {
+          subject: supportSubject,
+          message: supportMessage
+        }
+      });
+
+      if (error) throw new Error(error.message || 'Erro ao comunicar com o servidor');
+      if (data?.error) throw new Error(data.error);
+
+      toast.success('Mensagem enviada com sucesso! Retornaremos o contato em breve.');
+      setSupportSubject('');
+      setSupportMessage('');
+    } catch (err: any) {
+      console.error('[Support] Error sending message:', err);
+      toast.error(err.message || 'Erro ao enviar mensagem.');
+    } finally {
+      setSendingSupport(false);
+    }
   };
 
   if (!loaded) return <p className="text-muted-foreground">Carregando...</p>;
@@ -355,6 +388,46 @@ export default function SettingsPage() {
               Gerenciar Assinatura
             </Link>
           </Button>
+        </div>
+      </div>
+
+      {/* Ajuda e Suporte */}
+      <div className="finance-card p-6 space-y-4">
+        <div className="flex items-center gap-2 pb-2 border-b border-border">
+          <HelpCircle className="h-5 w-5 text-primary" />
+          <h2 className="font-semibold">Ajuda e Suporte</h2>
+        </div>
+
+        <p className="text-sm text-muted-foreground">
+          Precisa de ajuda ou encontrou algum problema? Envie uma mensagem diretamente para nossa equipe de suporte.
+        </p>
+
+        <div className="space-y-4 mt-2">
+          <div>
+            <Label>Assunto</Label>
+            <Input
+              value={supportSubject}
+              onChange={e => setSupportSubject(e.target.value)}
+              placeholder="Ex: Dúvida sobre fechamento de caixa"
+              maxLength={100}
+            />
+          </div>
+          <div>
+            <Label>Mensagem</Label>
+            <textarea
+              className="flex min-h-[120px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+              value={supportMessage}
+              onChange={e => setSupportMessage(e.target.value)}
+              placeholder="Descreva o que está acontecendo com o máximo de detalhes possível..."
+            />
+          </div>
+
+          <div className="flex justify-end pt-2">
+            <Button onClick={handleSupportSubmit} disabled={sendingSupport}>
+              {sendingSupport ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+              {sendingSupport ? 'Enviando...' : 'Enviar Mensagem'}
+            </Button>
+          </div>
         </div>
       </div>
     </div>
