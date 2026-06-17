@@ -2,7 +2,7 @@ import { useState, useRef } from 'react';
 import {
   LayoutDashboard, FileText, FileInput, ArrowUpDown, Wallet, Target, Sun, Moon,
   BarChart3, LogOut, Tag, RotateCcw, Download, Upload, Settings, Users,
-  ChevronDown, MoreHorizontal, Smartphone, ShoppingCart, Package, Crown
+  ChevronDown, MoreHorizontal, Smartphone, ShoppingCart, Package, Crown, HelpCircle, Loader2
 } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import logoFluxoPro from '@/assets/Logo_FluxoPro.png';
@@ -20,6 +20,14 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 
 const mainItems = [
   { title: 'Painel', url: '/', icon: LayoutDashboard },
@@ -48,8 +56,42 @@ export function AppSidebar() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [restoreConfirmOpen, setRestoreConfirmOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [supportOpen, setSupportOpen] = useState(false);
+  const [supportSubject, setSupportSubject] = useState('');
+  const [supportMessage, setSupportMessage] = useState('');
+  const [sendingSupport, setSendingSupport] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pendingFileRef = useRef<File | null>(null);
+
+  const handleSupportSubmit = async () => {
+    if (!supportSubject.trim() || !supportMessage.trim()) {
+      toast.error('Preencha o assunto e a mensagem.');
+      return;
+    }
+
+    setSendingSupport(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('send-support-email', {
+        body: {
+          subject: supportSubject,
+          message: supportMessage
+        }
+      });
+
+      if (error) throw new Error(error.message || 'Erro ao comunicar com o servidor');
+      if (data?.error) throw new Error(data.error);
+
+      toast.success('Mensagem enviada com sucesso! Retornaremos o contato em breve.');
+      setSupportSubject('');
+      setSupportMessage('');
+      setSupportOpen(false);
+    } catch (err: any) {
+      console.error('[Support] Error sending message:', err);
+      toast.error(err.message || 'Erro ao enviar mensagem.');
+    } finally {
+      setSendingSupport(false);
+    }
+  };
 
   const salesEnabled = pixSettings.salesModuleEnabled;
 
@@ -164,6 +206,11 @@ export function AppSidebar() {
                 <Smartphone className="h-4 w-4" />
                 {!collapsed && <span className="text-sm">Instalar App</span>}
               </NavLink>
+              <button onClick={() => setSupportOpen(true)}
+                className="flex items-center gap-2 px-4 py-3 text-sidebar-muted hover:text-sidebar-foreground transition-colors w-full">
+                <HelpCircle className="h-4 w-4" />
+                {!collapsed && <span className="text-sm">Ajuda e Suporte</span>}
+              </button>
               <button onClick={signOut}
                 className="flex items-center gap-2 px-4 py-3 text-sidebar-muted hover:text-destructive transition-colors w-full">
                 <LogOut className="h-4 w-4" />
@@ -220,6 +267,46 @@ export function AppSidebar() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={supportOpen} onOpenChange={setSupportOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <HelpCircle className="h-5 w-5 text-primary" />
+              Ajuda e Suporte
+            </DialogTitle>
+            <DialogDescription>
+              Precisa de ajuda ou encontrou algum problema? Envie uma mensagem diretamente para nossa equipe de suporte.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label>Assunto</Label>
+              <Input
+                value={supportSubject}
+                onChange={e => setSupportSubject(e.target.value)}
+                placeholder="Ex: Dúvida sobre fechamento de caixa"
+                maxLength={100}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Mensagem</Label>
+              <textarea
+                className="flex min-h-[120px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                value={supportMessage}
+                onChange={e => setSupportMessage(e.target.value)}
+                placeholder="Descreva o que está acontecendo com o máximo de detalhes possível..."
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={handleSupportSubmit} disabled={sendingSupport} className="w-full sm:w-auto">
+              {sendingSupport ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+              {sendingSupport ? 'Enviando...' : 'Enviar Mensagem'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
