@@ -32,6 +32,8 @@ interface SubscriptionContextType {
     cpfCnpj: string;
     phone?: string;
   }) => Promise<{ invoiceUrl?: string }>;
+  updateSubscription: (plan: 'monthly' | 'yearly') => Promise<void>;
+  cancelSubscription: () => Promise<void>;
   refreshSubscription: () => Promise<void>;
 }
 
@@ -189,14 +191,29 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
 
     try {
       const planConfig = PLANS[plan as keyof typeof PLANS] || PLANS.monthly;
-      const trialEndDate = new Date();
-      trialEndDate.setDate(trialEndDate.getDate() + TRIAL_DAYS);
-      const trialEndDateStr = trialEndDate.toISOString().split('T')[0];
+      
+      let trialDaysToPass = TRIAL_DAYS;
+      let trialEndDateStr: string | undefined = undefined;
+
+      if (effectiveSubscription?.trial_end_date) {
+        const remaining = Math.ceil((new Date(effectiveSubscription.trial_end_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+        if (remaining > 0) {
+          trialDaysToPass = remaining;
+          trialEndDateStr = new Date(effectiveSubscription.trial_end_date).toISOString().split('T')[0];
+        } else {
+          trialDaysToPass = 0;
+          trialEndDateStr = new Date().toISOString().split('T')[0]; // cobrar hoje
+        }
+      } else {
+        const trialEndDate = new Date();
+        trialEndDate.setDate(trialEndDate.getDate() + TRIAL_DAYS);
+        trialEndDateStr = trialEndDate.toISOString().split('T')[0];
+      }
 
       const { data, error } = await supabase.functions.invoke('asaas-checkout', {
         body: {
           planId: planConfig.planId,
-          trialDays: TRIAL_DAYS,
+          trialDays: trialDaysToPass,
           trialEndDate: trialEndDateStr,
           userName: customerData.name,
           userEmail: user.email,
@@ -224,6 +241,38 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
     }
   }, [user, fetchSubscription]);
 
+  const updateSubscription = useCallback(async (plan: 'monthly' | 'yearly') => {
+    if (!user) throw new Error('Usuário não autenticado');
+    try {
+      const { data, error } = await supabase.functions.invoke('asaas-update-subscription', {
+        body: { planId: plan }
+      });
+      if (error) throw new Error(error.message || 'Erro ao comunicar com o servidor');
+      if (data?.error) throw new Error(data.error);
+      
+      await fetchSubscription();
+    } catch (err: any) {
+      console.error('[SubscriptionProvider] Erro ao atualizar assinatura:', err);
+      throw err;
+    }
+  }, [user, fetchSubscription]);
+
+  const cancelSubscription = useCallback(async () => {
+    if (!user) throw new Error('Usuário não autenticado');
+    try {
+      const { data, error } = await supabase.functions.invoke('asaas-cancel-subscription');
+      if (error) throw new Error(error.message || 'Erro ao comunicar com o servidor');
+      if (data?.error) throw new Error(data.error);
+      
+      toast.success('Assinatura cancelada com sucesso!');
+      await fetchSubscription();
+    } catch (err: any) {
+      console.error('[SubscriptionProvider] Erro ao cancelar assinatura:', err);
+      toast.error(err.message || 'Erro ao cancelar assinatura');
+      throw err;
+    }
+  }, [user, fetchSubscription]);
+
   const registrationDate = user?.created_at ? new Date(user.created_at) : null;
   const defaultTrialEndDate = registrationDate 
     ? new Date(registrationDate.getTime() + TRIAL_DAYS * 24 * 60 * 60 * 1000)
@@ -235,19 +284,20 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
     ? Math.ceil((new Date(effectiveSubscription.subscription_due_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
     : null;
 
-  const trialDaysRemaining = effectiveSubscription?.trial_end_date
+  let trialDaysRemaining = effectiveSubscription?.trial_end_date
     ? Math.max(0, Math.ceil((new Date(effectiveSubscription.trial_end_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)))
     : (isDefaultTrialActive && defaultTrialEndDate ? Math.max(0, Math.ceil((defaultTrialEndDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))) : null);
 
-  const isInTrial = Boolean(
+  let isInTrial = Boolean(
     (effectiveSubscription?.trial_end_date && new Date(effectiveSubscription.trial_end_date).getTime() > new Date().getTime())
     || isDefaultTrialActive
   );
 
-  const isActive = isDeveloperBypass
+  let isActive = isDeveloperBypass
     || effectiveSubscription?.subscription_status === 'RECEIVED'
     || effectiveSubscription?.subscription_status === 'CONFIRMED'
     || isInTrial;
+
 
   return (
     <SubscriptionContext.Provider value={{
@@ -259,6 +309,8 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
       daysUntilDue,
       isAdmin,
       createSubscription,
+      updateSubscription,
+      cancelSubscription,
       refreshSubscription: fetchSubscription,
     }}>
       {children}

@@ -1,23 +1,53 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Check, Crown, Loader2, Sparkles } from 'lucide-react';
 import { useSubscription, PLANS, TRIAL_DAYS } from '@/lib/subscription-context';
 import { useAuth } from '@/lib/auth-context';
 import { toast } from 'sonner';
 import { FamilyShare } from '@/components/FamilyShare';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
 export default function SubscriptionPage() {
   const { user } = useAuth();
-  const { createSubscription, loading, subscription, isInTrial, trialDaysRemaining } = useSubscription();
+  const { createSubscription, updateSubscription, cancelSubscription, loading, subscription, isInTrial, trialDaysRemaining } = useSubscription();
   const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'yearly'>('monthly');
   const [creating, setCreating] = useState(false);
+  const [updating, setUpdating] = useState(false);
+  const [canceling, setCanceling] = useState(false);
+  const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
   const [customerName, setCustomerName] = useState(user?.user_metadata?.full_name || '');
   const [customerCpfCnpj, setCustomerCpfCnpj] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
+
+  useEffect(() => {
+    if (subscription?.subscription_plan) {
+      setSelectedPlan(
+        Object.entries(PLANS).find(([, p]) => p.name === subscription.subscription_plan || p.planId === subscription.subscription_plan)?.[0] as 'monthly' | 'yearly' || 'monthly'
+      );
+    }
+  }, [subscription?.subscription_plan]);
 
   const handleSubscribe = async () => {
     if (!customerName || !customerCpfCnpj) {
@@ -45,7 +75,31 @@ export default function SubscriptionPage() {
     }
   };
 
-  if (subscription && (subscription.subscription_status === 'RECEIVED' || subscription.subscription_status === 'CONFIRMED' || subscription.subscription_status === 'TRIAL' || isInTrial)) {
+  const handleUpdatePlan = async () => {
+    setUpdating(true);
+    try {
+      await updateSubscription(selectedPlan);
+      setIsUpdateModalOpen(false);
+      toast.success('Plano alterado com sucesso!');
+    } catch (err: any) {
+      alert("Erro ao alterar plano: " + (err.message || "Erro desconhecido"));
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const handleCancelSubscription = async () => {
+    setCanceling(true);
+    try {
+      await cancelSubscription();
+    } catch (err: any) {
+      // Error handled in context
+    } finally {
+      setCanceling(false);
+    }
+  };
+
+  if (subscription && (subscription.subscription_status === 'RECEIVED' || subscription.subscription_status === 'CONFIRMED' || isInTrial)) {
     return (
       <div className="max-w-2xl mx-auto space-y-6">
         <div>
@@ -57,7 +111,7 @@ export default function SubscriptionPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Crown className="h-5 w-5 text-primary" />
-              Assinatura {PLANS[subscription.subscription_plan as keyof typeof PLANS]?.name || 'FluxoPro'}
+              Assinatura {PLANS[subscription.subscription_plan as keyof typeof PLANS]?.name || subscription.subscription_plan || 'FluxoPro'}
             </CardTitle>
             <CardDescription>Status: {subscription.subscription_status}</CardDescription>
           </CardHeader>
@@ -81,9 +135,83 @@ export default function SubscriptionPage() {
             )}
             <div>
               <p className="text-sm text-muted-foreground">Valor</p>
-              <p className="font-medium">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(PLANS[subscription.subscription_plan as keyof typeof PLANS]?.value || 0)}</p>
+              <p className="font-medium">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Object.values(PLANS).find(p => p.name === subscription.subscription_plan || p.planId === subscription.subscription_plan)?.value || 0)}</p>
             </div>
           </CardContent>
+          <CardFooter className="border-t pt-6 mt-2 flex flex-col sm:flex-row gap-3">
+             <Dialog open={isUpdateModalOpen} onOpenChange={setIsUpdateModalOpen}>
+               <DialogTrigger asChild>
+                 <Button variant="outline" className="w-full sm:w-auto">Alterar Plano</Button>
+               </DialogTrigger>
+               <DialogContent className="max-w-2xl">
+                 <DialogHeader>
+                   <DialogTitle>Alterar Plano</DialogTitle>
+                   <DialogDescription>
+                     Escolha o novo plano. A mudança será aplicada na sua assinatura.
+                   </DialogDescription>
+                 </DialogHeader>
+                 
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                  {Object.entries(PLANS).map(([key, plan]) => {
+                    const isYearly = key === 'yearly';
+                    const isSelected = selectedPlan === key;
+                    return (
+                      <Card
+                        key={key}
+                        className={`cursor-pointer transition-all ${isSelected ? 'border-primary ring-2 ring-primary' : 'hover:border-primary/50'}`}
+                        onClick={() => setSelectedPlan(key as 'monthly' | 'yearly')}
+                      >
+                        <CardHeader>
+                          <div className="flex items-center justify-between">
+                            <CardTitle className="flex items-center gap-2 text-base">
+                              <Crown className="h-4 w-4" />
+                              {plan.name}
+                            </CardTitle>
+                          </div>
+                          <CardDescription className="text-xl font-bold">
+                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(plan.value)}
+                            <span className="text-sm font-normal text-muted-foreground">
+                              {isYearly ? '/ano' : '/mês'}
+                            </span>
+                          </CardDescription>
+                        </CardHeader>
+                      </Card>
+                    );
+                  })}
+                 </div>
+
+                 <div className="flex justify-end mt-4">
+                   <Button onClick={handleUpdatePlan} disabled={updating}>
+                     {updating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                     Confirmar Alteração
+                   </Button>
+                 </div>
+               </DialogContent>
+             </Dialog>
+
+             <AlertDialog>
+               <AlertDialogTrigger asChild>
+                 <Button variant="destructive" className="w-full sm:w-auto" disabled={canceling}>
+                   {canceling ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                   Cancelar Assinatura
+                 </Button>
+               </AlertDialogTrigger>
+               <AlertDialogContent>
+                 <AlertDialogHeader>
+                   <AlertDialogTitle>Você tem certeza absoluta?</AlertDialogTitle>
+                   <AlertDialogDescription>
+                     Isso cancelará sua assinatura imediatamente e as cobranças futuras serão suspensas. Você perderá acesso aos recursos premium após o período vigente.
+                   </AlertDialogDescription>
+                 </AlertDialogHeader>
+                 <AlertDialogFooter>
+                   <AlertDialogCancel>Voltar</AlertDialogCancel>
+                   <AlertDialogAction onClick={handleCancelSubscription} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                     Sim, cancelar
+                   </AlertDialogAction>
+                 </AlertDialogFooter>
+               </AlertDialogContent>
+             </AlertDialog>
+          </CardFooter>
         </Card>
 
         <FamilyShare />
@@ -106,12 +234,24 @@ export default function SubscriptionPage() {
       )}
 
       <div className="text-center space-y-3">
-        <Badge variant="secondary" className="gap-1.5">
-          <Sparkles className="h-3.5 w-3.5" />
-          {TRIAL_DAYS} dias de teste grátis
-        </Badge>
-        <h1 className="text-3xl font-bold">Escolha seu plano</h1>
-        <p className="text-muted-foreground">Teste grátis por {TRIAL_DAYS} dias. Cancele quando quiser, sem multa.</p>
+        {isInTrial ? (
+          <>
+            <Badge variant="secondary" className="gap-1.5">
+              <Sparkles className="h-3.5 w-3.5" />
+              {trialDaysRemaining} dias restantes de teste
+            </Badge>
+            <h1 className="text-3xl font-bold">Escolha seu plano</h1>
+            <p className="text-muted-foreground">Você ainda tem {trialDaysRemaining} dias de teste grátis. Escolha o melhor plano para você e só pague depois.</p>
+          </>
+        ) : (
+          <>
+            <Badge variant="destructive" className="gap-1.5">
+              Tempo Esgotado
+            </Badge>
+            <h1 className="text-3xl font-bold">Assine o FluxoPro</h1>
+            <p className="text-muted-foreground">Seu período de teste grátis chegou ao fim. Escolha o melhor plano para continuar usando o sistema.</p>
+          </>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-3xl mx-auto">
@@ -151,10 +291,6 @@ export default function SubscriptionPage() {
               </CardHeader>
               <CardContent>
                 <ul className="space-y-2">
-                  <li className="flex items-center gap-2">
-                    <Check className="h-4 w-4 text-success" />
-                    <span>{TRIAL_DAYS} dias de teste grátis</span>
-                  </li>
                   <li className="flex items-center gap-2">
                     <Check className="h-4 w-4 text-success" />
                     <span>Acesso completo ao sistema</span>
@@ -215,12 +351,12 @@ export default function SubscriptionPage() {
               Processando...
             </>
           ) : (
-            `Começar ${TRIAL_DAYS} dias de teste grátis`
+            isInTrial ? `Começar assinatura (Restam ${trialDaysRemaining} dias grátis)` : 'Assinar Plano'
           )}
         </Button>
         <p className="text-xs text-center text-muted-foreground mt-2">
           Você será redirecionado para o ambiente seguro do Asaas para escolher Pix, Cartão ou Boleto.
-          A cobrança só acontece após o período de teste.
+          {isInTrial ? ' A primeira cobrança só ocorrerá após o período de teste.' : ''}
         </p>
       </div>
     </div>
