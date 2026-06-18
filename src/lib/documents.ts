@@ -394,15 +394,42 @@ async function loadImage(src: string): Promise<HTMLImageElement> {
 
 // ---------- Download / share helpers ----------
 
-export function downloadBlob(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+export async function downloadBlob(blob: Blob, filename: string): Promise<boolean> {
+  const { Capacitor } = await import('@capacitor/core');
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const { Filesystem, Directory } = await import('@capacitor/filesystem');
+      const reader = new FileReader();
+      reader.readAsDataURL(blob);
+      const base64Data = await new Promise<string>((resolve, reject) => {
+        reader.onloadend = () => {
+          const result = reader.result as string;
+          resolve(result.split(',')[1]);
+        };
+        reader.onerror = reject;
+      });
+
+      await Filesystem.writeFile({
+        path: filename,
+        data: base64Data,
+        directory: Directory.Documents,
+      });
+      return true;
+    } catch (e) {
+      console.error('Error saving file natively:', e);
+      return false;
+    }
+  } else {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    return true;
+  }
 }
 
 export async function shareBlob(blob: Blob, filename: string, title: string): Promise<boolean> {

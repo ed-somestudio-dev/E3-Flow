@@ -38,12 +38,20 @@ export function ShareDocumentDialog({ open, onOpenChange, title, filenameBase, g
       if (mode === 'share') {
         const ok = await shareBlob(blob, filename, title);
         if (!ok) {
-          downloadBlob(blob, filename);
-          toast.info('Compartilhamento indisponível, arquivo baixado');
+          const saved = await downloadBlob(blob, filename);
+          if (saved) {
+            toast.info(Capacitor.isNativePlatform() ? 'Compartilhamento indisponível, arquivo salvo em Documentos' : 'Compartilhamento indisponível, arquivo baixado');
+          } else {
+            toast.error('Erro ao salvar o arquivo');
+          }
         }
       } else {
-        downloadBlob(blob, filename);
-        toast.success('Arquivo baixado');
+        const saved = await downloadBlob(blob, filename);
+        if (saved) {
+          toast.success(Capacitor.isNativePlatform() ? 'Arquivo salvo na pasta Documentos' : 'Arquivo baixado com sucesso');
+        } else {
+          toast.error('Erro ao salvar o arquivo');
+        }
       }
     } catch (e: any) {
       toast.error('Erro ao gerar: ' + (e?.message || 'desconhecido'));

@@ -2245,13 +2245,14 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       stampBase64,
     };
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `fluxopro-backup-${new Date().toISOString().split('T')[0]}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast.success('Backup exportado com sucesso');
+    const { downloadBlob } = await import('./documents');
+    const filename = `fluxopro-backup-${new Date().toISOString().split('T')[0]}.json`;
+    const saved = await downloadBlob(blob, filename);
+    if (saved) {
+      toast.success(Capacitor.isNativePlatform() ? 'Backup salvo na pasta Documentos' : 'Backup baixado com sucesso');
+    } else {
+      toast.error('Erro ao salvar backup');
+    }
   }, [data, pixSettings]);
 
   const importBackup = useCallback(async (file: File) => {
