@@ -99,7 +99,9 @@ export default function SubscriptionPage() {
     }
   };
 
-  if (subscription && (subscription.subscription_status === 'RECEIVED' || subscription.subscription_status === 'CONFIRMED' || isInTrial)) {
+  const isLifetimeAdmin = user?.email?.toLowerCase() === 'ed-somestudio@live.com' || user?.email?.toLowerCase() === 'contato@fluxopro.app.br';
+
+  if (isLifetimeAdmin || (subscription && (subscription.subscription_status === 'RECEIVED' || subscription.subscription_status === 'CONFIRMED' || isInTrial))) {
     return (
       <div className="max-w-2xl mx-auto space-y-6">
         <div>
@@ -111,12 +113,12 @@ export default function SubscriptionPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Crown className="h-5 w-5 text-primary" />
-              Assinatura {PLANS[subscription.subscription_plan as keyof typeof PLANS]?.name || subscription.subscription_plan || 'FluxoPro'}
+              Assinatura {isLifetimeAdmin ? 'Vitalícia (FluxoPro)' : (PLANS[subscription?.subscription_plan as keyof typeof PLANS]?.name || subscription?.subscription_plan || 'FluxoPro')}
             </CardTitle>
-            <CardDescription>Status: {subscription.subscription_status}</CardDescription>
+            <CardDescription className="font-bold text-primary">Status: {isLifetimeAdmin ? 'ADMINISTRADOR VITALÍCIO' : subscription?.subscription_status}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {isInTrial && trialDaysRemaining !== null && (
+            {isInTrial && trialDaysRemaining !== null && !isLifetimeAdmin && (
               <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 flex items-start gap-3">
                 <Sparkles className="h-5 w-5 text-primary mt-0.5" />
                 <div>
@@ -127,91 +129,93 @@ export default function SubscriptionPage() {
                 </div>
               </div>
             )}
-            {subscription.subscription_due_date && (
+            {(isLifetimeAdmin || subscription?.subscription_due_date) && (
               <div>
                 <p className="text-sm text-muted-foreground">Próximo vencimento</p>
-                <p className="font-medium">{new Date(subscription.subscription_due_date + 'T12:00:00').toLocaleDateString('pt-BR')}</p>
+                <p className="font-medium">{isLifetimeAdmin ? 'INDETERMINADO' : new Date(subscription!.subscription_due_date + 'T12:00:00').toLocaleDateString('pt-BR')}</p>
               </div>
             )}
             <div>
               <p className="text-sm text-muted-foreground">Valor</p>
-              <p className="font-medium">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Object.values(PLANS).find(p => p.name === subscription.subscription_plan || p.planId === subscription.subscription_plan)?.value || 0)}</p>
+              <p className="font-medium">{isLifetimeAdmin ? 'R$ 0,00' : new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Object.values(PLANS).find(p => p.name === subscription?.subscription_plan || p.planId === subscription?.subscription_plan)?.value || 0)}</p>
             </div>
           </CardContent>
-          <CardFooter className="border-t pt-6 mt-2 flex flex-col sm:flex-row gap-3">
-             <Dialog open={isUpdateModalOpen} onOpenChange={setIsUpdateModalOpen}>
-               <DialogTrigger asChild>
-                 <Button variant="outline" className="w-full sm:w-auto">Alterar Plano</Button>
-               </DialogTrigger>
-               <DialogContent className="max-w-2xl">
-                 <DialogHeader>
-                   <DialogTitle>Alterar Plano</DialogTitle>
-                   <DialogDescription>
-                     Escolha o novo plano. A mudança será aplicada na sua assinatura.
-                   </DialogDescription>
-                 </DialogHeader>
-                 
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                  {Object.entries(PLANS).map(([key, plan]) => {
-                    const isYearly = key === 'yearly';
-                    const isSelected = selectedPlan === key;
-                    return (
-                      <Card
-                        key={key}
-                        className={`cursor-pointer transition-all ${isSelected ? 'border-primary ring-2 ring-primary' : 'hover:border-primary/50'}`}
-                        onClick={() => setSelectedPlan(key as 'monthly' | 'yearly')}
-                      >
-                        <CardHeader>
-                          <div className="flex items-center justify-between">
-                            <CardTitle className="flex items-center gap-2 text-base">
-                              <Crown className="h-4 w-4" />
-                              {plan.name}
-                            </CardTitle>
-                          </div>
-                          <CardDescription className="text-xl font-bold">
-                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(plan.value)}
-                            <span className="text-sm font-normal text-muted-foreground">
-                              {isYearly ? '/ano' : '/mês'}
-                            </span>
-                          </CardDescription>
-                        </CardHeader>
-                      </Card>
-                    );
-                  })}
-                 </div>
+            {!isLifetimeAdmin && (
+              <CardFooter className="border-t pt-6 mt-2 flex flex-col sm:flex-row gap-3">
+                 <Dialog open={isUpdateModalOpen} onOpenChange={setIsUpdateModalOpen}>
+                   <DialogTrigger asChild>
+                     <Button variant="outline" className="w-full sm:w-auto">Alterar Plano</Button>
+                   </DialogTrigger>
+                   <DialogContent className="max-w-2xl">
+                     <DialogHeader>
+                       <DialogTitle>Alterar Plano</DialogTitle>
+                       <DialogDescription>
+                         Escolha o novo plano. A mudança será aplicada na sua assinatura.
+                       </DialogDescription>
+                     </DialogHeader>
+                     
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                      {Object.entries(PLANS).map(([key, plan]) => {
+                        const isYearly = key === 'yearly';
+                        const isSelected = selectedPlan === key;
+                        return (
+                          <Card
+                            key={key}
+                            className={`cursor-pointer transition-all ${isSelected ? 'border-primary ring-2 ring-primary' : 'hover:border-primary/50'}`}
+                            onClick={() => setSelectedPlan(key as 'monthly' | 'yearly')}
+                          >
+                            <CardHeader>
+                              <div className="flex items-center justify-between">
+                                <CardTitle className="flex items-center gap-2 text-base">
+                                  <Crown className="h-4 w-4" />
+                                  {plan.name}
+                                </CardTitle>
+                              </div>
+                              <CardDescription className="text-xl font-bold">
+                                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(plan.value)}
+                                <span className="text-sm font-normal text-muted-foreground">
+                                  {isYearly ? '/ano' : '/mês'}
+                                </span>
+                              </CardDescription>
+                            </CardHeader>
+                          </Card>
+                        );
+                      })}
+                     </div>
 
-                 <div className="flex justify-end mt-4">
-                   <Button onClick={handleUpdatePlan} disabled={updating}>
-                     {updating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
-                     Confirmar Alteração
-                   </Button>
-                 </div>
-               </DialogContent>
-             </Dialog>
+                     <div className="flex justify-end mt-4">
+                       <Button onClick={handleUpdatePlan} disabled={updating}>
+                         {updating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                         Confirmar Alteração
+                       </Button>
+                     </div>
+                   </DialogContent>
+                 </Dialog>
 
-             <AlertDialog>
-               <AlertDialogTrigger asChild>
-                 <Button variant="destructive" className="w-full sm:w-auto" disabled={canceling}>
-                   {canceling ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
-                   Cancelar Assinatura
-                 </Button>
-               </AlertDialogTrigger>
-               <AlertDialogContent>
-                 <AlertDialogHeader>
-                   <AlertDialogTitle>Você tem certeza absoluta?</AlertDialogTitle>
-                   <AlertDialogDescription>
-                     Isso cancelará sua assinatura imediatamente e as cobranças futuras serão suspensas. Você perderá acesso aos recursos premium após o período vigente.
-                   </AlertDialogDescription>
-                 </AlertDialogHeader>
-                 <AlertDialogFooter>
-                   <AlertDialogCancel>Voltar</AlertDialogCancel>
-                   <AlertDialogAction onClick={handleCancelSubscription} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                     Sim, cancelar
-                   </AlertDialogAction>
-                 </AlertDialogFooter>
-               </AlertDialogContent>
-             </AlertDialog>
-          </CardFooter>
+                 <AlertDialog>
+                   <AlertDialogTrigger asChild>
+                     <Button variant="destructive" className="w-full sm:w-auto" disabled={canceling}>
+                       {canceling ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                       Cancelar Assinatura
+                     </Button>
+                   </AlertDialogTrigger>
+                   <AlertDialogContent>
+                     <AlertDialogHeader>
+                       <AlertDialogTitle>Você tem certeza absoluta?</AlertDialogTitle>
+                       <AlertDialogDescription>
+                         Isso cancelará sua assinatura imediatamente e as cobranças futuras serão suspensas. Você perderá acesso aos recursos premium após o período vigente.
+                       </AlertDialogDescription>
+                     </AlertDialogHeader>
+                     <AlertDialogFooter>
+                       <AlertDialogCancel>Voltar</AlertDialogCancel>
+                       <AlertDialogAction onClick={handleCancelSubscription} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                         Sim, cancelar
+                       </AlertDialogAction>
+                     </AlertDialogFooter>
+                   </AlertDialogContent>
+                 </AlertDialog>
+              </CardFooter>
+            )}
         </Card>
 
         <FamilyShare />
