@@ -6,7 +6,7 @@
 // na ativação e os clients abertos são recarregados (essencial para iOS Safari,
 // que costuma ficar preso em uma versão antiga apontando para assets removidos).
 
-const CACHE = 'fluxopro-v9';
+const CACHE = 'fluxopro-v10';
 const ASSETS = [
   '/index.html',
   '/manifest.webmanifest',
