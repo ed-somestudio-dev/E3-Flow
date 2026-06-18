@@ -20,6 +20,8 @@ export interface PixSettingsRow {
   whatsappReminderMsg: string;
   whatsappOverdueDays: number;
   whatsappOverdueMsg: string;
+  whatsappBulkReminderMsg: string;
+  whatsappBulkOverdueMsg: string;
 }
 
 const empty: PixSettingsRow = {
@@ -30,6 +32,8 @@ const empty: PixSettingsRow = {
   whatsappReminderMsg: 'Olá {nome}, este é um lembrete de que sua conta no valor de {valor} vence no dia {vencimento}.',
   whatsappOverdueDays: 1,
   whatsappOverdueMsg: 'Olá {nome}, informamos que sua conta no valor de {valor} que venceu no dia {vencimento} encontra-se em atraso.',
+  whatsappBulkReminderMsg: 'Olá {nome}, este é um lembrete de que você possui {quantidade} contas totalizando {valor} com vencimento próximo.',
+  whatsappBulkOverdueMsg: 'Olá {nome}, informamos que você possui {quantidade} contas em atraso, totalizando {valor}.',
 };
 
 interface Ctx {
@@ -78,6 +82,8 @@ export function PixSettingsProvider({ children }: { children: React.ReactNode })
           whatsappReminderMsg: (data as any).whatsapp_reminder_msg ?? 'Olá {nome}, este é um lembrete de que sua conta no valor de {valor} vence no dia {vencimento}.',
           whatsappOverdueDays: (data as any).whatsapp_overdue_days ?? 1,
           whatsappOverdueMsg: (data as any).whatsapp_overdue_msg ?? 'Olá {nome}, informamos que sua conta no valor de {valor} que venceu no dia {vencimento} encontra-se em atraso.',
+          whatsappBulkReminderMsg: (data as any).whatsapp_bulk_reminder_msg ?? 'Olá {nome}, este é um lembrete de que você possui {quantidade} contas totalizando {valor} com vencimento próximo.',
+          whatsappBulkOverdueMsg: (data as any).whatsapp_bulk_overdue_msg ?? 'Olá {nome}, informamos que você possui {quantidade} contas em atraso, totalizando {valor}.',
         };
         setSettings(newSettings);
         await Preferences.set({ key: `pix_settings_${effectiveUserId}`, value: JSON.stringify(newSettings) });
@@ -134,6 +140,8 @@ export function PixSettingsProvider({ children }: { children: React.ReactNode })
       whatsapp_reminder_msg: s.whatsappReminderMsg,
       whatsapp_overdue_days: s.whatsappOverdueDays,
       whatsapp_overdue_msg: s.whatsappOverdueMsg,
+      whatsapp_bulk_reminder_msg: s.whatsappBulkReminderMsg,
+      whatsapp_bulk_overdue_msg: s.whatsappBulkOverdueMsg,
     } as any;
 
     if (isOnline) {

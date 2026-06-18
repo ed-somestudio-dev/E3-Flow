@@ -875,6 +875,13 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   const updatePayable = useCallback(async (p: Payable) => {
     if (!user) return;
     const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
+
+    const today = new Date().toISOString().split('T')[0];
+    let newStatus = p.status;
+    if (newStatus !== 'paid') {
+      newStatus = p.dueDate < today ? 'overdue' : 'pending';
+    }
+
     const payload = {
       description: p.description, 
       supplier: p.supplier,
@@ -882,7 +889,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       account_id: p.accountId || null,
       amount: Number(p.amount) || 0, 
       due_date: p.dueDate, 
-      status: p.status,
+      status: newStatus,
       notes: p.notes || null, 
       recurring: p.recurring || false,
       recurrence_frequency: p.recurrenceFrequency || null,
@@ -899,7 +906,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
         payload: { table: 'payables', data: payload, match: { id: p.id } }
       });
       setData(prev => {
-        const fresh = { ...prev, payables: prev.payables.map(x => x.id === p.id ? p : x) };
+        const fresh = { ...prev, payables: prev.payables.map(x => x.id === p.id ? { ...p, status: newStatus as any } : x) };
         saveSnapshot(effectiveUserId, fresh).catch(() => {});
         return fresh;
       });
@@ -1001,6 +1008,12 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
     const allIds = Array.from(new Set([p.id, ...futureIds]));
 
+    const today = new Date().toISOString().split('T')[0];
+    let newStatus = p.status;
+    if (newStatus !== 'paid') {
+      newStatus = p.dueDate < today ? 'overdue' : 'pending';
+    }
+
     const payloadFuture = {
       supplier: p.supplier,
       category_id: p.categoryId,
@@ -1013,7 +1026,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       ...payloadFuture,
       description: p.description,
       due_date: p.dueDate,
-      status: p.status,
+      status: newStatus,
       recurring: p.recurring || false,
       recurrence_frequency: p.recurrenceFrequency || null,
       recurrence_end_date: p.recurrenceEndDate || null,
@@ -1042,7 +1055,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
         const fresh = {
           ...prev,
           payables: prev.payables.map(x => {
-            if (x.id === p.id) return { ...x, ...payloadMain, categoryId: p.categoryId, accountId: p.accountId, recurrenceFrequency: p.recurrenceFrequency, recurrenceEndDate: p.recurrenceEndDate };
+            if (x.id === p.id) return { ...x, ...payloadMain, status: newStatus as any, categoryId: p.categoryId, accountId: p.accountId, recurrenceFrequency: p.recurrenceFrequency, recurrenceEndDate: p.recurrenceEndDate };
             if (futureIds.includes(x.id)) return { ...x, ...payloadFuture, categoryId: p.categoryId, accountId: p.accountId };
             return x;
           })
@@ -1404,6 +1417,13 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   const updateReceivable = useCallback(async (r: Receivable) => {
     if (!user) return;
     const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
+
+    const today = new Date().toISOString().split('T')[0];
+    let newStatus = r.status;
+    if (newStatus !== 'received') {
+      newStatus = r.dueDate < today ? 'overdue' : 'pending';
+    }
+
     const payload = {
       client_name: r.clientName, 
       description: r.description,
@@ -1411,7 +1431,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       account_id: r.accountId || null,
       amount: Number(r.amount) || 0, 
       due_date: r.dueDate, 
-      status: r.status,
+      status: newStatus,
       notes: r.notes || null,
       recurring: r.recurring || false,
       recurrence_frequency: r.recurrenceFrequency || null,
@@ -1428,7 +1448,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
         payload: { table: 'receivables', data: payload, match: { id: r.id } }
       });
       setData(prev => {
-        const fresh = { ...prev, receivables: prev.receivables.map(x => x.id === r.id ? r : x) };
+        const fresh = { ...prev, receivables: prev.receivables.map(x => x.id === r.id ? { ...r, status: newStatus as any } : x) };
         saveSnapshot(effectiveUserId, fresh).catch(() => {});
         return fresh;
       });

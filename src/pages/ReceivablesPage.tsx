@@ -342,6 +342,33 @@ export default function ReceivablesPage() {
     window.open(url, '_blank');
   };
 
+  const handleWhatsAppReminderSelected = () => {
+    const items = Array.from(selectedIds).map(id => data.receivables.find(r => r.id === id)).filter(Boolean) as Receivable[];
+    if (items.length === 0) return;
+    
+    const hasOverdue = items.some(r => r.status === 'overdue');
+    let msgTemplate = pixSettings.whatsappBulkReminderMsg || pixSettings.whatsappReminderMsg;
+    if (hasOverdue) {
+      msgTemplate = pixSettings.whatsappBulkOverdueMsg || pixSettings.whatsappOverdueMsg;
+    }
+    
+    const amt = bulkPartialMode && bulkPartialAmount && parseFloat(bulkPartialAmount) > 0 
+      ? parseFloat(bulkPartialAmount) 
+      : items.reduce((s, r) => s + r.amount, 0);
+      
+    const r = items[0];
+    const clientName = items.every(i => i.clientName === r.clientName) ? r.clientName : 'Diversos';
+    
+    const msg = msgTemplate
+      .replace(/{nome}/g, clientName || 'Cliente')
+      .replace(/{valor}/g, fmt(amt))
+      .replace(/{vencimento}/g, fmtDate(r.dueDate))
+      .replace(/{quantidade}/g, items.length.toString());
+      
+    const url = `https://wa.me/?text=${encodeURIComponent(msg)}`;
+    window.open(url, '_blank');
+  };
+
   const handleGenerateCharge = (r: Receivable) => {
     if (!isConfigured) {
       setPixWarningOpen(true);
@@ -362,6 +389,7 @@ export default function ReceivablesPage() {
         const { generatePixBRCode } = await import('@/lib/pix');
         return generatePixBRCode({
           pixKey: pixSettings.pixKey,
+          pixKeyType: pixSettings.pixKeyType,
           amount: r.amount,
           beneficiaryName: pixSettings.beneficiaryName,
           beneficiaryCity: pixSettings.beneficiaryCity,
@@ -428,6 +456,7 @@ export default function ReceivablesPage() {
         const { generatePixBRCode } = await import('@/lib/pix');
         return generatePixBRCode({
           pixKey: pixSettings.pixKey,
+          pixKeyType: pixSettings.pixKeyType,
           amount: total,
           beneficiaryName: pixSettings.beneficiaryName,
           beneficiaryCity: pixSettings.beneficiaryCity,
@@ -599,10 +628,13 @@ export default function ReceivablesPage() {
                     pixCopyText: (async () => {
                       const { generatePixBRCode } = await import('@/lib/pix');
                       return generatePixBRCode({
-                        pixKey: pixSettings.pixKey, amount: amt,
+                        pixKey: pixSettings.pixKey,
+                        pixKeyType: pixSettings.pixKeyType,
+                        amount: amt,
                         beneficiaryName: pixSettings.beneficiaryName,
                         beneficiaryCity: pixSettings.beneficiaryCity,
-                        txid: r.id.replace(/-/g, '').substring(0, 25), description,
+                        txid: r.id.replace(/-/g, '').substring(0, 25),
+                        description,
                       });
                     })(),
                   });
@@ -618,6 +650,10 @@ export default function ReceivablesPage() {
                 <Button size="sm" variant="outline" onClick={handleGenerateReportSelected}>
                   <FileText className="h-4 w-4 mr-1" />
                   Gerar Relatório
+                </Button>
+                <Button size="sm" variant="outline" className="text-green-500 hover:text-green-600 border-green-500/30 hover:bg-green-500/10" onClick={handleWhatsAppReminderSelected}>
+                  <MessageCircle className="h-4 w-4 mr-1" />
+                  WhatsApp
                 </Button>
                 <Button size="sm" className="bg-success text-success-foreground hover:bg-success/90" onClick={handleReceiveSelected}>
                   <CheckCircle className="h-4 w-4 mr-1" />

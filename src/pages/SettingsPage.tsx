@@ -228,7 +228,7 @@ export default function SettingsPage() {
 
         <p className="text-sm text-muted-foreground">
           Configure os textos automáticos usados ao enviar cobranças pelo WhatsApp.
-          <br/>Você pode usar as variáveis <strong className="text-primary">{'{nome}'}</strong>, <strong className="text-primary">{'{valor}'}</strong> e <strong className="text-primary">{'{vencimento}'}</strong> para personalizar a mensagem.
+          <br/>Você pode usar as variáveis <strong className="text-primary">{'{nome}'}</strong>, <strong className="text-primary">{'{valor}'}</strong>, <strong className="text-primary">{'{vencimento}'}</strong> e <strong className="text-primary">{'{quantidade}'}</strong> (apenas múltiplas) para personalizar a mensagem.
         </p>
 
         <div className="space-y-4 mt-4">
@@ -284,6 +284,30 @@ export default function SettingsPage() {
                 onChange={e => setForm({ ...form, whatsappOverdueMsg: e.target.value })}
                 onBlur={() => handleSaveField('whatsappOverdueMsg', form.whatsappOverdueMsg)}
                 placeholder="Olá {nome}, sua conta venceu..."
+              />
+            </div>
+          </div>
+
+          <div className="p-4 rounded-md border border-border bg-muted/20 space-y-3">
+            <h3 className="text-sm font-semibold flex items-center gap-2"><MessageCircle className="h-4 w-4" /> Cobrança em Lote (Múltiplas contas)</h3>
+            <div>
+              <Label>Texto da Mensagem (A vencer)</Label>
+              <textarea
+                className="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                value={form.whatsappBulkReminderMsg}
+                onChange={e => setForm({ ...form, whatsappBulkReminderMsg: e.target.value })}
+                onBlur={() => handleSaveField('whatsappBulkReminderMsg', form.whatsappBulkReminderMsg)}
+                placeholder="Olá {nome}, este é um lembrete..."
+              />
+            </div>
+            <div className="mt-3">
+              <Label>Texto da Mensagem (Atrasadas)</Label>
+              <textarea
+                className="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                value={form.whatsappBulkOverdueMsg}
+                onChange={e => setForm({ ...form, whatsappBulkOverdueMsg: e.target.value })}
+                onBlur={() => handleSaveField('whatsappBulkOverdueMsg', form.whatsappBulkOverdueMsg)}
+                placeholder="Olá {nome}, informamos que..."
               />
             </div>
           </div>

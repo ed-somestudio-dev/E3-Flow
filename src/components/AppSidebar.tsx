@@ -101,7 +101,7 @@ export function AppSidebar() {
         <SidebarContent>
           <div className="px-4 pt-2 pb-0">
             {!collapsed && (
-              <img src={logoFluxoPro} alt="FluxoPro" className="h-32 w-full object-contain" />
+              <img src={logoFluxoPro} alt="FluxoPro" className="h-24 w-full object-contain" />
             )}
             {collapsed && <img src={logoFluxoPro} alt="FluxoPro" className="h-10 w-10 object-contain mx-auto" />}
           </div>
