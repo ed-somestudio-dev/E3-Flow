@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Download, Smartphone, Apple, Monitor, CheckCircle2, Share2, Plus } from 'lucide-react';
+import { Download, Smartphone, Apple, Monitor, CheckCircle2, Share2, Plus, MonitorDown } from 'lucide-react';
 import logoFluxoPro from '@/assets/Logo_FluxoPro.png';
 
 // Tipo do evento `beforeinstallprompt` (não está no lib.dom padrão)
@@ -147,7 +147,7 @@ export default function InstallPage() {
             </CardHeader>
             <CardContent className="text-sm space-y-2 text-muted-foreground">
               <p>1. Use <strong>Chrome</strong>, <strong>Edge</strong> ou <strong>Brave</strong>.</p>
-              <p>2. Clique no ícone <Download className="inline h-4 w-4" /> na barra de endereço.</p>
+              <p>2. Clique no ícone <MonitorDown className="inline h-4 w-4" /> na barra de endereço.</p>
               <p>3. Confirme em <strong>"Instalar"</strong>.</p>
             </CardContent>
           </Card>
