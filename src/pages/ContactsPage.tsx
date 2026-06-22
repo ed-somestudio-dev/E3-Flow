@@ -8,6 +8,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
+import { Capacitor } from '@capacitor/core';
+import { Contacts as CapacitorContacts } from '@capacitor-community/contacts';
+import { Checkbox } from '@/components/ui/checkbox';
 
 // Chrome Android Contact Picker API
 declare global {
@@ -30,6 +33,12 @@ export default function ContactsPage() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
+
+  // Native Picker Modal State
+  const [nativePickerOpen, setNativePickerOpen] = useState(false);
+  const [deviceContacts, setDeviceContacts] = useState<any[]>([]);
+  const [selectedDeviceContacts, setSelectedDeviceContacts] = useState<Set<string>>(new Set());
+  const [deviceSearch, setDeviceSearch] = useState('');
 
   const filtered = contacts.filter(c =>
     c.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -57,30 +66,80 @@ export default function ContactsPage() {
   };
 
   const handleNativePicker = async () => {
-    if (!navigator.contacts?.select) {
-      toast.error('Seu navegador não suporta seleção nativa de contatos. Use a importação por arquivo (.vcf).');
-      return;
-    }
     setImporting(true);
     try {
-      const picked = await navigator.contacts.select(['name', 'tel', 'email'], { multiple: true });
-      const parsed = picked.map(p => ({
-        name: (p.name?.[0] || '').trim(),
-        phone: p.tel?.[0] || undefined,
-        email: p.email?.[0] || undefined,
-      })).filter(p => p.name);
-      if (parsed.length === 0) { toast.info('Nenhum contato selecionado'); return; }
-      const inserted = await importContacts(parsed);
-      toast.success(`${inserted} contato${inserted > 1 ? 's' : ''} importado${inserted > 1 ? 's' : ''}`);
+      if (Capacitor.isNativePlatform()) {
+        try {
+          const perm = await CapacitorContacts.requestPermissions();
+          if (perm.contacts !== 'granted') {
+            toast.error('Permissão negada para acessar os contatos do aparelho');
+            return;
+          }
+          
+          toast.loading('Carregando contatos...', { id: 'loading-contacts' });
+          const result = await CapacitorContacts.getContacts({
+            projection: { name: true, phones: true, emails: true }
+          });
+          toast.dismiss('loading-contacts');
+
+          const parsed = result.contacts
+            .map(c => ({
+              id: c.contactId,
+              name: c.name?.display || '',
+              phone: c.phones?.[0]?.number || undefined,
+              email: c.emails?.[0]?.address || undefined,
+            }))
+            .filter(p => p.name);
+          
+          if (parsed.length === 0) {
+            toast.info('Nenhum contato encontrado no aparelho');
+            return;
+          }
+
+          setDeviceContacts(parsed);
+          setSelectedDeviceContacts(new Set());
+          setDeviceSearch('');
+          setNativePickerOpen(true);
+        } catch (e: any) {
+          toast.error('Não foi possível carregar os contatos nativos');
+        }
+      } else {
+        if (!navigator.contacts?.select) {
+          toast.error('Seu navegador não suporta seleção nativa de contatos. Use a importação por arquivo (.vcf).');
+          return;
+        }
+        const picked = await navigator.contacts.select(['name', 'tel', 'email'], { multiple: true });
+        const parsed = picked.map(p => ({
+          name: (p.name?.[0] || '').trim(),
+          phone: p.tel?.[0] || undefined,
+          email: p.email?.[0] || undefined,
+        })).filter(p => p.name);
+        if (parsed.length === 0) { toast.info('Nenhum contato selecionado'); return; }
+        const inserted = await importContacts(parsed);
+        toast.success(`${inserted} contato${inserted > 1 ? 's' : ''} importado${inserted > 1 ? 's' : ''}`);
+      }
     } catch (e: any) {
-      // user cancelled or permission denied
       if (e?.name !== 'AbortError') toast.error('Não foi possível acessar contatos');
     } finally {
+      toast.dismiss('loading-contacts');
       setImporting(false);
     }
   };
 
-  const supportsNative = typeof navigator !== 'undefined' && !!navigator.contacts?.select;
+  const handleConfirmNativeSelection = async () => {
+    if (selectedDeviceContacts.size === 0) return;
+    const toImport = deviceContacts.filter(c => selectedDeviceContacts.has(c.id)).map(c => ({
+      name: c.name,
+      phone: c.phone,
+      email: c.email
+    }));
+    
+    setNativePickerOpen(false);
+    const inserted = await importContacts(toImport);
+    toast.success(`${inserted} contato${inserted > 1 ? 's' : ''} importado${inserted > 1 ? 's' : ''}`);
+  };
+
+  const supportsNative = (typeof navigator !== 'undefined' && !!navigator.contacts?.select) || Capacitor.isNativePlatform();
 
   return (
     <div className="space-y-6 max-w-5xl">
@@ -234,6 +293,47 @@ export default function ContactsPage() {
         title="Excluir contato?"
         description="Esta ação não pode ser desfeita."
       />
+
+      <Dialog open={nativePickerOpen} onOpenChange={setNativePickerOpen}>
+        <DialogContent className="max-h-[90vh] flex flex-col gap-0 p-0">
+          <DialogHeader className="px-4 py-3 border-b border-border">
+            <DialogTitle>Selecionar Contatos</DialogTitle>
+          </DialogHeader>
+          <div className="p-4 border-b border-border">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input placeholder="Buscar contatos no aparelho..." value={deviceSearch} onChange={e => setDeviceSearch(e.target.value)} className="pl-9 h-9" />
+            </div>
+          </div>
+          <div className="flex-1 overflow-y-auto px-4 py-2 space-y-2 max-h-[50vh]">
+            {deviceContacts
+              .filter(c => c.name.toLowerCase().includes(deviceSearch.toLowerCase()) || (c.phone || '').includes(deviceSearch))
+              .map(c => (
+                <div key={c.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 cursor-pointer" onClick={() => {
+                  const next = new Set(selectedDeviceContacts);
+                  if (next.has(c.id)) next.delete(c.id); else next.add(c.id);
+                  setSelectedDeviceContacts(next);
+                }}>
+                  <Checkbox checked={selectedDeviceContacts.has(c.id)} onCheckedChange={(checked) => {
+                    const next = new Set(selectedDeviceContacts);
+                    if (checked) next.add(c.id); else next.delete(c.id);
+                    setSelectedDeviceContacts(next);
+                  }} />
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-sm truncate">{c.name}</p>
+                    {c.phone && <p className="text-xs text-muted-foreground truncate">{c.phone}</p>}
+                  </div>
+                </div>
+            ))}
+          </div>
+          <div className="p-4 border-t border-border flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setNativePickerOpen(false)}>Cancelar</Button>
+            <Button onClick={handleConfirmNativeSelection} disabled={selectedDeviceContacts.size === 0}>
+              Importar ({selectedDeviceContacts.size})
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

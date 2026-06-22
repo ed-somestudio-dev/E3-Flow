@@ -8,6 +8,7 @@ import { saveSnapshot, loadSnapshot, enqueueMutation } from './offline-store';
 import { assertOnline } from './online-guard';
 import { syncOfflineMutations } from './sync-engine';
 import { generateId } from './utils';
+import { Capacitor } from '@capacitor/core';
 
 
 
@@ -22,8 +23,9 @@ interface FinanceContextType {
   updatePayableWithFuture: (p: Payable) => Promise<number>;
   deletePayable: (id: string) => Promise<void>;
   deletePayableWithFuture: (id: string) => Promise<number>;
-  markPayablePaid: (id: string, accountId?: string) => Promise<void>;
-  markPayablePaidPartial: (id: string, accountId: string, paidAmount: number) => Promise<void>;
+  markPayablePaid: (id: string, accountId?: string, skipTransaction?: boolean) => Promise<void>;
+  markPayablePaidPartial: (id: string, accountId: string, paidAmount: number, skipTransaction?: boolean) => Promise<void>;
+  insertGroupedTransaction: (tx: Omit<Transaction, 'id'>) => Promise<void>;
   addReceivable: (r: Omit<Receivable, 'id'>, installments?: number, recurrence?: { frequency: 'weekly' | 'monthly' | 'yearly'; occurrences: number }) => Promise<Receivable | undefined>;
   updateReceivable: (r: Receivable) => Promise<void>;
   deleteReceivable: (id: string) => Promise<void>;
@@ -1069,7 +1071,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     return allIds.length;
   }, [user, data.payables, fetchAll]);
 
-  const markPayablePaid = useCallback(async (id: string, accountId?: string) => {
+  const markPayablePaid = useCallback(async (id: string, accountId?: string, skipTransaction?: boolean) => {
     if (!user) return;
     const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
     const payable = data.payables.find(x => x.id === id);
@@ -1118,33 +1120,35 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       }
 
       // Criar transação de despesa automaticamente
-      const txId = generateId();
-      const txPayload = {
-        id: txId,
-        user_id: effectiveUserId,
-        type: 'expense',
-        description: payable.description,
-        category_id: payable.categoryId,
-        amount: payable.amount,
-        date: today,
-        account_id: targetAccountId,
-        notes: `Pagamento: ${payable.supplier || ''}`.trim(),
-      };
+      if (!skipTransaction) {
+        const txId = generateId();
+        const txPayload = {
+          id: txId,
+          user_id: effectiveUserId,
+          type: 'expense',
+          description: payable.description,
+          category_id: payable.categoryId,
+          amount: payable.amount,
+          date: today,
+          account_id: targetAccountId,
+          notes: `Pagamento: ${payable.supplier || ''}`.trim(),
+        };
 
-      if (isOnline) {
-        await supabase.from('transactions').insert(txPayload);
-      } else {
-        await enqueueMutation({
-          userId: effectiveUserId,
-          type: 'INSERT',
-          payload: { table: 'transactions', data: txPayload }
-        });
-        const newTx = mapTransaction(txPayload);
-        setData(prev => {
-          const fresh = { ...prev, transactions: [newTx, ...prev.transactions] };
-          saveSnapshot(effectiveUserId, fresh).catch(() => {});
-          return fresh;
-        });
+        if (isOnline) {
+          await supabase.from('transactions').insert(txPayload);
+        } else {
+          await enqueueMutation({
+            userId: effectiveUserId,
+            type: 'INSERT',
+            payload: { table: 'transactions', data: txPayload }
+          });
+          const newTx = mapTransaction(txPayload);
+          setData(prev => {
+            const fresh = { ...prev, transactions: [newTx, ...prev.transactions] };
+            saveSnapshot(effectiveUserId, fresh).catch(() => {});
+            return fresh;
+          });
+        }
       }
     }
 
@@ -1155,7 +1159,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user, data, fetchAll]);
 
-  const markPayablePaidPartial = useCallback(async (id: string, accountId: string, paidAmount: number) => {
+  const markPayablePaidPartial = useCallback(async (id: string, accountId: string, paidAmount: number, skipTransaction?: boolean) => {
     if (!user) return;
     const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
     const payable = data.payables.find(x => x.id === id);
@@ -1163,7 +1167,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     if (paidAmount <= 0) { toast.error('Valor pago deve ser maior que zero'); return; }
     if (paidAmount >= payable.amount) {
       // Pagamento integral — delega para o fluxo padrão
-      await markPayablePaid(id, accountId);
+      await markPayablePaid(id, accountId, skipTransaction);
       return;
     }
     const remaining = Math.round((payable.amount - paidAmount) * 100) / 100;
@@ -1248,21 +1252,61 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
+    if (!skipTransaction) {
+      const txId = generateId();
+      const txPayload = {
+        id: txId,
+        user_id: effectiveUserId,
+        type: 'expense',
+        description: payable.description,
+        category_id: payable.categoryId,
+        amount: paidAmount,
+        date: today,
+        account_id: accountId,
+        notes: `Pagamento parcial: ${payable.supplier || ''}`.trim(),
+      };
+
+      if (isOnline) {
+        await supabase.from('transactions').insert(txPayload);
+      } else {
+        await enqueueMutation({
+          userId: effectiveUserId,
+          type: 'INSERT',
+          payload: { table: 'transactions', data: txPayload }
+        });
+        const newTx = mapTransaction(txPayload);
+        setData(prev => {
+          const fresh = { ...prev, transactions: [newTx, ...prev.transactions] };
+          saveSnapshot(effectiveUserId, fresh).catch(() => {});
+          return fresh;
+        });
+      }
+    }
+
+    toast.success(`Pagamento parcial registrado. Saldo restante: ${remaining.toFixed(2)}`);
+    if (isOnline) await fetchAll();
+  }, [user, data, fetchAll, markPayablePaid]);
+
+  const insertGroupedTransaction = useCallback(async (tx: Omit<Transaction, 'id'>) => {
+    if (!user) return;
+    const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
     const txId = generateId();
     const txPayload = {
       id: txId,
       user_id: effectiveUserId,
-      type: 'expense',
-      description: payable.description,
-      category_id: payable.categoryId,
-      amount: paidAmount,
-      date: today,
-      account_id: accountId,
-      notes: `Pagamento parcial: ${payable.supplier || ''}`.trim(),
+      type: tx.type,
+      description: tx.description,
+      category_id: tx.categoryId,
+      amount: tx.amount,
+      date: tx.date,
+      account_id: tx.accountId,
+      notes: tx.notes || null,
+      is_credit: tx.isCredit || false,
     };
 
     if (isOnline) {
-      await supabase.from('transactions').insert(txPayload);
+      await supabase.from('transactions').insert(txPayload as any);
+      await fetchAll();
     } else {
       await enqueueMutation({
         userId: effectiveUserId,
@@ -1276,10 +1320,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
         return fresh;
       });
     }
-
-    toast.success(`Pagamento parcial registrado. Saldo restante: ${remaining.toFixed(2)}`);
-    if (isOnline) await fetchAll();
-  }, [user, data, fetchAll, markPayablePaid]);
+  }, [user, fetchAll]);
 
   // --- Receivables ---
   const addReceivable = useCallback(async (r: Omit<Receivable, 'id'>, installments?: number, recurrence?: { frequency: 'weekly' | 'monthly' | 'yearly'; occurrences: number }) => {
@@ -2370,22 +2411,25 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user, fetchAll, refreshPix]);
 
-  return (
-    <FinanceContext.Provider value={{
-      data, loading,
-      addTransaction, updateTransaction, deleteTransaction,
-      addPayable, updatePayable, updatePayableWithFuture, deletePayable, deletePayableWithFuture, markPayablePaid, markPayablePaidPartial,
-      addReceivable, updateReceivable, deleteReceivable, markReceivableReceived, markReceivableReceivedPartial,
-      addAccount, updateAccount, deleteAccount, transferBetweenAccounts,
-      addBudget, updateBudget, deleteBudget,
-      addCategory, updateCategory, deleteCategory,
-      addContact, updateContact, deleteContact, importContacts,
-      getCategoryName, getAccountName, getCategoryColor,
-      resetAllData, exportBackup, importBackup,
-    }}>
-      {children}
-    </FinanceContext.Provider>
-  );
+  const value = {
+    data, loading,
+    addTransaction, updateTransaction, deleteTransaction,
+    addPayable, updatePayable, updatePayableWithFuture, deletePayable, deletePayableWithFuture, markPayablePaid, markPayablePaidPartial,
+    addReceivable, updateReceivable, deleteReceivable, markReceivableReceived, markReceivableReceivedPartial,
+    addAccount, updateAccount, deleteAccount, transferBetweenAccounts,
+    addBudget, updateBudget, deleteBudget,
+    addCategory, updateCategory, deleteCategory,
+    addContact, updateContact, deleteContact, importContacts,
+    getCategoryName,
+    getAccountName,
+    getCategoryColor,
+    resetAllData,
+    exportBackup,
+    importBackup,
+    insertGroupedTransaction,
+  };
+
+  return <FinanceContext.Provider value={value}>{children}</FinanceContext.Provider>;
 }
 
 export function useFinance() {

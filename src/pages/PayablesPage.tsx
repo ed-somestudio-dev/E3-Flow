@@ -78,7 +78,7 @@ function CreditCardInvoiceCard({ accName, accColor, invoicesByMonth, onMarkPaid,
             const pendingItems = items.filter(i => i.status !== 'paid');
             const pendingIds = pendingItems.map(i => i.id);
             const hasPending = pendingIds.length > 0;
-            const monthTotal = pendingItems.reduce((s, i) => s + i.amount, 0);
+            const monthTotal = items.reduce((s, i) => s + i.amount, 0);
             const invoiceDueDate = items[0]?.dueDate || '';
             const allPaid = items.every(i => i.status === 'paid');
             const hasOverdue = items.some(i => i.status === 'overdue');
@@ -178,7 +178,7 @@ function InvoiceMonthGroup({ monthKey, items, invoiceDueDate, invoiceStatus, mon
 }
 
 export default function PayablesPage() {
-  const { data, addPayable, updatePayable, updatePayableWithFuture, deletePayable, deletePayableWithFuture, markPayablePaid, markPayablePaidPartial, getCategoryName, getAccountName } = useFinance();
+  const { data, addPayable, updatePayable, updatePayableWithFuture, deletePayable, deletePayableWithFuture, markPayablePaid, markPayablePaidPartial, getCategoryName, getAccountName, insertGroupedTransaction } = useFinance();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('pending_overdue');
   const [editingItem, setEditingItem] = useState<Payable | null>(null);
@@ -288,42 +288,63 @@ export default function PayablesPage() {
 
   const confirmPay = async () => {
     if (payingIds.length > 0 && payAccountId) {
+      const itemsToPay = payingIds.map(id => data.payables.find(x => x.id === id)).filter(Boolean) as Payable[];
+      const isInvoice = itemsToPay.length > 0 && itemsToPay.every(p => p.supplier?.startsWith('cartao:'));
+      
+      let totalActuallyPaid = 0;
+
       if (partialMode) {
         const amt = parseFloat(partialAmount);
         if (!amt || amt <= 0) return;
+        totalActuallyPaid = amt;
+
         if (payingIds.length === 1) {
-          await markPayablePaidPartial(payingIds[0], payAccountId, amt);
+          await markPayablePaidPartial(payingIds[0], payAccountId, amt, isInvoice);
         } else {
           // FIFO: paga itens mais antigos primeiro até esgotar o valor
-          const items = (payingIds
-            .map(id => data.payables.find(x => x.id === id))
-            .filter(Boolean) as Payable[])
-            .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+          const items = itemsToPay.sort((a, b) => a.dueDate.localeCompare(b.dueDate));
           const total = items.reduce((s, p) => s + p.amount, 0);
           if (total <= 0) return;
           if (amt >= total) {
-            for (const p of items) await markPayablePaid(p.id, payAccountId);
+            for (const p of items) await markPayablePaid(p.id, payAccountId, isInvoice);
           } else {
             let remaining = amt;
             for (const p of items) {
               if (remaining <= 0) break;
               if (remaining >= p.amount - 0.005) {
                 // quita integralmente este item
-                await markPayablePaid(p.id, payAccountId);
+                await markPayablePaid(p.id, payAccountId, isInvoice);
                 remaining = Math.round((remaining - p.amount) * 100) / 100;
               } else {
                 // pagamento parcial deste item — gera saldo restante individual
-                await markPayablePaidPartial(p.id, payAccountId, Math.round(remaining * 100) / 100);
+                await markPayablePaidPartial(p.id, payAccountId, Math.round(remaining * 100) / 100, isInvoice);
                 remaining = 0;
               }
             }
           }
         }
       } else {
+        totalActuallyPaid = itemsToPay.reduce((s, p) => s + p.amount, 0);
         for (const id of payingIds) {
-          await markPayablePaid(id, payAccountId);
+          await markPayablePaid(id, payAccountId, isInvoice);
         }
       }
+
+      if (isInvoice && totalActuallyPaid > 0) {
+        const creditCardAccountId = itemsToPay[0].supplier.replace('cartao:', '');
+        const cardName = getAccountName(creditCardAccountId) || 'Cartão de Crédito';
+        
+        await insertGroupedTransaction({
+          type: 'expense',
+          description: `Fatura ${cardName}`,
+          categoryId: itemsToPay[0].categoryId,
+          amount: totalActuallyPaid,
+          date: new Date().toISOString().split('T')[0],
+          accountId: payAccountId,
+          notes: 'Pagamento de Fatura',
+        });
+      }
+
       setPayDialogOpen(false);
       setSelectedIds(new Set());
       setPayingIds([]);
