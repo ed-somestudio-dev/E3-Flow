@@ -101,7 +101,8 @@ export default function ContactsPage() {
           setDeviceSearch('');
           setNativePickerOpen(true);
         } catch (e: any) {
-          toast.error('Não foi possível carregar os contatos nativos');
+          console.error("Native contacts error:", e);
+          toast.error(`Não foi possível carregar os contatos nativos: ${e?.message || 'Erro desconhecido'}`);
         }
       } else {
         if (!navigator.contacts?.select) {
