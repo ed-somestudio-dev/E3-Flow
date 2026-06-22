@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">FluxoPro 2.0</string>
-    <string name="title_activity_main">FluxoPro 2.0</string>
+    <string name="app_name">FluxoPro</string>
+    <string name="title_activity_main">FluxoPro</string>
     <string name="package_name">com.somestudio.fluxopro</string>
     <string name="custom_url_scheme">com.somestudio.fluxopro</string>
 </resources>
