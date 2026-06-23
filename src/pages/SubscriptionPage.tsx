@@ -63,6 +63,16 @@ export default function SubscriptionPage() {
         phone: customerPhone,
       });
 
+      // Dispara o evento de conversão do Google Ads
+      if (typeof window !== 'undefined' && (window as any).gtag) {
+        (window as any).gtag('event', 'conversion', {
+          'send_to': 'AW-18264257358/E3gsCPmt78McEM7miYVE',
+          'value': 1.0,
+          'currency': 'BRL',
+          'transaction_id': ''
+        });
+      }
+
       if (result.invoiceUrl) {
         window.location.href = result.invoiceUrl; // Redireciona para o checkout do Asaas
       } else {

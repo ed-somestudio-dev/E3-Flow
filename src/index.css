@@ -148,7 +148,8 @@
     @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-[hsl(var(--destructive)/0.15)] text-destructive;
   }
   .mono {
-    font-family: 'JetBrains Mono', monospace;
+    font-family: 'Inter', sans-serif;
+    font-variant-numeric: tabular-nums;
   }
 }
 
