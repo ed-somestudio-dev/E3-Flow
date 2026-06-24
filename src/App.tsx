@@ -42,15 +42,16 @@ function ProtectedRoutes() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // Monitora se o usuário acabou de pagar a assinatura no Asaas
+  // Monitora se o usuário acabou de ir para o Asaas e voltou
   useEffect(() => {
     if (localStorage.getItem('pendingWelcome') === 'true') {
-      if (subscription?.subscription_status === 'RECEIVED' || subscription?.subscription_status === 'CONFIRMED') {
-        localStorage.removeItem('pendingWelcome');
-        navigate('/bem-vindo');
-      }
+      // Removemos a exigência de ser "RECEIVED" porque clientes no Trial (Teste de 14 dias)
+      // não pagam na hora (o PIX só é gerado daqui a 14 dias), então o status continua "TRIAL".
+      // Para garantir que o Google Ads conte a conversão do Trial, exibimos a tela ao retornar do checkout.
+      localStorage.removeItem('pendingWelcome');
+      navigate('/bem-vindo');
     }
-  }, [subscription?.subscription_status, navigate]);
+  }, [navigate]);
 
   if (authLoading || subLoading) {
     return (
