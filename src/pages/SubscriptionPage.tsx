@@ -126,8 +126,9 @@ export default function SubscriptionPage() {
   };
 
   const isLifetimeAdmin = user?.email?.toLowerCase() === 'ed-somestudio@live.com' || user?.email?.toLowerCase() === 'contato@fluxopro.app.br';
+  const hasAsaasSubscription = Boolean(subscription?.asaas_subscription_id);
 
-  if (isLifetimeAdmin || (subscription && (subscription.subscription_status === 'RECEIVED' || subscription.subscription_status === 'CONFIRMED' || isInTrial))) {
+  if (isLifetimeAdmin || (subscription && (subscription.subscription_status === 'RECEIVED' || subscription.subscription_status === 'CONFIRMED' || (isInTrial && hasAsaasSubscription)))) {
     return (
       <div className="max-w-2xl mx-auto space-y-6">
         <div>
@@ -258,13 +259,13 @@ export default function SubscriptionPage() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      {isInTrial && trialDaysRemaining !== null && !subscription && (
+      {isInTrial && trialDaysRemaining !== null && !hasAsaasSubscription && (
         <div className="max-w-md mx-auto rounded-lg border border-primary/30 bg-primary/5 p-4 flex items-start gap-3">
           <Sparkles className="h-5 w-5 text-primary mt-0.5" />
           <div className="text-left">
             <p className="font-medium text-primary text-sm">Você está no período de teste gratuito</p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Restam <strong>{trialDaysRemaining}</strong> {trialDaysRemaining === 1 ? 'dia' : 'dias'} de trial. Aproveite todos os recursos sem custo.
+              Restam <strong>{trialDaysRemaining}</strong> {trialDaysRemaining === 1 ? 'dia' : 'dias'} de trial. Escolha um plano para ativar sua assinatura (só será cobrado após o teste).
             </p>
           </div>
         </div>
