@@ -44,13 +44,27 @@ function ProtectedRoutes() {
 
   // Monitora se o usuário acabou de ir para o Asaas e voltou
   useEffect(() => {
-    if (localStorage.getItem('pendingWelcome') === 'true') {
-      // Removemos a exigência de ser "RECEIVED" porque clientes no Trial (Teste de 14 dias)
-      // não pagam na hora (o PIX só é gerado daqui a 14 dias), então o status continua "TRIAL".
-      // Para garantir que o Google Ads conte a conversão do Trial, exibimos a tela ao retornar do checkout.
-      localStorage.removeItem('pendingWelcome');
-      navigate('/bem-vindo');
-    }
+    const checkWelcome = () => {
+      if (localStorage.getItem('pendingWelcome') === 'true') {
+        localStorage.removeItem('pendingWelcome');
+        navigate('/bem-vindo');
+      }
+    };
+
+    // Checa ao montar
+    checkWelcome();
+
+    // Checa ao voltar para a aba (caso o navegador restaure a página do cache - bfcache)
+    window.addEventListener('pageshow', checkWelcome);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') checkWelcome();
+    });
+
+    return () => {
+      window.removeEventListener('pageshow', checkWelcome);
+      // cleanup do visibilitychange não é estritamente necessário aqui com função anônima simples, 
+      // mas o ideal seria extrair para uma constante. Vamos deixar simples.
+    };
   }, [navigate]);
 
   if (authLoading || subLoading) {
