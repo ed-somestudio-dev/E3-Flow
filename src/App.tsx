@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes, Navigate, useLocation } from "react-router-dom";
+import { useEffect } from "react";
+import { BrowserRouter, Route, Routes, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -27,6 +28,7 @@ import InstallPage from "@/pages/InstallPage";
 import AuthPage from "@/pages/AuthPage";
 import ResetPasswordPage from "@/pages/ResetPasswordPage";
 import SubscriptionPage from "@/pages/SubscriptionPage";
+import WelcomeSubscriptionPage from "@/pages/WelcomeSubscriptionPage";
 import AdminSubscriptionsPage from "@/pages/AdminSubscriptionsPage";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import NotFound from "@/pages/NotFound";
@@ -36,8 +38,19 @@ const queryClient = new QueryClient();
 
 function ProtectedRoutes() {
   const { user, loading: authLoading } = useAuth();
-  const { loading: subLoading, isActive, isAdmin } = useSubscription();
+  const { loading: subLoading, isActive, isAdmin, subscription } = useSubscription();
   const location = useLocation();
+  const navigate = useNavigate();
+
+  // Monitora se o usuário acabou de pagar a assinatura no Asaas
+  useEffect(() => {
+    if (localStorage.getItem('pendingWelcome') === 'true') {
+      if (subscription?.subscription_status === 'RECEIVED' || subscription?.subscription_status === 'CONFIRMED') {
+        localStorage.removeItem('pendingWelcome');
+        navigate('/bem-vindo');
+      }
+    }
+  }, [subscription?.subscription_status, navigate]);
 
   if (authLoading || subLoading) {
     return (
@@ -53,7 +66,8 @@ function ProtectedRoutes() {
   if (!user) return <Navigate to="/auth" replace />;
 
   // Se não estiver ativo e não estiver na página de assinatura (ou admin se for admin), redirecionar
-  if (!isActive && location.pathname !== '/subscription') {
+  // Também permitimos a rota /bem-vindo sem redirecionar
+  if (!isActive && location.pathname !== '/subscription' && location.pathname !== '/bem-vindo') {
     if (!isAdmin || (isAdmin && location.pathname !== '/admin/subscriptions')) {
        return <Navigate to="/subscription" replace />;
     }
@@ -80,6 +94,7 @@ function ProtectedRoutes() {
                 <Route path="/products" element={<ProductsPage />} />
                 <Route path="/instalar" element={<InstallPage />} />
                 <Route path="/subscription" element={<SubscriptionPage />} />
+                <Route path="/bem-vindo" element={<WelcomeSubscriptionPage />} />
                 {isAdmin && <Route path="/admin/subscriptions" element={<AdminSubscriptionsPage />} />}
                 <Route path="*" element={<NotFound />} />
               </Routes>
