@@ -65,18 +65,34 @@ export default function SubscriptionPage() {
 
       // Dispara o evento de conversão do Google Ads
       if (typeof window !== 'undefined' && (window as any).gtag) {
+        let callbackFired = false;
+        const redirectOrShowToast = () => {
+          if (callbackFired) return;
+          callbackFired = true;
+          if (result.invoiceUrl) {
+            window.location.href = result.invoiceUrl;
+          } else {
+            toast.info('Assinatura criada. Verifique seu email para o link de pagamento.');
+          }
+        };
+
         (window as any).gtag('event', 'conversion', {
           'send_to': 'AW-18264257358/E3gsCPmt78McEM7miYVE',
           'value': 1.0,
           'currency': 'BRL',
-          'transaction_id': ''
+          'transaction_id': '',
+          'event_callback': redirectOrShowToast
         });
-      }
 
-      if (result.invoiceUrl) {
-        window.location.href = result.invoiceUrl; // Redireciona para o checkout do Asaas
+        // Fallback de segurança: se o Google Ads demorar ou falhar, redireciona em no máximo 1 segundo
+        setTimeout(redirectOrShowToast, 1000);
       } else {
-        toast.info('Assinatura criada. Verifique seu email para o link de pagamento.');
+        // Comportamento normal caso não exista gtag (bloqueador de anúncios, erro de script, etc)
+        if (result.invoiceUrl) {
+          window.location.href = result.invoiceUrl; // Redireciona para o checkout do Asaas
+        } else {
+          toast.info('Assinatura criada. Verifique seu email para o link de pagamento.');
+        }
       }
     } catch (err: any) {
       toast.error(err.message || 'Erro ao criar assinatura');
