@@ -104,8 +104,9 @@ export default function SubscriptionPage() {
 
   const isLifetimeAdmin = user?.email?.toLowerCase() === 'ed-somestudio@live.com' || user?.email?.toLowerCase() === 'contato@fluxopro.app.br';
   const hasAsaasSubscription = Boolean(subscription?.asaas_subscription_id);
+  const isCancelled = subscription?.subscription_status === 'CANCELLED';
 
-  if (isLifetimeAdmin || (subscription && (subscription.subscription_status === 'RECEIVED' || subscription.subscription_status === 'CONFIRMED' || (isInTrial && hasAsaasSubscription)))) {
+  if (isLifetimeAdmin || (subscription && !isCancelled && (subscription.subscription_status === 'RECEIVED' || subscription.subscription_status === 'CONFIRMED' || (isInTrial && hasAsaasSubscription)))) {
     return (
       <div className="max-w-2xl mx-auto space-y-6">
         <div>
@@ -236,7 +237,7 @@ export default function SubscriptionPage() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      {isInTrial && trialDaysRemaining !== null && !hasAsaasSubscription && (
+      {isInTrial && trialDaysRemaining !== null && (!hasAsaasSubscription || isCancelled) && (
         <div className="max-w-md mx-auto rounded-lg border border-primary/30 bg-primary/5 p-4 flex items-start gap-3">
           <Sparkles className="h-5 w-5 text-primary mt-0.5" />
           <div className="text-left">
@@ -263,8 +264,14 @@ export default function SubscriptionPage() {
             <Badge variant="destructive" className="gap-1.5">
               Tempo Esgotado
             </Badge>
-            <h1 className="text-3xl font-bold">Assine o FluxoPro</h1>
-            <p className="text-muted-foreground">Seu período de teste grátis chegou ao fim. Escolha o melhor plano para continuar usando o sistema.</p>
+            <h1 className="text-3xl font-bold">
+              {isCancelled ? 'Reative sua assinatura' : 'Assine o FluxoPro'}
+            </h1>
+            <p className="text-muted-foreground">
+              {isCancelled 
+                ? 'Sua assinatura foi cancelada, mas você ainda pode escolher um plano para continuar usando o sistema.' 
+                : 'Seu período de teste grátis chegou ao fim. Escolha o melhor plano para continuar usando o sistema.'}
+            </p>
           </>
         )}
       </div>
