@@ -288,14 +288,16 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
     ? Math.max(0, Math.ceil((new Date(effectiveSubscription.trial_end_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)))
     : (isDefaultTrialActive && defaultTrialEndDate ? Math.max(0, Math.ceil((defaultTrialEndDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))) : null);
 
+  let isPaidStatus = effectiveSubscription?.subscription_status === 'RECEIVED' || effectiveSubscription?.subscription_status === 'CONFIRMED';
+
   let isInTrial = Boolean(
-    (effectiveSubscription?.trial_end_date && new Date(effectiveSubscription.trial_end_date).getTime() > new Date().getTime())
-    || isDefaultTrialActive
+    !isPaidStatus &&
+    ((effectiveSubscription?.trial_end_date && new Date(effectiveSubscription.trial_end_date).getTime() > new Date().getTime())
+    || isDefaultTrialActive)
   );
 
   let isActive = isDeveloperBypass
-    || effectiveSubscription?.subscription_status === 'RECEIVED'
-    || effectiveSubscription?.subscription_status === 'CONFIRMED'
+    || isPaidStatus
     || isInTrial;
 
 

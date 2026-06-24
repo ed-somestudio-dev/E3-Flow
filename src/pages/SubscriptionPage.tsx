@@ -125,7 +125,14 @@ export default function SubscriptionPage() {
               <Crown className="h-5 w-5 text-primary" />
               Assinatura {isLifetimeAdmin ? 'Vitalícia (FluxoPro)' : (PLANS[subscription?.subscription_plan as keyof typeof PLANS]?.name || subscription?.subscription_plan || 'FluxoPro')}
             </CardTitle>
-            <CardDescription className="font-bold text-primary">Status: {isLifetimeAdmin ? 'ADMINISTRADOR VITALÍCIO' : subscription?.subscription_status}</CardDescription>
+            <CardDescription className="font-bold text-primary">
+              Status: {
+                isLifetimeAdmin ? 'ADMINISTRADOR VITALÍCIO' :
+                subscription?.subscription_status === 'RECEIVED' || subscription?.subscription_status === 'CONFIRMED' ? 'ATIVA' :
+                subscription?.subscription_status === 'TRIAL' ? 'EM TESTE' :
+                subscription?.subscription_status || 'DESCONHECIDO'
+              }
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {isInTrial && trialDaysRemaining !== null && !isLifetimeAdmin && (

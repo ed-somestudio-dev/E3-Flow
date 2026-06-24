@@ -99,7 +99,7 @@ export function AppSidebar() {
     <>
       <Sidebar collapsible="icon">
         <SidebarContent>
-          <div className="px-4 pt-2 pb-0">
+          <div className="px-4 pt-8 pb-4">
             {!collapsed && (
               <img src={logoFluxoPro} alt="FluxoPro" className="h-24 w-full object-contain" />
             )}

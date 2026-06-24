@@ -5,6 +5,7 @@ import { OfflineBadge, OfflineBanner } from '@/components/OfflineBadge';
 import { useSubscription } from '@/lib/subscription-context';
 import { AlertTriangle } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
+import { useAuth } from '@/lib/auth-context';
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   // Recarrega a página quando volta de background há mais de 60s
@@ -12,8 +13,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   useAutoRefresh({ staleAfterMs: 60_000 });
   const { daysUntilDue, isActive, isAdmin } = useSubscription();
   const location = useLocation();
+  const { user } = useAuth();
 
-  const showWarning = isActive && daysUntilDue !== null && daysUntilDue <= 5 && location.pathname !== '/subscription';
+  const isLifetimeAdmin = user?.email === 'ed-somestudio@live.com' || user?.email === 'contato@fluxopro.app.br';
+  const showWarning = isActive && daysUntilDue !== null && daysUntilDue <= 5 && location.pathname !== '/subscription' && !isLifetimeAdmin;
 
   return (
     <SidebarProvider>
