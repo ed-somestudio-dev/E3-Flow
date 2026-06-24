@@ -46,8 +46,10 @@ function ProtectedRoutes() {
   useEffect(() => {
     const checkWelcome = () => {
       if (localStorage.getItem('pendingWelcome') === 'true') {
-        localStorage.removeItem('pendingWelcome');
-        navigate('/bem-vindo');
+        if (subscription?.subscription_status === 'RECEIVED' || subscription?.subscription_status === 'CONFIRMED') {
+          localStorage.removeItem('pendingWelcome');
+          navigate('/bem-vindo');
+        }
       }
     };
 
@@ -62,10 +64,8 @@ function ProtectedRoutes() {
 
     return () => {
       window.removeEventListener('pageshow', checkWelcome);
-      // cleanup do visibilitychange não é estritamente necessário aqui com função anônima simples, 
-      // mas o ideal seria extrair para uma constante. Vamos deixar simples.
     };
-  }, [navigate]);
+  }, [subscription?.subscription_status, navigate]);
 
   if (authLoading || subLoading) {
     return (
