@@ -177,7 +177,18 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
           }
         )
         .subscribe();
-      return () => { supabase.removeChannel(channel); };
+      
+      const handleVisibilityChange = () => {
+        if (document.visibilityState === 'visible') {
+          fetchSubscription();
+        }
+      };
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+      
+      return () => { 
+        supabase.removeChannel(channel); 
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      };
     }
   }, [fetchSubscription, user]);
 
