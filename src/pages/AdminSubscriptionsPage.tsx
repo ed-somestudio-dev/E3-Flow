@@ -91,6 +91,11 @@ export default function AdminSubscriptionsPage() {
     }
   };
 
+  const isLifetimeAdmin = (email: string) => {
+    const e = (email || '').toLowerCase();
+    return e === 'ed-somestudio@live.com' || e === 'contato@fluxopro.app.br';
+  };
+
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-12">
       <h1 className="text-3xl font-bold">Painel Administrativo</h1>
@@ -164,25 +169,33 @@ export default function AdminSubscriptionsPage() {
                       {data.map((item) => (
                         <tr key={item.id} className="border-b border-border last:border-0 hover:bg-muted/30">
                           <td className="px-4 py-3">
-                            <span className={`inline-flex px-2 py-1 text-[10px] uppercase font-bold rounded border ${getStatusColor(item.status)}`}>
-                              {{
-                                RECEIVED: 'Recebida',
-                                CONFIRMED: 'Confirmada',
-                                OVERDUE: 'Vencida',
-                                TRIAL: 'Teste (Trial)',
-                                PENDING: 'Pendente',
-                                CANCELLED: 'Cancelada',
-                                INACTIVE: 'Inativa'
-                              }[item.status] || item.status}
-                            </span>
+                            {isLifetimeAdmin(item.user_email) ? (
+                              <span className="inline-flex px-2 py-1 text-[10px] uppercase font-bold rounded border text-primary bg-primary/10 border-primary/20">
+                                ADMINISTRADOR
+                              </span>
+                            ) : (
+                              <span className={`inline-flex px-2 py-1 text-[10px] uppercase font-bold rounded border ${getStatusColor(item.status)}`}>
+                                {{
+                                  RECEIVED: 'Recebida',
+                                  CONFIRMED: 'Confirmada',
+                                  OVERDUE: 'Vencida',
+                                  TRIAL: 'Teste (Trial)',
+                                  PENDING: 'Pendente',
+                                  CANCELLED: 'Cancelada',
+                                  INACTIVE: 'Inativa'
+                                }[item.status] || item.status}
+                              </span>
+                            )}
                           </td>
                           <td className="px-4 py-3">
                             <div className="font-medium">{item.user_name}</div>
                             <div className="text-xs text-muted-foreground">{item.user_email}</div>
                           </td>
-                          <td className="px-4 py-3 font-medium">{PLANS[item.plan as keyof typeof PLANS]?.name || item.plan}</td>
+                          <td className="px-4 py-3 font-medium">
+                            {isLifetimeAdmin(item.user_email) ? 'Vitalício' : (PLANS[item.plan as keyof typeof PLANS]?.name || item.plan)}
+                          </td>
                           <td className="px-4 py-3">
-                            {item.due_date ? new Date(item.due_date + 'T12:00:00').toLocaleDateString('pt-BR') : '-'}
+                            {isLifetimeAdmin(item.user_email) ? '-' : (item.due_date ? new Date(item.due_date + 'T12:00:00').toLocaleDateString('pt-BR') : '-')}
                           </td>
                         </tr>
                       ))}
