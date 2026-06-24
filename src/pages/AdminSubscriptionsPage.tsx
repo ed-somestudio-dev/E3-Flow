@@ -64,10 +64,14 @@ export default function AdminSubscriptionsPage() {
   const mrr = data
     .filter(d => d.status === 'RECEIVED' || d.status === 'CONFIRMED')
     .reduce((sum, d) => {
-      const planKey = (d.plan || '').toLowerCase();
-      const plan = PLANS[planKey as keyof typeof PLANS];
+      const planValue = (d.plan || '').toLowerCase();
+      // Encontra o plano pelo planId ('monthly', 'yearly') ou pelo nome ('mensal', 'anual')
+      const plan = Object.values(PLANS).find(
+        p => p.planId.toLowerCase() === planValue || p.name.toLowerCase() === planValue
+      );
       if (!plan) return sum;
-      const monthly = planKey === 'yearly' ? plan.value / 12 : plan.value;
+      
+      const monthly = plan.cycle === 'YEARLY' ? plan.value / 12 : plan.value;
       return sum + monthly;
     }, 0);
 
