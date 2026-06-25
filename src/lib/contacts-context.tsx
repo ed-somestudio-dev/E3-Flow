@@ -7,6 +7,8 @@ export interface Contact {
   phone?: string;
   email?: string;
   document?: string;
+  address?: string;
+  cep?: string;
   notes?: string;
 }
 

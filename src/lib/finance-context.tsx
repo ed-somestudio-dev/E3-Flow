@@ -226,6 +226,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
           contacts: (conts.data || []).map(row => ({
             id: row.id, name: row.name, phone: row.phone ?? undefined,
             email: row.email ?? undefined, document: row.document ?? undefined,
+            address: row.address ?? undefined, cep: row.cep ?? undefined,
             notes: row.notes ?? undefined
           })),
         });
@@ -243,6 +244,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
         contacts: (conts.data || []).map(row => ({
           id: row.id, name: row.name, phone: row.phone ?? undefined,
           email: row.email ?? undefined, document: row.document ?? undefined,
+          address: row.address ?? undefined, cep: row.cep ?? undefined,
           notes: row.notes ?? undefined
         })),
       };
@@ -2071,6 +2073,8 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       phone: c.phone || null,
       email: c.email || null,
       document: c.document || null,
+      address: c.address || null,
+      cep: c.cep || null,
       notes: c.notes || null,
     };
 
@@ -2080,6 +2084,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       const created = { 
         id: remote.id, name: remote.name, phone: remote.phone ?? undefined,
         email: remote.email ?? undefined, document: remote.document ?? undefined,
+        address: remote.address ?? undefined, cep: remote.cep ?? undefined,
         notes: remote.notes ?? undefined
       };
       setData(prev => {
@@ -2113,6 +2118,8 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       phone: c.phone || null,
       email: c.email || null,
       document: c.document || null,
+      address: c.address || null,
+      cep: c.cep || null,
       notes: c.notes || null,
     };
 

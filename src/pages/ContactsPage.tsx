@@ -347,6 +347,8 @@ function ContactForm({ item, onSave }: {
   const [phone, setPhone] = useState(item?.phone || '');
   const [email, setEmail] = useState(item?.email || '');
   const [document, setDocument] = useState(item?.document || '');
+  const [cep, setCep] = useState(item?.cep || '');
+  const [address, setAddress] = useState(item?.address || '');
   const [notes, setNotes] = useState(item?.notes || '');
 
   return (
@@ -365,9 +367,19 @@ function ContactForm({ item, onSave }: {
           <Input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="email@exemplo.com" />
         </div>
       </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <Label>CPF / CNPJ</Label>
+          <Input value={document} onChange={e => setDocument(e.target.value)} placeholder="000.000.000-00" />
+        </div>
+        <div>
+          <Label>CEP</Label>
+          <Input value={cep} onChange={e => setCep(e.target.value)} placeholder="00000-000" />
+        </div>
+      </div>
       <div>
-        <Label>CPF / CNPJ</Label>
-        <Input value={document} onChange={e => setDocument(e.target.value)} placeholder="000.000.000-00" />
+        <Label>Endereço Completo</Label>
+        <Input value={address} onChange={e => setAddress(e.target.value)} placeholder="Rua, Número, Bairro, Cidade - UF" />
       </div>
       <div>
         <Label>Notas</Label>
@@ -381,6 +393,8 @@ function ContactForm({ item, onSave }: {
           phone: phone.trim() || undefined,
           email: email.trim() || undefined,
           document: document.trim() || undefined,
+          cep: cep.trim() || undefined,
+          address: address.trim() || undefined,
           notes: notes.trim() || undefined,
         })}
       >

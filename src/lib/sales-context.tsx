@@ -50,6 +50,11 @@ function mapSale(row: any, items: SaleItem[] = []): Sale {
     notes: row.notes ?? undefined,
     saleDate: row.sale_date,
     receivableId: row.receivable_id ?? undefined,
+    trackingCode: row.tracking_code ?? undefined,
+    carrier: row.carrier ?? undefined,
+    shippingCost: row.shipping_cost ? Number(row.shipping_cost) : undefined,
+    estimatedDelivery: row.estimated_delivery ?? undefined,
+    requiresShipping: row.requires_shipping ?? false,
     items,
     createdAt: row.created_at,
   };
@@ -70,6 +75,11 @@ export interface NewSalePayload {
   status: SaleStatus;
   paymentMethod?: string;
   notes?: string;
+  trackingCode?: string;
+  carrier?: string;
+  shippingCost?: number;
+  estimatedDelivery?: string;
+  requiresShipping?: boolean;
   items: NewSaleItem[];
 }
 
@@ -88,6 +98,7 @@ interface SalesContextType {
     accountId?: string,
   ) => Promise<Sale | null>;
   updateSaleStatus: (id: string, status: SaleStatus) => Promise<void>;
+  updateSaleShipping: (id: string, trackingInfo: { trackingCode?: string; carrier?: string; shippingCost?: number; estimatedDelivery?: string }) => Promise<void>;
   deleteSale: (id: string) => Promise<void>;
   refreshSales: () => Promise<void>;
   refreshProducts: () => Promise<void>;
@@ -338,6 +349,11 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
         payment_method: payload.paymentMethod || null,
         notes: payload.notes || null,
         sale_date: payload.saleDate,
+        tracking_code: payload.trackingCode || null,
+        carrier: payload.carrier || null,
+        shipping_cost: payload.shippingCost || null,
+        estimated_delivery: payload.estimatedDelivery || null,
+        requires_shipping: payload.requiresShipping ?? false,
         created_at: new Date().toISOString(),
       };
 
@@ -599,6 +615,50 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
     [user, sales, finance, products, refreshSales, refreshProducts],
   );
 
+  const updateSaleShipping = useCallback(
+    async (id: string, trackingInfo: { trackingCode?: string; carrier?: string; shippingCost?: number; estimatedDelivery?: string }) => {
+      if (!user) return;
+      const isOnline = assertOnline() && !user.id.startsWith('guest_');
+      const sale = sales.find((s) => s.id === id);
+      if (!sale) return;
+
+      const updatedSale = { 
+        ...sale, 
+        trackingCode: trackingInfo.trackingCode ?? sale.trackingCode,
+        carrier: trackingInfo.carrier ?? sale.carrier,
+        shippingCost: trackingInfo.shippingCost ?? sale.shippingCost,
+        estimatedDelivery: trackingInfo.estimatedDelivery ?? sale.estimatedDelivery
+      };
+
+      setSales(prev => {
+        const next = prev.map(s => s.id === id ? updatedSale : s);
+        saveSnapshot(effectiveUserId, next, SALES_LIST_SNAPSHOT_STORE).catch(() => {});
+        return next;
+      });
+
+      const payload = {
+        tracking_code: trackingInfo.trackingCode ?? null,
+        carrier: trackingInfo.carrier ?? null,
+        shipping_cost: trackingInfo.shippingCost ?? null,
+        estimated_delivery: trackingInfo.estimatedDelivery ?? null,
+      };
+
+      if (isOnline) {
+        const { error } = await supabase.from("sales").update(payload).eq("id", id);
+        if (error) {
+          toast.error("Erro ao atualizar rastreamento: " + error.message);
+          await refreshSales();
+        } else {
+          toast.success("Informações de entrega atualizadas!");
+        }
+      } else {
+        await enqueueMutation({ userId: effectiveUserId, type: 'UPDATE', payload: { table: 'sales', data: payload, match: { id } } });
+        toast.success("Informações de entrega salvas offline");
+      }
+    },
+    [user, sales, refreshSales]
+  );
+
   const deleteSale = useCallback(
     async (id: string) => {
       if (!user) return;
@@ -755,6 +815,7 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
         deleteProduct,
         createSale,
         updateSaleStatus,
+        updateSaleShipping,
         deleteSale,
         refreshSales,
         refreshProducts,

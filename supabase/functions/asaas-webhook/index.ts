@@ -53,6 +53,29 @@ serve(async (req) => {
     }
 
     if (newStatus) {
+      // Buscar a data do próximo vencimento atualizada direto do Asaas
+      if (subscriptionId) {
+        try {
+          const asaasApiUrl = Deno.env.get("ASAAS_API_URL") || "https://api.asaas.com/v3";
+          const asaasApiKey = Deno.env.get("ASAAS_API_KEY");
+          if (asaasApiKey) {
+            const subRes = await fetch(`${asaasApiUrl}/subscriptions/${subscriptionId}`, {
+              headers: {
+                "access_token": asaasApiKey
+              }
+            });
+            if (subRes.ok) {
+              const subData = await subRes.json();
+              if (subData && subData.nextDueDate) {
+                dueDate = subData.nextDueDate;
+                console.log(`Buscado nextDueDate do Asaas: ${dueDate}`);
+              }
+            }
+          }
+        } catch (e) {
+          console.warn("Falha ao buscar nextDueDate do Asaas, usando o dueDate do pagamento", e);
+        }
+      }
       // Update subscription status
       const { error } = await supabase
         .from("subscriptions")

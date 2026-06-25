@@ -3,7 +3,7 @@ export type PayableStatus = 'pending' | 'paid' | 'overdue';
 export type ReceivableStatus = 'pending' | 'received' | 'overdue';
 export type AccountType = 'checking' | 'savings' | 'cash' | 'credit_card';
 export type RecurrenceFrequency = 'monthly' | 'weekly' | 'yearly';
-export type SaleStatus = 'pending' | 'completed' | 'cancelled';
+export type SaleStatus = 'pending' | 'completed' | 'cancelled' | 'preparing' | 'dispatched' | 'delivered';
 
 export interface FinancialAccount {
   id: string;
@@ -138,6 +138,11 @@ export interface Sale {
   notes?: string;
   saleDate: string;
   receivableId?: string;
+  trackingCode?: string;
+  carrier?: string;
+  shippingCost?: number;
+  estimatedDelivery?: string;
+  requiresShipping?: boolean;
   items: SaleItem[];
   createdAt: string;
 }

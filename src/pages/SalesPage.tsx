@@ -22,26 +22,37 @@ import { motion } from 'framer-motion';
 import {
   Plus, Search, ShoppingCart, Trash2, CheckCircle2, XCircle,
   Clock, TrendingUp, Package, Receipt, ChevronDown, ChevronUp,
+  Truck, CheckCheck, MessageCircle
 } from 'lucide-react';
 import { fmt, fmtDate } from '@/lib/format';
 import { toast } from 'sonner';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 const STATUS_MAP: Record<SaleStatus, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
-  pending:   { label: 'Pendente',   variant: 'outline' },
-  completed: { label: 'Concluída',  variant: 'default' },
-  cancelled: { label: 'Cancelada',  variant: 'destructive' },
+  pending:    { label: 'Pendente',     variant: 'outline' },
+  completed:  { label: 'Aprovada',     variant: 'default' },
+  preparing:  { label: 'Em Separação', variant: 'secondary' },
+  dispatched: { label: 'Despachado',   variant: 'default' },
+  delivered:  { label: 'Entregue',     variant: 'outline' },
+  cancelled:  { label: 'Cancelada',    variant: 'destructive' },
 };
 
 const PAYMENT_METHODS = ['Dinheiro', 'PIX', 'Cartão Débito', 'Cartão Crédito', 'Boleto', 'Transferência', 'Outro'];
 
-function SaleCard({ sale, onStatusChange, onDelete }: {
+function SaleCard({ sale, onStatusChange, onUpdateShipping, onDelete }: {
   sale: Sale;
   onStatusChange: (id: string, s: SaleStatus) => void;
+  onUpdateShipping: (id: string, trackingInfo: any) => void;
   onDelete: (id: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [cancelConfirm, setCancelConfirm] = useState(false);
   const [completeConfirm, setCompleteConfirm] = useState(false);
+  const [shippingModal, setShippingModal] = useState(false);
+  
+  const [trackingCode, setTrackingCode] = useState(sale.trackingCode || '');
+  const [carrier, setCarrier] = useState(sale.carrier || '');
+
   const st = STATUS_MAP[sale.status];
 
   return (
@@ -60,6 +71,13 @@ function SaleCard({ sale, onStatusChange, onDelete }: {
         </div>
         <span className="text-lg font-bold text-primary mono shrink-0">{fmt(sale.total)}</span>
       </div>
+
+      {(sale.trackingCode || sale.carrier) && (
+        <div className="bg-muted/40 rounded border border-border p-2 text-xs flex flex-col gap-1">
+          {sale.carrier && <div><span className="text-muted-foreground">Transportadora:</span> {sale.carrier}</div>}
+          {sale.trackingCode && <div><span className="text-muted-foreground">Rastreio:</span> <span className="font-mono bg-muted px-1 py-0.5 rounded">{sale.trackingCode}</span></div>}
+        </div>
+      )}
 
       {/* Expandable items */}
       <button
@@ -82,12 +100,12 @@ function SaleCard({ sale, onStatusChange, onDelete }: {
       )}
 
       <div className="flex items-center justify-between pt-2 border-t border-border gap-2 flex-wrap">
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           {sale.status === 'pending' && (
             <>
               <Button size="sm" variant="outline" className="h-7 text-xs gap-1 text-success border-success/40 hover:bg-success/10"
                 onClick={() => setCompleteConfirm(true)}>
-                <CheckCircle2 className="h-3 w-3" /> Concluir
+                <CheckCircle2 className="h-3 w-3" /> Aprovar
               </Button>
               <Button size="sm" variant="outline" className="h-7 text-xs gap-1 text-destructive border-destructive/40 hover:bg-destructive/10"
                 onClick={() => setCancelConfirm(true)}>
@@ -96,10 +114,47 @@ function SaleCard({ sale, onStatusChange, onDelete }: {
             </>
           )}
           {sale.status === 'completed' && (
-            <Button size="sm" variant="outline" className="h-7 text-xs gap-1 text-destructive border-destructive/40 hover:bg-destructive/10"
-              onClick={() => setCancelConfirm(true)}>
-              <XCircle className="h-3 w-3" /> Cancelar
+            <>
+              {sale.requiresShipping && (
+                <Button size="sm" variant="outline" className="h-7 text-xs gap-1 text-primary border-primary/40 hover:bg-primary/10"
+                  onClick={() => onStatusChange(sale.id, 'preparing')}>
+                  <Package className="h-3 w-3" /> Separar
+                </Button>
+              )}
+              <Button size="sm" variant="outline" className="h-7 text-xs gap-1 text-destructive border-destructive/40 hover:bg-destructive/10"
+                onClick={() => setCancelConfirm(true)}>
+                <XCircle className="h-3 w-3" /> Cancelar
+              </Button>
+            </>
+          )}
+          {sale.status === 'preparing' && (
+            <Button size="sm" variant="outline" className="h-7 text-xs gap-1 text-primary border-primary/40 hover:bg-primary/10"
+              onClick={() => setShippingModal(true)}>
+              <Truck className="h-3 w-3" /> Despachar
             </Button>
+          )}
+          {sale.status === 'dispatched' && (
+            <>
+              <Button size="sm" variant="outline" className="h-7 text-xs gap-1 text-success border-success/40 hover:bg-success/10"
+                onClick={() => onStatusChange(sale.id, 'delivered')}>
+                <CheckCheck className="h-3 w-3" /> Marcar Entregue
+              </Button>
+              <Button size="sm" variant="outline" className="h-7 text-xs gap-1 border-border"
+                onClick={() => setShippingModal(true)}>
+                <Truck className="h-3 w-3" /> Rastreio
+              </Button>
+            </>
+          )}
+          {sale.status === 'delivered' && (
+            <a
+              href={`https://wa.me/?text=${encodeURIComponent(`Olá ${sale.clientName || ''}! Vi que seu pedido acabou de ser entregue. Deu tudo certo? Gostou do produto? Qualquer dúvida estamos à disposição!`)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <Button size="sm" variant="outline" className="h-7 text-xs gap-1 text-success border-success/40 hover:bg-success/10">
+                <MessageCircle className="h-3 w-3" /> Pós-Venda
+              </Button>
+            </a>
           )}
         </div>
         <Button size="sm" variant="ghost" className="h-7 text-destructive hover:text-destructive"
@@ -108,6 +163,31 @@ function SaleCard({ sale, onStatusChange, onDelete }: {
         </Button>
       </div>
     </motion.div>
+
+    <Dialog open={shippingModal} onOpenChange={setShippingModal}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Despachar Produto</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 pt-4">
+          <div className="space-y-2">
+            <Label>Transportadora</Label>
+            <Input placeholder="Ex: Correios, Loggi" value={carrier} onChange={e => setCarrier(e.target.value)} />
+          </div>
+          <div className="space-y-2">
+            <Label>Código de Rastreio</Label>
+            <Input placeholder="Ex: QA123456789BR" value={trackingCode} onChange={e => setTrackingCode(e.target.value)} />
+          </div>
+          <Button className="w-full mt-2" onClick={() => {
+            onUpdateShipping(sale.id, { carrier, trackingCode });
+            if (sale.status === 'preparing') onStatusChange(sale.id, 'dispatched');
+            setShippingModal(false);
+          }}>
+            Salvar e {sale.status === 'preparing' ? 'Despachar' : 'Atualizar'}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
 
     {/* Cancel Confirmation */}
     <AlertDialog open={cancelConfirm} onOpenChange={setCancelConfirm}>
@@ -154,7 +234,7 @@ function SaleCard({ sale, onStatusChange, onDelete }: {
 }
 
 export default function SalesPage() {
-  const { products, sales, loadingSales, createSale, updateSaleStatus, deleteSale } = useSales();
+  const { products, sales, loadingSales, createSale, updateSaleStatus, updateSaleShipping, deleteSale } = useSales();
   const { data: financeData } = useFinance();
   const { contacts } = useContacts();
 
@@ -175,6 +255,7 @@ export default function SalesPage() {
   const [notes, setNotes] = useState('');
   const [completeOnSave, setCompleteOnSave] = useState(true);
   const [createReceivable, setCreateReceivable] = useState(true);
+  const [requiresShipping, setRequiresShipping] = useState(false);
   const [selectedCategoryId, setSelectedCategoryId] = useState(localStorage.getItem('last_sale_category') || '');
   const [selectedAccountId, setSelectedAccountId] = useState(localStorage.getItem('last_sale_account') || '');
   const [cartItems, setCartItems] = useState<(NewSaleItem & { tmpId: string })[]>([]);
@@ -236,15 +317,15 @@ export default function SalesPage() {
     }
   };
 
-  const updateCartQty = (tmpId: string, qty: number) => {
+  const updateCartQty = (tmpId: string, qty: number, removeIfZero: boolean = true) => {
     const item = cartItems.find(i => i.tmpId === tmpId);
     if (!item) return;
 
-    if (qty <= 0) {
+    if (qty <= 0 && removeIfZero) {
       setCartItems(prev => prev.filter(i => i.tmpId !== tmpId));
     } else {
       const prod = products.find(p => p.id === item.productId);
-      if (prod && qty > prod.stockQuantity) {
+      if (prod && qty > prod.stockQuantity && qty > 0) {
         toast.warning(`Atenção: Quantidade superior ao estoque disponível (${prod.stockQuantity})`);
       }
 
@@ -255,10 +336,14 @@ export default function SalesPage() {
   };
 
   const resetForm = () => {
-    setClientName(''); setSaleDate(new Date().toISOString().split('T')[0]);
-    setDueDate(new Date().toISOString().split('T')[0]);
-    setPaymentMethod(''); setNotes(''); setCompleteOnSave(true);
-    setCreateReceivable(true); setCartItems([]); setProductSearch('');
+    setClientName('');
+    setPaymentMethod('');
+    setNotes('');
+    setCartItems([]);
+    setCompleteOnSave(true);
+    setCreateReceivable(true);
+    setRequiresShipping(false);
+    setProductSearch('');
     // Manter categoria e conta do localStorage
     setSelectedCategoryId(localStorage.getItem('last_sale_category') || '');
     setSelectedAccountId(localStorage.getItem('last_sale_account') || '');
@@ -275,6 +360,7 @@ export default function SalesPage() {
         notes: notes || undefined,
         saleDate,
         dueDate: !completeOnSave ? dueDate : undefined,
+        requiresShipping,
         items: cartItems,
       };
       await createSale(payload, createReceivable, selectedCategoryId || undefined, selectedAccountId || undefined);
@@ -324,6 +410,12 @@ export default function SalesPage() {
               <TabsTrigger value="all" className="flex-1 sm:flex-none">Todas</TabsTrigger>
               <TabsTrigger value="pending" className="flex-1 sm:flex-none"><Clock className="h-3 w-3 mr-1" />Pendentes</TabsTrigger>
               <TabsTrigger value="completed" className="flex-1 sm:flex-none"><CheckCircle2 className="h-3 w-3 mr-1" />Concluídas</TabsTrigger>
+              {sales.some(s => s.requiresShipping) && (
+                <>
+                  <TabsTrigger value="preparing" className="flex-1 sm:flex-none"><Package className="h-3 w-3 mr-1" />Separar</TabsTrigger>
+                  <TabsTrigger value="dispatched" className="flex-1 sm:flex-none"><Truck className="h-3 w-3 mr-1" />Enviadas</TabsTrigger>
+                </>
+              )}
               <TabsTrigger value="cancelled" className="flex-1 sm:flex-none"><XCircle className="h-3 w-3 mr-1" />Canceladas</TabsTrigger>
             </TabsList>
           </Tabs>
@@ -387,8 +479,10 @@ export default function SalesPage() {
         <div className="space-y-3">
           {filtered.map(sale => (
             <SaleCard
-              key={sale.id} sale={sale}
+              key={sale.id}
+              sale={sale}
               onStatusChange={updateSaleStatus}
+              onUpdateShipping={updateSaleShipping}
               onDelete={id => setDeleteId(id)}
             />
           ))}
@@ -494,11 +588,36 @@ export default function SalesPage() {
                           <p className="text-xs text-muted-foreground mono">{fmt(item.unitPrice)} × {item.quantity} = {fmt(item.total)}</p>
                         </div>
                         <div className="flex items-center gap-1 shrink-0">
-                          <Button size="icon" variant="outline" className="h-6 w-6 text-xs"
+                          <Button size="icon" variant="outline" className="h-7 w-7 text-xs"
                             onClick={() => updateCartQty(item.tmpId, item.quantity - 1)}>−</Button>
-                          <span className="text-sm w-8 text-center">{item.quantity}</span>
-                          <Button size="icon" variant="outline" className="h-6 w-6 text-xs"
+                          <Input
+                            type="number"
+                            step="any"
+                            min="0"
+                            className="h-7 w-16 px-1 text-center text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            value={item.quantity === 0 ? '' : item.quantity}
+                            onChange={(e) => {
+                              const valStr = e.target.value;
+                              if (valStr === '') {
+                                updateCartQty(item.tmpId, 0, false);
+                              } else {
+                                const val = parseFloat(valStr);
+                                if (!isNaN(val)) updateCartQty(item.tmpId, val, false);
+                              }
+                            }}
+                            onBlur={(e) => {
+                              const val = parseFloat(e.target.value);
+                              if (isNaN(val) || val <= 0) {
+                                updateCartQty(item.tmpId, 0, true);
+                              }
+                            }}
+                          />
+                          <Button size="icon" variant="outline" className="h-7 w-7 text-xs"
                             onClick={() => updateCartQty(item.tmpId, item.quantity + 1)}>+</Button>
+                          <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                            onClick={() => updateCartQty(item.tmpId, 0, true)}>
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
                         </div>
                       </div>
                     );
@@ -519,6 +638,14 @@ export default function SalesPage() {
 
             {/* Options */}
             <div className="space-y-3">
+              <div className="flex items-center justify-between p-3 rounded-md bg-secondary/30 border border-border">
+                <div>
+                  <Label className="text-sm font-medium">Requer Entrega/Envio</Label>
+                  <p className="text-xs text-muted-foreground">O produto passará pelo fluxo de separação e despacho</p>
+                </div>
+                <Switch checked={requiresShipping} onCheckedChange={setRequiresShipping} />
+              </div>
+
               <div className="p-3 rounded-md bg-secondary/30 border border-border">
                 <Label className="text-sm font-medium mb-3 block">Tipo de Venda</Label>
                 <RadioGroup 
