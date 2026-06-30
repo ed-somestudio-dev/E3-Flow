@@ -150,6 +150,8 @@ export interface ReceiptData {
   amount: number;
   receivedDate: string;
   accountName: string;
+  interestAmount?: number;
+  discountAmount?: number;
 }
 
 export async function generateReceiptPDF(receipt: ReceiptData, pix: PixSettings | null): Promise<Blob> {
@@ -172,7 +174,16 @@ export async function generateReceiptPDF(receipt: ReceiptData, pix: PixSettings 
 
   doc.setFont('helvetica', 'normal').setFontSize(11);
   const beneficiary = pix?.beneficiaryName || 'Beneficiário';
-  const intro = `Recebemos de ${receipt.clientName} a importância de ${fmt(receipt.amount)} (${valorPorExtenso(receipt.amount)}), referente a "${receipt.description}", creditado em ${receipt.accountName} na data de ${fmtDate(receipt.receivedDate)}.`;
+  
+  let intro = `Recebemos de ${receipt.clientName} a importância de ${fmt(receipt.amount)} (${valorPorExtenso(receipt.amount)}), referente a "${receipt.description}", creditado em ${receipt.accountName} na data de ${fmtDate(receipt.receivedDate)}.`;
+  
+  if (receipt.interestAmount) {
+    intro += ` Este valor inclui acréscimo de juros de ${fmt(receipt.interestAmount)}.`;
+  }
+  if (receipt.discountAmount) {
+    intro += ` Este valor inclui um desconto concedido de ${fmt(receipt.discountAmount)}.`;
+  }
+  
   const introLines = doc.splitTextToSize(intro, w - 80);
   doc.text(introLines, 40, y); y += introLines.length * 16 + 30;
 
@@ -206,17 +217,24 @@ export async function generateReceiptPDF(receipt: ReceiptData, pix: PixSettings 
 }
 
 export async function generateReceiptPNG(receipt: ReceiptData, pix: PixSettings | null): Promise<Blob> {
+  const rows: [string, string][] = [
+    ['Pagador', receipt.clientName],
+    ['Beneficiário', pix?.beneficiaryName || '—'],
+    ['Descrição', receipt.description]
+  ];
+  if (receipt.interestAmount) rows.push(['Juros', fmt(receipt.interestAmount)]);
+  if (receipt.discountAmount) rows.push(['Desconto', fmt(receipt.discountAmount)]);
+  
+  rows.push(
+    ['Conta de crédito', receipt.accountName],
+    ['Data', fmtDate(receipt.receivedDate)],
+    ['Nº', receipt.id.substring(0, 8).toUpperCase()]
+  );
+
   return renderCardPNG({
     title: 'Recibo',
     accent: '#10b981',
-    rows: [
-      ['Pagador', receipt.clientName],
-      ['Beneficiário', pix?.beneficiaryName || '—'],
-      ['Descrição', receipt.description],
-      ['Conta de crédito', receipt.accountName],
-      ['Data', fmtDate(receipt.receivedDate)],
-      ['Nº', receipt.id.substring(0, 8).toUpperCase()],
-    ],
+    rows,
     amount: receipt.amount,
     footer: 'Pagamento confirmado',
     stampUrl: pix?.receiptStampUrl,
@@ -513,13 +531,13 @@ function numero(n: number): string {
   return n.toString();
 }
 // ---------- Receivables Report ----------
-export async function generateReceivablesReportPDF(receivables: Receivable[], pix: PixSettings | null): Promise<Blob> {
+export async function generateReceivablesReportPDF(receivables: Receivable[], pix: PixSettings | null, title: string = 'Relatório de Contas a Receber'): Promise<Blob> {
   const doc = new jsPDF({ unit: 'pt', format: 'a4' });
   const w = doc.internal.pageSize.getWidth();
   let y = 50;
 
   doc.setFont('helvetica', 'bold').setFontSize(20).setTextColor(15, 23, 42);
-  doc.text('Relatório de Contas a Receber', w / 2, y, { align: 'center' });
+  doc.text(title, w / 2, y, { align: 'center' });
   y += 30;
 
   if (receivables.length > 0 && receivables[0].clientName) {
@@ -577,7 +595,7 @@ export async function generateReceivablesReportPDF(receivables: Receivable[], pi
   return doc.output('blob');
 }
 
-export async function generateReceivablesReportPNG(receivables: Receivable[], pix: PixSettings | null): Promise<Blob> {
+export async function generateReceivablesReportPNG(receivables: Receivable[], pix: PixSettings | null, title: string = 'Relatório de Contas'): Promise<Blob> {
   const total = receivables.reduce((sum, r) => sum + r.amount, 0);
   const rows = receivables.map(r => [
     fmtDate(r.dueDate) + ' - ' + (r.status === 'received' ? '(Pago)' : r.status === 'overdue' ? '(Atraso)' : '(Pendente)'),
@@ -585,7 +603,7 @@ export async function generateReceivablesReportPNG(receivables: Receivable[], pi
   ] as [string, string]);
   
   return renderCardPNG({
-    title: 'Relatório de Contas',
+    title,
     accent: '#3b82f6',
     rows: rows,
     amount: total,

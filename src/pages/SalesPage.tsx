@@ -3,7 +3,9 @@ import { ContactInputWithPicker } from '@/components/ContactInputWithPicker';
 import { useContacts } from '@/lib/contacts-context';
 import { useSales, NewSaleItem, NewSalePayload } from '@/lib/sales-context';
 import { useFinance } from '@/lib/finance-context';
+import { usePixSettings } from '@/lib/pix-settings-context';
 import { Sale, SaleStatus } from '@/lib/types';
+import { ShareDocumentDialog } from '@/components/ShareDocumentDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -18,12 +20,18 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { Checkbox } from '@/components/ui/checkbox';
 import { motion } from 'framer-motion';
 import {
   Plus, Search, ShoppingCart, Trash2, CheckCircle2, XCircle,
   Clock, TrendingUp, Package, Receipt, ChevronDown, ChevronUp,
-  Truck, CheckCheck, MessageCircle
+  Truck, CheckCheck, MessageCircle, Edit2, QrCode, Printer
 } from 'lucide-react';
+import {
+  generateChargePDF, generateChargePNG,
+  generateReceiptPDF, generateReceiptPNG,
+  generateReceivablesReportPDF, generateReceivablesReportPNG
+} from '@/lib/documents';
 import { fmt, fmtDate } from '@/lib/format';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -39,11 +47,16 @@ const STATUS_MAP: Record<SaleStatus, { label: string; variant: 'default' | 'seco
 
 const PAYMENT_METHODS = ['Dinheiro', 'PIX', 'Cartão Débito', 'Cartão Crédito', 'Boleto', 'Transferência', 'Outro'];
 
-function SaleCard({ sale, onStatusChange, onUpdateShipping, onDelete }: {
+function SaleCard({ sale, onStatusChange, onUpdateShipping, onDelete, onEdit, selectable, selected, onSelect, onReceive }: {
   sale: Sale;
   onStatusChange: (id: string, s: SaleStatus) => void;
   onUpdateShipping: (id: string, trackingInfo: any) => void;
   onDelete: (id: string) => void;
+  onEdit?: (sale: Sale) => void;
+  selectable?: boolean;
+  selected?: boolean;
+  onSelect?: (id: string, selected: boolean) => void;
+  onReceive?: (sale: Sale) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [cancelConfirm, setCancelConfirm] = useState(false);
@@ -61,6 +74,9 @@ function SaleCard({ sale, onStatusChange, onUpdateShipping, onDelete }: {
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
+            {selectable && (
+              <Checkbox checked={selected} onCheckedChange={(c) => onSelect?.(sale.id, !!c)} />
+            )}
             <span className="font-semibold">{sale.clientName || 'Cliente não informado'}</span>
             <Badge variant={st.variant} className="text-xs">{st.label}</Badge>
           </div>
@@ -104,8 +120,12 @@ function SaleCard({ sale, onStatusChange, onUpdateShipping, onDelete }: {
           {sale.status === 'pending' && (
             <>
               <Button size="sm" variant="outline" className="h-7 text-xs gap-1 text-success border-success/40 hover:bg-success/10"
-                onClick={() => setCompleteConfirm(true)}>
-                <CheckCircle2 className="h-3 w-3" /> Aprovar
+                onClick={() => onReceive?.(sale)}>
+                <CheckCircle2 className="h-3 w-3" /> Receber
+              </Button>
+              <Button size="sm" variant="outline" className="h-7 text-xs gap-1 text-primary border-primary/40 hover:bg-primary/10"
+                onClick={() => onEdit?.(sale)}>
+                <Edit2 className="h-3 w-3" /> Editar
               </Button>
               <Button size="sm" variant="outline" className="h-7 text-xs gap-1 text-destructive border-destructive/40 hover:bg-destructive/10"
                 onClick={() => setCancelConfirm(true)}>
@@ -234,9 +254,10 @@ function SaleCard({ sale, onStatusChange, onUpdateShipping, onDelete }: {
 }
 
 export default function SalesPage() {
-  const { products, sales, loadingSales, createSale, updateSaleStatus, updateSaleShipping, deleteSale } = useSales();
-  const { data: financeData } = useFinance();
+  const { products, sales, loadingSales, createSale, updateSale, updateSaleStatus, updateSaleShipping, deleteSale } = useSales();
+  const { data: financeData, markReceivableReceived, markReceivableReceivedPartial, updateReceivable } = useFinance();
   const { contacts } = useContacts();
+  const { settings: pixSettings, isConfigured } = usePixSettings();
 
   const [tab, setTab] = useState<'all' | SaleStatus>('all');
   const [paymentFilter, setPaymentFilter] = useState<string>('all');
@@ -246,6 +267,32 @@ export default function SalesPage() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [editingSaleId, setEditingSaleId] = useState<string | null>(null);
+
+  // PIX & Share State
+  const [pixWarningOpen, setPixWarningOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shareCfg, setShareCfg] = useState<{
+    title: string;
+    filenameBase: string;
+    generatePDF: () => Promise<Blob>;
+    generatePNG: () => Promise<Blob>;
+    pixCopyText?: Promise<string>;
+  } | null>(null);
+
+  const openShare = (cfg: NonNullable<typeof shareCfg>) => {
+    setShareCfg(cfg);
+    setShareOpen(true);
+  };
+
+  const [selectedSales, setSelectedSales] = useState<string[]>([]);
+  const [bulkReceiveModal, setBulkReceiveModal] = useState(false);
+  const [bulkReceiveAmount, setBulkReceiveAmount] = useState<string>('');
+  const [bulkReceiveAccount, setBulkReceiveAccount] = useState<string>(localStorage.getItem('last_sale_account') || '');
+  const [bulkReceivePaymentMethod, setBulkReceivePaymentMethod] = useState<string>('keep');
+  const [receiveInterestPercent, setReceiveInterestPercent] = useState('');
+  const [receiveDiscountAmount, setReceiveDiscountAmount] = useState('');
+  const [receivePartialMode, setReceivePartialMode] = useState(false);
 
   // New Sale form
   const [clientName, setClientName] = useState('');
@@ -253,6 +300,7 @@ export default function SalesPage() {
   const [dueDate, setDueDate] = useState(new Date().toISOString().split('T')[0]);
   const [paymentMethod, setPaymentMethod] = useState('');
   const [notes, setNotes] = useState('');
+  const [saleDiscountAmount, setSaleDiscountAmount] = useState('');
   const [completeOnSave, setCompleteOnSave] = useState(true);
   const [createReceivable, setCreateReceivable] = useState(true);
   const [requiresShipping, setRequiresShipping] = useState(false);
@@ -260,6 +308,9 @@ export default function SalesPage() {
   const [selectedAccountId, setSelectedAccountId] = useState(localStorage.getItem('last_sale_account') || '');
   const [cartItems, setCartItems] = useState<(NewSaleItem & { tmpId: string })[]>([]);
   const [productSearch, setProductSearch] = useState('');
+
+  const [bulkPartialMode, setBulkPartialMode] = useState(false);
+  const [bulkPartialAmount, setBulkPartialAmount] = useState('');
 
   const incomeCategories = financeData.categories.filter(c => c.type === 'income');
   const accounts = financeData.accounts;
@@ -270,6 +321,7 @@ export default function SalesPage() {
   );
 
   const cartTotal = cartItems.reduce((s, i) => s + i.total, 0);
+  const finalSaleTotal = Math.max(0, cartTotal - (parseFloat(saleDiscountAmount) || 0));
 
   const stats = useMemo(() => {
     const completed = sales.filter(s => s.status === 'completed');
@@ -298,8 +350,13 @@ export default function SalesPage() {
     const currentQty = existing ? existing.quantity : 0;
     const newQty = currentQty + 1;
 
-    if (newQty > prod.stockQuantity) {
-      toast.warning(`Atenção: Estoque insuficiente de "${prod.name}" (Disponível: ${prod.stockQuantity})`);
+    const originalSale = editingSaleId ? sales.find(s => s.id === editingSaleId) : null;
+    const originalItem = originalSale?.items.find(i => i.productId === productId);
+    const originalQty = originalItem ? originalItem.quantity : 0;
+    const netAddedQty = newQty - originalQty;
+
+    if (netAddedQty > prod.stockQuantity) {
+      toast.warning(`Atenção: Estoque insuficiente de "${prod.name}" (Disponível: ${prod.stockQuantity + originalQty})`);
     }
 
     if (existing) {
@@ -325,8 +382,15 @@ export default function SalesPage() {
       setCartItems(prev => prev.filter(i => i.tmpId !== tmpId));
     } else {
       const prod = products.find(p => p.id === item.productId);
-      if (prod && qty > prod.stockQuantity && qty > 0) {
-        toast.warning(`Atenção: Quantidade superior ao estoque disponível (${prod.stockQuantity})`);
+      if (prod) {
+        const originalSale = editingSaleId ? sales.find(s => s.id === editingSaleId) : null;
+        const originalItem = originalSale?.items.find(i => i.productId === item.productId);
+        const originalQty = originalItem ? originalItem.quantity : 0;
+        const netAddedQty = qty - originalQty;
+        
+        if (netAddedQty > prod.stockQuantity && qty > 0) {
+          toast.warning(`Atenção: Quantidade superior ao estoque disponível (${prod.stockQuantity + originalQty})`);
+        }
       }
 
       setCartItems(prev => prev.map(i =>
@@ -336,14 +400,18 @@ export default function SalesPage() {
   };
 
   const resetForm = () => {
+    setEditingSaleId(null);
     setClientName('');
     setPaymentMethod('');
     setNotes('');
+    setSaleDiscountAmount('');
     setCartItems([]);
     setCompleteOnSave(true);
     setCreateReceivable(true);
     setRequiresShipping(false);
     setProductSearch('');
+    setSaleDate(new Date().toISOString().split('T')[0]);
+    setDueDate(new Date().toISOString().split('T')[0]);
     // Manter categoria e conta do localStorage
     setSelectedCategoryId(localStorage.getItem('last_sale_category') || '');
     setSelectedAccountId(localStorage.getItem('last_sale_account') || '');
@@ -353,24 +421,255 @@ export default function SalesPage() {
     if (cartItems.length === 0) { toast.error('Adicione pelo menos um item'); return; }
     setSaving(true);
     try {
-      const payload: NewSalePayload = {
-        clientName: clientName || undefined,
-        status: completeOnSave ? 'completed' : 'pending',
-        paymentMethod: paymentMethod || undefined,
-        notes: notes || undefined,
-        saleDate,
-        dueDate: !completeOnSave ? dueDate : undefined,
-        requiresShipping,
-        items: cartItems,
-      };
-      await createSale(payload, createReceivable, selectedCategoryId || undefined, selectedAccountId || undefined);
+      if (editingSaleId) {
+        // Modo edição: atualizar venda existente
+        await updateSale(editingSaleId, {
+          clientName: clientName || undefined,
+          paymentMethod: paymentMethod || undefined,
+          notes: notes || undefined,
+          saleDate,
+          requiresShipping,
+          discountAmount: parseFloat(saleDiscountAmount) || undefined,
+          items: cartItems,
+        });
+        
+        // Atualizar data de vencimento do contas a receber vinculado
+        const editedSale = sales.find(s => s.id === editingSaleId);
+        if (editedSale?.receivableId && !completeOnSave) {
+          const rec = financeData.receivables.find(r => r.id === editedSale.receivableId);
+          if (rec && rec.dueDate !== dueDate) {
+            await updateReceivable({ ...rec, dueDate });
+          }
+        }
+      } else {
+        // Modo criação: nova venda
+        const payload: NewSalePayload = {
+          clientName: clientName || undefined,
+          status: completeOnSave ? 'completed' : 'pending',
+          paymentMethod: paymentMethod || undefined,
+          notes: notes || undefined,
+          saleDate,
+          dueDate: !completeOnSave ? dueDate : undefined,
+          requiresShipping,
+          discountAmount: parseFloat(saleDiscountAmount) || undefined,
+          items: cartItems,
+        };
+        await createSale(payload, createReceivable, selectedCategoryId || undefined, selectedAccountId || undefined);
+      }
       setSheetOpen(false);
       resetForm();
     } finally { setSaving(false); }
   };
 
+  const handleBulkReceive = async () => {
+    if (selectedSales.length === 0) return;
+    setSaving(true);
+    try {
+      const items = selectedSales.map(id => sales.find(s => s.id === id)).filter(Boolean) as Sale[];
+      const baseTotal = items.reduce((sum, i) => sum + i.total, 0);
+      const interestRatio = (parseFloat(receiveInterestPercent) || 0) / 100;
+      const totalInterest = baseTotal * interestRatio;
+      const totalDiscount = parseFloat(receiveDiscountAmount) || 0;
+      
+      // Receber cada um (do mais antigo para o mais novo)
+      const sorted = [...items].sort((a, b) => new Date(a.saleDate).getTime() - new Date(b.saleDate).getTime());
+      
+      let amount = 0;
+      if (receivePartialMode) {
+        amount = parseFloat(bulkReceiveAmount) || 0;
+      }
+      
+      const totalDue = baseTotal + totalInterest - totalDiscount;
+
+      for (const sale of sorted) {
+        if (receivePartialMode && amount <= 0) break;
+        
+        if (bulkReceivePaymentMethod !== 'keep') {
+          await updateSale(sale.id, { paymentMethod: bulkReceivePaymentMethod });
+        }
+        
+        const itemRatio = baseTotal > 0 ? sale.total / baseTotal : 0;
+        const itemInterest = totalInterest * itemRatio;
+        const itemDiscount = totalDiscount * itemRatio;
+        const itemTotalDue = sale.total + itemInterest - itemDiscount;
+
+        if (!receivePartialMode) {
+          if (sale.receivableId && bulkReceiveAccount) {
+            await markReceivableReceived(sale.receivableId, bulkReceiveAccount, undefined, itemInterest, itemDiscount);
+          }
+          await updateSaleStatus(sale.id, 'completed');
+        } else {
+          if (amount >= itemTotalDue - 0.005) {
+            if (sale.receivableId && bulkReceiveAccount) {
+              await markReceivableReceived(sale.receivableId, bulkReceiveAccount, undefined, itemInterest, itemDiscount);
+            }
+            await updateSaleStatus(sale.id, 'completed');
+            amount = Math.round((amount - itemTotalDue) * 100) / 100;
+          } else {
+            // Partial payment for this sale
+            if (sale.receivableId && bulkReceiveAccount && markReceivableReceivedPartial) {
+              await markReceivableReceivedPartial(sale.receivableId, bulkReceiveAccount, amount, itemInterest, itemDiscount);
+              // The system handles the receivable split via events from finance-context
+            } else {
+              // For the sale itself, we split it manually
+              const receiveVal = amount;
+              const remainder = itemTotalDue - receiveVal;
+              
+              const newSalePayload: NewSalePayload = {
+                clientName: sale.clientName,
+                saleDate: sale.saleDate,
+                status: 'pending',
+                paymentMethod: sale.paymentMethod,
+                notes: (sale.notes ? sale.notes + '\n' : '') + 'Saldo restante da venda original',
+                requiresShipping: sale.requiresShipping,
+                items: [{ productName: `Saldo Restante (${sale.items.map(i => i.productName).join(', ')})`.substring(0, 50), quantity: 1, unitPrice: remainder, total: remainder }]
+              };
+              
+              await createSale(newSalePayload, false);
+              
+              // Update original sale to be completed and have only the received amount
+              await updateSale(sale.id, {
+                items: [{ productName: `Pagamento Parcial (${sale.items.map(i => i.productName).join(', ')})`.substring(0, 50), quantity: 1, unitPrice: receiveVal, total: receiveVal }]
+              });
+              await updateSaleStatus(sale.id, 'completed');
+            }
+            
+            amount = 0;
+          }
+        }
+      }
+      
+      setSelectedSales([]);
+      setBulkReceiveModal(false);
+      setSheetOpen(false);
+      resetForm();
+
+      if (items.length > 0) {
+        const accName = financeData?.accounts.find(a => a.id === bulkReceiveAccount)?.name || 'Conta';
+        const receivedDate = new Date().toISOString().split('T')[0];
+        // Open share receipt modal
+        const summaryId = items.length === 1 ? items[0].id : `bulk-${Date.now()}`;
+        const description = items.length === 1 ? items[0].items.map(i => i.productName).join(', ') : `Pagamento de ${items.length} vendas`;
+        const clientName = items.length === 1 ? items[0].clientName : 'Múltiplos Clientes';
+        
+        let finalReceivedAmount = totalDue;
+        if (receivePartialMode) {
+          const amt = parseFloat(bulkReceiveAmount) || 0;
+          finalReceivedAmount = amt > 0 ? Math.min(amt, totalDue) : totalDue;
+        }
+        
+        
+        openShare({
+          title: 'Compartilhar Recibo',
+          filenameBase: `recibo-vendas-${receivedDate}`,
+          generatePDF: () => generateReceiptPDF({
+            id: summaryId, clientName: clientName || '', description,
+            amount: finalReceivedAmount, receivedDate, accountName: accName,
+            interestAmount: totalInterest, discountAmount: totalDiscount
+          }, pixSettings),
+          generatePNG: () => generateReceiptPNG({
+            id: summaryId, clientName: clientName || '', description,
+            amount: finalReceivedAmount, receivedDate, accountName: accName,
+            interestAmount: totalInterest, discountAmount: totalDiscount
+          }, pixSettings),
+        });
+      }
+    } finally { setSaving(false); }
+  };
+
+  const handleGenerateReportSelected = () => {
+    const items = selectedSales.map(id => sales.find(s => s.id === id)).filter(Boolean) as Sale[];
+    if (items.length === 0) return;
+    const receivables = items.map(s => ({
+      id: s.id, amount: s.total, clientName: s.clientName || 'Sem nome',
+      description: s.items.map(i => i.productName).join(', '),
+      dueDate: s.saleDate, status: 'pending' as const,
+      categoryId: ''
+    }));
+    openShare({
+      title: 'Relatório de Vendas',
+      filenameBase: `relatorio-vendas-${fmtDate(new Date().toISOString()).replace(/\//g, '-')}`,
+      generatePDF: () => generateReceivablesReportPDF(receivables, pixSettings, 'Relatório de Vendas'),
+      generatePNG: () => generateReceivablesReportPNG(receivables, pixSettings, 'Relatório de Vendas'),
+    });
+  };
+
+  const handleGeneratePixSelected = () => {
+    const items = selectedSales.map(id => sales.find(s => s.id === id)).filter(Boolean) as Sale[];
+    if (items.length === 0) return;
+    if (!isConfigured) { setPixWarningOpen(true); return; }
+
+    const amt = bulkPartialMode && bulkPartialAmount && parseFloat(bulkPartialAmount.replace(/\D/g, '')) / 100 > 0
+      ? parseFloat(bulkPartialAmount.replace(/\D/g, '')) / 100
+      : items.reduce((sum, i) => sum + i.total, 0);
+
+    const consolidated = {
+      id: `sales-${Date.now()}`,
+      clientName: Array.from(new Set(items.map(i => i.clientName))).join(', '),
+      description: bulkPartialMode ? `Pagamento parcial de ${items.length} vendas` : `Pagamento consolidado de ${items.length} vendas`,
+      amount: amt,
+      dueDate: new Date().toISOString().split('T')[0]
+    };
+
+    openShare({
+      title: `Cobrança PIX de Vendas (${items.length} itens)`,
+      filenameBase: `pix-vendas-${consolidated.clientName.replace(/\s+/g, '_')}-${consolidated.dueDate}`,
+      generatePDF: () => generateChargePDF(consolidated, pixSettings),
+      generatePNG: () => generateChargePNG(consolidated, pixSettings),
+      pixCopyText: (async () => {
+        const { generatePixBRCode } = await import('@/lib/pix');
+        return generatePixBRCode({
+          pixKey: pixSettings.pixKey,
+          pixKeyType: pixSettings.pixKeyType,
+          amount: consolidated.amount,
+          beneficiaryName: pixSettings.beneficiaryName,
+          beneficiaryCity: pixSettings.beneficiaryCity,
+          txid: consolidated.id.replace(/-/g, '').substring(0, 25),
+          description: consolidated.description,
+        });
+      })(),
+    });
+  };
+
+  const handleSelectSale = (id: string, isSelected: boolean) => {
+    setSelectedSales(prev => isSelected ? [...prev, id] : prev.filter(x => x !== id));
+  };
+
+  const handleEditSale = (sale: Sale) => {
+    setEditingSaleId(sale.id);
+    setClientName(sale.clientName || '');
+    setSaleDate(sale.saleDate);
+    setPaymentMethod(sale.paymentMethod || '');
+    setNotes(sale.notes || '');
+    setSaleDiscountAmount(sale.discountAmount ? String(sale.discountAmount) : '');
+    setRequiresShipping(sale.requiresShipping ?? false);
+    setCompleteOnSave(sale.status === 'completed');
+    setCartItems(sale.items.map((i, idx) => ({ ...i, tmpId: idx.toString() })));
+    
+    // Restaurar data de vencimento do contas a receber vinculado
+    if (sale.receivableId) {
+      const rec = financeData.receivables.find(r => r.id === sale.receivableId);
+      if (rec) {
+        setDueDate(rec.dueDate);
+      } else {
+        setDueDate(sale.saleDate);
+      }
+    } else {
+      setDueDate(sale.saleDate);
+    }
+    
+    setSheetOpen(true);
+  };
+
+  const selectedSalesTotal = useMemo(() => {
+    return selectedSales.reduce((acc, id) => {
+      const s = sales.find(x => x.id === id);
+      return acc + (s?.total || 0);
+    }, 0);
+  }, [selectedSales, sales]);
+
   return (
-    <div className="space-y-6 max-w-5xl">
+    <div className="p-4 sm:p-8 max-w-7xl mx-auto space-y-6 relative pb-24">
       {/* Header */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
@@ -466,6 +765,83 @@ export default function SalesPage() {
         </div>
       </div>
 
+      {/* Bulk Action Bar */}
+      {selectedSales.length > 0 && (
+        <motion.div 
+          initial={{ y: -20, opacity: 0 }} 
+          animate={{ y: 0, opacity: 1 }}
+          exit={{ y: -20, opacity: 0 }}
+          className="bg-primary text-primary-foreground shadow-sm rounded-xl px-4 py-3 flex items-center justify-between gap-4 mb-4"
+        >
+          <div className="flex items-center gap-2">
+            <span className="font-semibold">{selectedSales.length} {selectedSales.length === 1 ? 'venda selecionada' : 'vendas selecionadas'}</span>
+            <span className="text-primary-foreground/70 hidden sm:inline">Total: {fmt(selectedSalesTotal)}</span>
+            
+            <div className="flex items-center gap-2 ml-4 bg-primary-foreground/10 px-2 py-1 rounded-md">
+              <Checkbox 
+                id="bulkPartialSales" 
+                className="border-primary-foreground/50 data-[state=checked]:bg-primary-foreground data-[state=checked]:text-primary"
+                checked={bulkPartialMode}
+                onCheckedChange={(checked) => {
+                  setBulkPartialMode(checked as boolean);
+                  if (checked as boolean && !bulkPartialAmount) setBulkPartialAmount((selectedSalesTotal / 2).toFixed(2).replace('.', ','));
+                  if (!checked) setBulkPartialAmount('');
+                }}
+              />
+              <Label htmlFor="bulkPartialSales" className="cursor-pointer text-xs whitespace-nowrap">Parcial</Label>
+            </div>
+            
+            {bulkPartialMode && (
+              <div className="flex items-center gap-2 ml-2">
+                <Input 
+                  value={bulkPartialAmount}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/\D/g, '');
+                    setBulkPartialAmount(val ? (parseInt(val) / 100).toFixed(2).replace('.', ',') : '');
+                  }}
+                  className="w-24 h-8 bg-primary-foreground/20 border-primary-foreground/30 text-primary-foreground placeholder:text-primary-foreground/50 px-2 text-right text-sm"
+                  placeholder="0,00"
+                />
+                {bulkPartialAmount && (parseFloat(bulkPartialAmount.replace(/\D/g, '')) / 100) > 0 && (parseFloat(bulkPartialAmount.replace(/\D/g, '')) / 100) < selectedSalesTotal && (
+                  <span className="text-xs text-primary-foreground/80 whitespace-nowrap">
+                    Restante: <strong>{fmt(selectedSalesTotal - (parseFloat(bulkPartialAmount.replace(/\D/g, '')) / 100))}</strong>
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button size="sm" variant="ghost" className="text-primary-foreground hover:bg-primary-foreground/20 px-2 sm:px-3"
+              onClick={handleGenerateReportSelected} title="Gerar Relatório">
+              <Printer className="h-4 w-4 sm:mr-2" /> 
+              <span className="hidden sm:inline">Relatório</span>
+            </Button>
+            <Button size="sm" variant="ghost" className="text-primary-foreground hover:bg-primary-foreground/20 px-2 sm:px-3"
+              onClick={handleGeneratePixSelected} title="Gerar Pix">
+              <QrCode className="h-4 w-4 sm:mr-2" /> 
+              <span className="hidden sm:inline">
+                {bulkPartialMode && bulkPartialAmount && (parseFloat(bulkPartialAmount.replace(/\D/g, '')) / 100) > 0
+                  ? `Pix ${fmt(parseFloat(bulkPartialAmount.replace(/\D/g, '')) / 100)}`
+                  : 'Gerar Pix'}
+              </span>
+            </Button>
+            <Button size="sm" variant="secondary" onClick={() => setSelectedSales([])}>Cancelar</Button>
+            <Button size="sm" variant="outline" className="text-primary border-primary-foreground/20 bg-background hover:bg-background/90"
+              onClick={() => {
+                if (bulkPartialMode && bulkPartialAmount) {
+                  setBulkReceiveAmount(bulkPartialAmount);
+                } else {
+                  setBulkReceiveAmount(selectedSalesTotal.toFixed(2).replace('.', ','));
+                }
+                setBulkReceivePaymentMethod('keep');
+                setBulkReceiveModal(true);
+              }}>
+              {bulkPartialMode ? 'Receber parcial' : 'Receber'}
+            </Button>
+          </div>
+        </motion.div>
+      )}
+
       {/* Sales List */}
       {loadingSales ? (
         <div className="text-center py-12 text-muted-foreground">Carregando vendas...</div>
@@ -477,6 +853,27 @@ export default function SalesPage() {
         </div>
       ) : (
         <div className="space-y-3">
+          {filtered.some(s => s.status === 'pending') && (
+            <div className="flex items-center gap-2 px-2 py-1 bg-secondary/20 rounded-md border border-border/50">
+              <Checkbox 
+                checked={filtered.filter(s => s.status === 'pending').length > 0 && filtered.filter(s => s.status === 'pending').every(s => selectedSales.includes(s.id))} 
+                onCheckedChange={(c) => {
+                  const pending = filtered.filter(s => s.status === 'pending');
+                  if (c) {
+                    const toAdd = pending.map(x => x.id).filter(id => !selectedSales.includes(id));
+                    setSelectedSales(prev => [...prev, ...toAdd]);
+                  } else {
+                    const toRemove = pending.map(x => x.id);
+                    setSelectedSales(prev => prev.filter(id => !toRemove.includes(id)));
+                  }
+                }}
+                id="select-all-pending"
+              />
+              <Label htmlFor="select-all-pending" className="text-sm font-medium cursor-pointer flex-1">
+                Selecionar todas as pendentes desta lista ({filtered.filter(s => s.status === 'pending').length})
+              </Label>
+            </div>
+          )}
           {filtered.map(sale => (
             <SaleCard
               key={sale.id}
@@ -484,6 +881,16 @@ export default function SalesPage() {
               onStatusChange={updateSaleStatus}
               onUpdateShipping={updateSaleShipping}
               onDelete={id => setDeleteId(id)}
+              onEdit={handleEditSale}
+              onReceive={(s) => {
+                setSelectedSales([s.id]);
+                setBulkReceiveAmount(s.total.toFixed(2).replace('.', ','));
+                setBulkReceivePaymentMethod('keep');
+                setBulkReceiveModal(true);
+              }}
+              selectable={sale.status === 'pending'}
+              selected={selectedSales.includes(sale.id)}
+              onSelect={handleSelectSale}
             />
           ))}
         </div>
@@ -493,7 +900,7 @@ export default function SalesPage() {
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
         <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
           <SheetHeader>
-            <SheetTitle>Nova Venda</SheetTitle>
+            <SheetTitle>{editingSaleId ? 'Editar Venda' : 'Nova Venda'}</SheetTitle>
           </SheetHeader>
 
           <div className="space-y-5 py-4">
@@ -533,7 +940,16 @@ export default function SalesPage() {
                 </p>
               ) : (
                 <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
-                  {filteredProducts.map(p => (
+                  {filteredProducts.map(p => {
+                    const originalSale = editingSaleId ? sales.find(s => s.id === editingSaleId) : null;
+                    const originalItem = originalSale?.items.find(i => i.productId === p.id);
+                    const originalQty = originalItem ? originalItem.quantity : 0;
+                    const cartItem = cartItems.find(i => i.productId === p.id);
+                    const inCart = cartItem ? cartItem.quantity : 0;
+                    const netAddedQty = inCart - originalQty;
+                    const availableQty = p.stockQuantity - netAddedQty;
+
+                    return (
                     <button key={p.id} onClick={() => addToCart(p.id)}
                       className="flex items-center justify-between p-2 rounded-md border border-border hover:border-primary hover:bg-primary/5 transition-all text-left gap-2">
                       <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -555,10 +971,10 @@ export default function SalesPage() {
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
                         <Package className="h-3 w-3 text-muted-foreground" />
-                        <span className="text-xs text-muted-foreground">{p.stockQuantity}</span>
+                        <span className={`text-xs ${availableQty <= 0 ? 'text-destructive font-medium' : 'text-muted-foreground'}`}>{availableQty}</span>
                       </div>
                     </button>
-                  ))}
+                  )})}
                 </div>
               )}
             </div>
@@ -623,9 +1039,25 @@ export default function SalesPage() {
                     );
                   })}
                 </div>
-                <div className="flex justify-between items-center p-3 rounded-md bg-primary/10 border border-primary/20">
-                  <span className="font-semibold text-sm">Total</span>
-                  <span className="font-bold text-lg text-primary mono">{fmt(cartTotal)}</span>
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center px-1">
+                    <span className="text-sm text-muted-foreground">Subtotal</span>
+                    <span className="font-medium mono">{fmt(cartTotal)}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 px-1">
+                    <Label className="text-sm shrink-0">Desconto (R$)</Label>
+                    <Input 
+                      type="number" step="0.01" min="0" max={cartTotal}
+                      className="w-32 h-8 text-right"
+                      value={saleDiscountAmount} 
+                      onChange={e => setSaleDiscountAmount(e.target.value)} 
+                      placeholder="0,00" 
+                    />
+                  </div>
+                  <div className="flex justify-between items-center p-3 rounded-md bg-primary/10 border border-primary/20">
+                    <span className="font-semibold text-sm">Total a Cobrar</span>
+                    <span className="font-bold text-lg text-primary mono">{fmt(finalSaleTotal)}</span>
+                  </div>
                 </div>
               </div>
             )}
@@ -726,7 +1158,7 @@ export default function SalesPage() {
             <div className="flex gap-3 pt-2">
               <Button variant="outline" className="flex-1" onClick={() => setSheetOpen(false)}>Cancelar</Button>
               <Button className="flex-1" onClick={handleCreateSale} disabled={saving || cartItems.length === 0}>
-                {saving ? 'Salvando...' : 'Registrar Venda'}
+                {saving ? 'Salvando...' : editingSaleId ? 'Salvar Alterações' : 'Registrar Venda'}
               </Button>
             </div>
           </div>
@@ -740,6 +1172,119 @@ export default function SalesPage() {
         onConfirm={async () => { if (deleteId) { await deleteSale(deleteId); setDeleteId(null); } }}
         description="Esta venda e seus itens serão excluídos permanentemente."
       />
+
+      {/* Bulk Receive Modal */}
+      <Dialog open={bulkReceiveModal} onOpenChange={setBulkReceiveModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirmar Recebimento</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="flex items-center justify-between p-3 rounded-md bg-muted/50">
+              <span className="text-sm text-muted-foreground">{selectedSales.length > 1 ? `${selectedSales.length} vendas` : 'Valor original'}</span>
+              <span className="text-lg font-bold text-muted-foreground mono">{fmt(selectedSalesTotal)}</span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Juros (%)</Label>
+                <Input type="number" step="0.1" min="0" value={receiveInterestPercent} onChange={(e) => setReceiveInterestPercent(e.target.value)} placeholder="0.0" />
+              </div>
+              <div className="space-y-2">
+                <Label>Desconto (R$)</Label>
+                <Input type="number" step="0.01" min="0" value={receiveDiscountAmount} onChange={(e) => setReceiveDiscountAmount(e.target.value)} placeholder="0,00" />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between p-3 rounded-md bg-primary/10 border border-primary/20">
+              <span className="text-sm font-semibold text-primary">Valor a receber</span>
+              <span className="text-xl font-bold text-success mono">
+                {fmt(Math.max(0, selectedSalesTotal + (selectedSalesTotal * (parseFloat(receiveInterestPercent) || 0) / 100) - (parseFloat(receiveDiscountAmount) || 0)))}
+              </span>
+            </div>
+
+            <div className="space-y-2 p-3 rounded-lg bg-primary/5 border border-primary/20">
+              <div className="flex items-center gap-2">
+                <Checkbox id="receivePartialMode" checked={receivePartialMode} onCheckedChange={(c) => {
+                  const checked = c === true;
+                  setReceivePartialMode(checked);
+                  if (checked && !bulkReceiveAmount) {
+                    const finalTotal = Math.max(0, selectedSalesTotal + (selectedSalesTotal * (parseFloat(receiveInterestPercent) || 0) / 100) - (parseFloat(receiveDiscountAmount) || 0));
+                    setBulkReceiveAmount((finalTotal / 2).toFixed(2));
+                  }
+                  if (!checked) setBulkReceiveAmount('');
+                }} />
+                <Label htmlFor="receivePartialMode" className="cursor-pointer text-sm">
+                  Recebimento parcial{selectedSales.length > 1 ? ` (${selectedSales.length} itens)` : ''}
+                </Label>
+              </div>
+              {receivePartialMode && (
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">
+                    {selectedSales.length > 1 ? 'Valor recebido agora (FIFO — quita os mais antigos primeiro)' : 'Valor recebido agora'}
+                  </Label>
+                  <Input type="number" step="0.01" min="0.01" value={bulkReceiveAmount}
+                    onChange={(e) => setBulkReceiveAmount(e.target.value)} placeholder="0,00" />
+                  <p className="text-xs text-muted-foreground mt-1">O saldo restante de {fmt(Math.max(0, Math.max(0, selectedSalesTotal + (selectedSalesTotal * (parseFloat(receiveInterestPercent) || 0) / 100) - (parseFloat(receiveDiscountAmount) || 0)) - (parseFloat(bulkReceiveAmount) || 0)))} será criado como uma nova conta pendente.</p>
+                </div>
+              )}
+            </div>
+            
+            <div className="space-y-2">
+              <Label>Forma de Pagamento</Label>
+              <Select value={bulkReceivePaymentMethod} onValueChange={setBulkReceivePaymentMethod}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="keep">Manter formas originais</SelectItem>
+                  {PAYMENT_METHODS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Conta de Destino</Label>
+              <Select value={bulkReceiveAccount} onValueChange={a => { setBulkReceiveAccount(a); localStorage.setItem('last_sale_account', a); }}>
+                <SelectTrigger><SelectValue placeholder="Selecione a conta..." /></SelectTrigger>
+                <SelectContent>
+                  {financeData?.accounts.map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <Button className="w-full mt-4" onClick={handleBulkReceive} disabled={saving || !bulkReceiveAccount}>
+              {saving ? 'Processando...' : 'Confirmar Recebimento'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Pix Config Warning */}
+      <AlertDialog open={pixWarningOpen} onOpenChange={setPixWarningOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Pix não configurado</AlertDialogTitle>
+            <AlertDialogDescription>
+              Para gerar cobranças PIX, você precisa configurar sua chave PIX nas configurações do sistema (menu lateral).
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setPixWarningOpen(false)}>Entendi</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Share/Print Document */}
+      {shareCfg && (
+        <ShareDocumentDialog
+          open={shareOpen}
+          onOpenChange={setShareOpen}
+          title={shareCfg.title}
+          filenameBase={shareCfg.filenameBase}
+          generatePDF={shareCfg.generatePDF}
+          generatePNG={shareCfg.generatePNG}
+          pixCopyText={shareCfg.pixCopyText}
+        />
+      )}
     </div>
   );
 }

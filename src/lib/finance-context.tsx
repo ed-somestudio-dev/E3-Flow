@@ -23,14 +23,16 @@ interface FinanceContextType {
   updatePayableWithFuture: (p: Payable) => Promise<number>;
   deletePayable: (id: string) => Promise<void>;
   deletePayableWithFuture: (id: string) => Promise<number>;
-  markPayablePaid: (id: string, accountId?: string, skipTransaction?: boolean) => Promise<void>;
-  markPayablePaidPartial: (id: string, accountId: string, paidAmount: number, skipTransaction?: boolean) => Promise<void>;
+  markPayablePaid: (id: string, accountId?: string, skipTransaction?: boolean, interestAmount?: number, discountAmount?: number) => Promise<void>;
+  markPayablePaidPartial: (id: string, accountId: string, paidAmount: number, skipTransaction?: boolean, interestAmount?: number, discountAmount?: number) => Promise<void>;
   insertGroupedTransaction: (tx: Omit<Transaction, 'id'>) => Promise<void>;
   addReceivable: (r: Omit<Receivable, 'id'>, installments?: number, recurrence?: { frequency: 'weekly' | 'monthly' | 'yearly'; occurrences: number }) => Promise<Receivable | undefined>;
   updateReceivable: (r: Receivable) => Promise<void>;
+  updateReceivableWithFuture: (r: Receivable) => Promise<number>;
   deleteReceivable: (id: string) => Promise<void>;
-  markReceivableReceived: (id: string, accountId?: string, customDate?: string) => Promise<void>;
-  markReceivableReceivedPartial: (id: string, accountId: string, receivedAmount: number) => Promise<void>;
+  deleteReceivableWithFuture: (id: string) => Promise<number>;
+  markReceivableReceived: (id: string, accountId?: string, customDate?: string, interestAmount?: number, discountAmount?: number) => Promise<void>;
+  markReceivableReceivedPartial: (id: string, accountId: string, receivedAmount: number, interestAmount?: number, discountAmount?: number) => Promise<void>;
   addAccount: (a: Omit<FinancialAccount, 'id'>) => Promise<void>;
   updateAccount: (a: FinancialAccount) => Promise<void>;
   deleteAccount: (id: string) => Promise<void>;
@@ -105,6 +107,8 @@ function mapPayable(row: any): Payable {
     recurring: row.recurring ?? undefined,
     recurrenceFrequency: row.recurrence_frequency ?? undefined,
     recurrenceEndDate: row.recurrence_end_date ?? undefined,
+    interestAmount: row.interest_amount ? Number(row.interest_amount) : undefined,
+    discountAmount: row.discount_amount ? Number(row.discount_amount) : undefined,
   };
 }
 
@@ -121,6 +125,8 @@ function mapReceivable(row: any): Receivable {
     recurring: row.recurring ?? false,
     recurrenceFrequency: row.recurrence_frequency ?? undefined,
     recurrenceEndDate: row.recurrence_end_date ?? undefined,
+    interestAmount: row.interest_amount ? Number(row.interest_amount) : undefined,
+    discountAmount: row.discount_amount ? Number(row.discount_amount) : undefined,
   };
 }
 
@@ -1073,26 +1079,34 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     return allIds.length;
   }, [user, data.payables, fetchAll]);
 
-  const markPayablePaid = useCallback(async (id: string, accountId?: string, skipTransaction?: boolean) => {
+  const markPayablePaid = useCallback(async (id: string, accountId?: string, skipTransaction?: boolean, interestAmount?: number, discountAmount?: number) => {
     if (!user) return;
     const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
     const payable = data.payables.find(x => x.id === id);
     const targetAccountId = accountId || payable?.accountId;
     const today = new Date().toISOString().split('T')[0];
 
+    const finalAmount = Math.max(0, (payable?.amount || 0) + (interestAmount || 0) - (discountAmount || 0));
+
+    const updatePayload = {
+      status: 'paid' as const, 
+      payment_date: today, 
+      account_id: targetAccountId || null,
+      interest_amount: interestAmount || 0,
+      discount_amount: discountAmount || 0
+    };
+
     if (isOnline) {
-      const { error } = await supabase.from('payables').update({
-        status: 'paid', payment_date: today, account_id: targetAccountId || null,
-      }).eq('id', id).eq('user_id', effectiveUserId);
+      const { error } = await supabase.from('payables').update(updatePayload).eq('id', id).eq('user_id', effectiveUserId);
       if (error) { console.error('markPayablePaid error:', error); toast.error('Erro ao marcar como pago'); return; }
     } else {
       await enqueueMutation({
         userId: effectiveUserId,
         type: 'UPDATE',
-        payload: { table: 'payables', data: { status: 'paid', payment_date: today, account_id: targetAccountId || null }, match: { id } }
+        payload: { table: 'payables', data: updatePayload, match: { id } }
       });
       setData(prev => {
-        const fresh = { ...prev, payables: prev.payables.map(p => p.id === id ? { ...p, status: 'paid' as const, paymentDate: today, accountId: targetAccountId } : p) };
+        const fresh = { ...prev, payables: prev.payables.map(p => p.id === id ? { ...p, status: 'paid' as const, paymentDate: today, accountId: targetAccountId, interestAmount, discountAmount } : p) };
         saveSnapshot(effectiveUserId, fresh).catch(() => {});
         return fresh;
       });
@@ -1104,16 +1118,16 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
         const debitsMainBalance = hasAccountType(acc, 'checking') || hasAccountType(acc, 'cash');
         if (debitsMainBalance) {
           if (isOnline) {
-            const { error: balErr } = await supabase.rpc('decrement_account_balance' as any, { p_account_id: targetAccountId, p_amount: payable.amount });
+            const { error: balErr } = await supabase.rpc('decrement_account_balance' as any, { p_account_id: targetAccountId, p_amount: finalAmount });
             if (balErr) console.error('decrement balance error:', balErr);
           } else {
             await enqueueMutation({
               userId: effectiveUserId,
               type: 'RPC',
-              payload: { rpc: 'decrement_account_balance', args: { p_account_id: targetAccountId, p_amount: payable.amount } }
+              payload: { rpc: 'decrement_account_balance', args: { p_account_id: targetAccountId, p_amount: finalAmount } }
             });
             setData(prev => {
-              const fresh = { ...prev, accounts: prev.accounts.map(a => a.id === targetAccountId ? { ...a, balance: a.balance - payable.amount } : a) };
+              const fresh = { ...prev, accounts: prev.accounts.map(a => a.id === targetAccountId ? { ...a, balance: a.balance - finalAmount } : a) };
               saveSnapshot(effectiveUserId, fresh).catch(() => {});
               return fresh;
             });
@@ -1130,10 +1144,10 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
           type: 'expense',
           description: payable.description,
           category_id: payable.categoryId,
-          amount: payable.amount,
+          amount: finalAmount,
           date: today,
           account_id: targetAccountId,
-          notes: `Pagamento: ${payable.supplier || ''}`.trim(),
+          notes: `Pagamento: ${payable.supplier || ''}${interestAmount ? ` | Juros: R$ ${interestAmount.toFixed(2)}` : ''}${discountAmount ? ` | Desconto: R$ ${discountAmount.toFixed(2)}` : ''}`.trim(),
         };
 
         if (isOnline) {
@@ -1161,27 +1175,48 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user, data, fetchAll]);
 
-  const markPayablePaidPartial = useCallback(async (id: string, accountId: string, paidAmount: number, skipTransaction?: boolean) => {
+  const markPayablePaidPartial = useCallback(async (
+    id: string, 
+    accountId: string, 
+    paidAmount: number, 
+    skipTransaction?: boolean,
+    interestAmount: number = 0,
+    discountAmount: number = 0
+  ) => {
     if (!user) return;
     const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
     const payable = data.payables.find(x => x.id === id);
     if (!payable) { toast.error('Conta não encontrada'); return; }
     if (paidAmount <= 0) { toast.error('Valor pago deve ser maior que zero'); return; }
-    if (paidAmount >= payable.amount) {
+    
+    const totalDue = payable.amount + interestAmount - discountAmount;
+    if (paidAmount >= totalDue) {
       // Pagamento integral — delega para o fluxo padrão
-      await markPayablePaid(id, accountId, skipTransaction);
+      await markPayablePaid(id, accountId, skipTransaction, interestAmount, discountAmount);
       return;
     }
-    const remaining = Math.round((payable.amount - paidAmount) * 100) / 100;
+    const remaining = Math.round((totalDue - paidAmount) * 100) / 100;
     const today = new Date().toISOString().split('T')[0];
+
+    // Allocate discount and interest to the paid portion to preserve base accounting
+    const paid_discount = discountAmount;
+    let paid_interest = interestAmount;
+    let paid_base = paidAmount - paid_interest + paid_discount;
+
+    if (paid_base < 0) {
+      paid_interest = paidAmount + paid_discount;
+      paid_base = 0;
+    }
 
     // 1) Marca o registro original como pago com o valor parcial
     const updatePayload = {
       status: 'paid' as const,
       payment_date: today,
       account_id: accountId,
-      amount: paidAmount,
-      notes: `${payable.notes ? payable.notes + ' | ' : ''}Pagamento parcial de ${payable.amount.toFixed(2)}`,
+      amount: Math.round(paid_base * 100) / 100,
+      interest_amount: Math.round(paid_interest * 100) / 100,
+      discount_amount: Math.round(paid_discount * 100) / 100,
+      notes: `${payable.notes ? payable.notes + ' | ' : ''}Pagamento parcial (original: ${payable.amount.toFixed(2)}, total devido: ${totalDue.toFixed(2)}, pago: ${paidAmount.toFixed(2)})`,
     };
 
     if (isOnline) {
@@ -1212,6 +1247,8 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       status: 'pending',
       notes: `${payable.notes ? payable.notes + ' | ' : ''}Saldo restante de pagamento parcial (original: ${payable.amount.toFixed(2)}, pago: ${paidAmount.toFixed(2)})`,
       purchase_date: payable.purchaseDate || null,
+      interest_amount: 0,
+      discount_amount: 0,
     };
 
     if (isOnline) {
@@ -1523,9 +1560,141 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     }
 
     if (isOnline) await fetchAll();
+
+    // Emite evento para o módulo de vendas excluir a venda vinculada
+    window.dispatchEvent(new CustomEvent('receivable_deleted', { detail: { id } }));
   }, [user, fetchAll]);
 
-  const markReceivableReceived = useCallback(async (id: string, accountId?: string, customDate?: string) => {
+  const deleteReceivableWithFuture = useCallback(async (id: string): Promise<number> => {
+    if (!user) return 0;
+    const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
+    const target = data.receivables.find(r => r.id === id);
+    if (!target) return 0;
+    const stripSuffix = (s: string) => s.replace(/\s*\(\d+\/\d+\)\s*$/, '').trim().toLowerCase();
+    const baseDesc = stripSuffix(target.description);
+    const ids = data.receivables
+      .filter(r =>
+        r.id !== id &&
+        (r.recurring || /\(\d+\/\d+\)\s*$/.test(r.description)) &&
+        r.clientName === target.clientName &&
+        r.categoryId === target.categoryId &&
+        r.dueDate >= target.dueDate &&
+        stripSuffix(r.description) === baseDesc &&
+        r.status !== 'received'
+      )
+      .map(r => r.id);
+    const allIds = Array.from(new Set([id, ...ids]));
+
+    if (isOnline) {
+      const { error } = await supabase.from('receivables').delete().in('id', allIds).eq('user_id', effectiveUserId);
+      if (error) { console.error('deleteReceivableWithFuture error:', error); toast.error('Erro ao excluir recebíveis vinculados'); return 0; }
+    } else {
+      await enqueueMutation({
+        userId: effectiveUserId,
+        type: 'DELETE',
+        payload: { table: 'receivables', matchIn: { column: 'id', values: allIds } }
+      });
+      setData(prev => {
+        const fresh = { ...prev, receivables: prev.receivables.filter(r => !allIds.includes(r.id)) };
+        saveSnapshot(effectiveUserId, fresh).catch(() => {});
+        return fresh;
+      });
+      toast.success(`${allIds.length} recebíveis excluídos offline`);
+    }
+
+    // Emite evento para o módulo de vendas excluir as vendas vinculadas (antes do fetchAll para garantir consistência)
+    window.dispatchEvent(new CustomEvent('receivable_deleted', { detail: { ids: allIds } }));
+
+    if (isOnline) await fetchAll();
+    
+    return allIds.length;
+  }, [user, data.receivables, fetchAll]);
+
+  const updateReceivableWithFuture = useCallback(async (r: Receivable): Promise<number> => {
+    if (!user) return 0;
+    const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
+    const target = data.receivables.find(x => x.id === r.id);
+    if (!target) return 0;
+
+    const stripSuffix = (s: string) => s.replace(/\s*\(\d+\/\d+\)\s*$/, '').trim().toLowerCase();
+    const baseDesc = stripSuffix(target.description);
+
+    const futureIds = data.receivables
+      .filter(x =>
+        x.id !== target.id &&
+        (x.recurring || /\(\d+\/\d+\)\s*$/.test(x.description)) &&
+        x.clientName === target.clientName &&
+        x.categoryId === target.categoryId &&
+        x.dueDate >= target.dueDate &&
+        stripSuffix(x.description) === baseDesc &&
+        x.status !== 'received'
+      )
+      .map(x => x.id);
+
+    const allIds = Array.from(new Set([r.id, ...futureIds]));
+
+    const today = new Date().toISOString().split('T')[0];
+    let newStatus = r.status;
+    if (newStatus !== 'received') {
+      newStatus = r.dueDate < today ? 'overdue' : 'pending';
+    }
+
+    const payloadFuture = {
+      client_name: r.clientName,
+      category_id: r.categoryId,
+      account_id: r.accountId || null,
+      amount: Number(r.amount) || 0,
+      notes: r.notes || null,
+    };
+
+    const payloadMain = {
+      ...payloadFuture,
+      description: r.description,
+      due_date: r.dueDate,
+      status: newStatus,
+      recurring: r.recurring || false,
+      recurrence_frequency: r.recurrenceFrequency || null,
+      recurrence_end_date: r.recurrenceEndDate || null,
+    };
+
+    if (isOnline) {
+      await supabase.from('receivables').update(payloadMain).eq('id', r.id).eq('user_id', effectiveUserId);
+      if (futureIds.length > 0) {
+        await supabase.from('receivables').update(payloadFuture).in('id', futureIds).eq('user_id', effectiveUserId);
+      }
+      await fetchAll();
+    } else {
+      await enqueueMutation({
+        userId: effectiveUserId,
+        type: 'UPDATE',
+        payload: { table: 'receivables', data: payloadMain, match: { id: r.id } }
+      });
+      if (futureIds.length > 0) {
+        await enqueueMutation({
+          userId: effectiveUserId,
+          type: 'UPDATE',
+          payload: { table: 'receivables', data: payloadFuture, matchIn: { column: 'id', values: futureIds } }
+        });
+      }
+      setData(prev => {
+        const fresh = {
+          ...prev,
+          receivables: prev.receivables.map(x => {
+            if (x.id === r.id) return { ...x, ...payloadMain, status: newStatus as any, clientName: r.clientName, categoryId: r.categoryId, accountId: r.accountId, recurrenceFrequency: r.recurrenceFrequency, recurrenceEndDate: r.recurrenceEndDate };
+            if (futureIds.includes(x.id)) return { ...x, ...payloadFuture, clientName: r.clientName, categoryId: r.categoryId, accountId: r.accountId };
+            return x;
+          })
+        };
+        saveSnapshot(effectiveUserId, fresh).catch(() => {});
+        return fresh;
+      });
+      toast.success(`${allIds.length} recebíveis alterados offline`);
+    }
+
+    return allIds.length;
+  }, [user, data.receivables, fetchAll]);
+
+  const markReceivableReceived = useCallback(async (id: string, accountId?: string, customDate?: string, interestAmount?: number, discountAmount?: number) => {
     if (!user) return;
     const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
     const receivable = data.receivables.find(x => x.id === id);
@@ -1534,16 +1703,24 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     const targetAccountId = accountId || receivable?.accountId;
     const paymentDate = customDate || new Date().toISOString().split('T')[0];
 
+    const finalAmount = Math.max(0, (receivable?.amount || 0) + (interestAmount || 0) - (discountAmount || 0));
+
+    const updatePayload = {
+      status: 'received' as const, 
+      payment_date: paymentDate, 
+      account_id: targetAccountId || null,
+      interest_amount: interestAmount || 0,
+      discount_amount: discountAmount || 0
+    };
+
     if (isOnline) {
-      const { error } = await supabase.from('receivables').update({
-        status: 'received', payment_date: paymentDate, account_id: targetAccountId || null,
-      }).eq('id', id).eq('user_id', effectiveUserId);
+      const { error } = await supabase.from('receivables').update(updatePayload).eq('id', id).eq('user_id', effectiveUserId);
       if (error) { console.error('markReceivableReceived error:', error); toast.error('Erro ao marcar como recebido'); return; }
     } else {
       await enqueueMutation({
         userId: effectiveUserId,
         type: 'UPDATE',
-        payload: { table: 'receivables', data: { status: 'received', payment_date: paymentDate, account_id: targetAccountId || null }, match: { id } }
+        payload: { table: 'receivables', data: updatePayload, match: { id } }
       });
     }
 
@@ -1551,7 +1728,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     setData(prev => {
       const fresh = { 
         ...prev, 
-        receivables: prev.receivables.map(r => r.id === id ? { ...r, status: 'received' as const, paymentDate: paymentDate, accountId: targetAccountId } : r) 
+        receivables: prev.receivables.map(r => r.id === id ? { ...r, status: 'received' as const, paymentDate: paymentDate, accountId: targetAccountId, interestAmount, discountAmount } : r) 
       };
       saveSnapshot(effectiveUserId, fresh).catch(() => {});
       return fresh;
@@ -1561,16 +1738,16 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       const acc = data.accounts.find(a => a.id === targetAccountId);
       if (acc) {
         if (isOnline) {
-          const { error: balErr } = await supabase.rpc('increment_account_balance' as any, { p_account_id: targetAccountId, p_amount: receivable.amount });
+          const { error: balErr } = await supabase.rpc('increment_account_balance' as any, { p_account_id: targetAccountId, p_amount: finalAmount });
           if (balErr) console.error('increment balance error:', balErr);
         } else {
           await enqueueMutation({
             userId: effectiveUserId,
             type: 'RPC',
-            payload: { rpc: 'increment_account_balance', args: { p_account_id: targetAccountId, p_amount: receivable.amount } }
+            payload: { rpc: 'increment_account_balance', args: { p_account_id: targetAccountId, p_amount: finalAmount } }
           });
           setData(prev => {
-            const fresh = { ...prev, accounts: prev.accounts.map(a => a.id === targetAccountId ? { ...a, balance: a.balance + receivable.amount } : a) };
+            const fresh = { ...prev, accounts: prev.accounts.map(a => a.id === targetAccountId ? { ...a, balance: a.balance + finalAmount } : a) };
             saveSnapshot(effectiveUserId, fresh).catch(() => {});
             return fresh;
           });
@@ -1585,10 +1762,10 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
         type: 'income',
         description: receivable.description,
         category_id: receivable.categoryId,
-        amount: receivable.amount,
+        amount: finalAmount,
         date: paymentDate,
         account_id: targetAccountId,
-        notes: `Recebimento: ${receivable.clientName || ''}`.trim(),
+        notes: `Recebimento: ${receivable.clientName || ''}${interestAmount ? ` | Juros: R$ ${interestAmount.toFixed(2)}` : ''}${discountAmount ? ` | Desconto: R$ ${discountAmount.toFixed(2)}` : ''}`.trim(),
       };
 
       if (isOnline) {
@@ -1620,26 +1797,46 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     }));
   }, [user, data, fetchAll]);
 
-  const markReceivableReceivedPartial = useCallback(async (id: string, accountId: string, receivedAmount: number) => {
+  const markReceivableReceivedPartial = useCallback(async (
+    id: string, 
+    accountId: string, 
+    receivedAmount: number,
+    interestAmount: number = 0,
+    discountAmount: number = 0
+  ) => {
     if (!user) return;
     const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
     const receivable = data.receivables.find(x => x.id === id);
     if (!receivable || receivable.status === 'received') return;
     if (receivedAmount <= 0) { toast.error('Valor recebido deve ser maior que zero'); return; }
-    if (receivedAmount >= receivable.amount) {
-      await markReceivableReceived(id, accountId);
+    
+    const totalDue = receivable.amount + interestAmount - discountAmount;
+    if (receivedAmount >= totalDue) {
+      await markReceivableReceived(id, accountId, undefined, interestAmount, discountAmount);
       return;
     }
-    const remaining = Math.round((receivable.amount - receivedAmount) * 100) / 100;
+    const remaining = Math.round((totalDue - receivedAmount) * 100) / 100;
     const today = new Date().toISOString().split('T')[0];
+
+    // Allocate discount and interest to the received portion to preserve base accounting
+    const received_discount = discountAmount;
+    let received_interest = interestAmount;
+    let received_base = receivedAmount - received_interest + received_discount;
+
+    if (received_base < 0) {
+      received_interest = receivedAmount + received_discount;
+      received_base = 0;
+    }
 
     // 1) Marca o registro original como recebido com o valor parcial
     const updatePayload = {
       status: 'received' as const,
       payment_date: today,
       account_id: accountId,
-      amount: receivedAmount,
-      notes: `${receivable.notes ? receivable.notes + ' | ' : ''}Recebimento parcial de ${receivable.amount.toFixed(2)}`,
+      amount: Math.round(received_base * 100) / 100,
+      interest_amount: Math.round(received_interest * 100) / 100,
+      discount_amount: Math.round(received_discount * 100) / 100,
+      notes: `${receivable.notes ? receivable.notes + ' | ' : ''}Recebimento parcial (original: ${receivable.amount.toFixed(2)}, total devido: ${totalDue.toFixed(2)}, recebido: ${receivedAmount.toFixed(2)})`,
     };
 
     if (isOnline) {
@@ -1671,6 +1868,8 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       due_date: receivable.dueDate,
       status: 'pending',
       notes: `${receivable.notes ? receivable.notes + ' | ' : ''}Saldo restante de recebimento parcial (original: ${receivable.amount.toFixed(2)}, recebido: ${receivedAmount.toFixed(2)})`,
+      interest_amount: 0,
+      discount_amount: 0,
     };
 
     if (isOnline) {
@@ -1741,7 +1940,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
     // Emite evento de recebimento parcial (para atualizar o link na venda)
     window.dispatchEvent(new CustomEvent('receivable_partial_received', { 
-      detail: { originalId: id, newId: newReceivableId } 
+      detail: { originalId: id, newId: newReceivableId, receivedAmount, remaining } 
     }));
   }, [user, data, fetchAll, markReceivableReceived]);
 
@@ -2422,7 +2621,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     data, loading,
     addTransaction, updateTransaction, deleteTransaction,
     addPayable, updatePayable, updatePayableWithFuture, deletePayable, deletePayableWithFuture, markPayablePaid, markPayablePaidPartial,
-    addReceivable, updateReceivable, deleteReceivable, markReceivableReceived, markReceivableReceivedPartial,
+    addReceivable, updateReceivable, updateReceivableWithFuture, deleteReceivable, deleteReceivableWithFuture, markReceivableReceived, markReceivableReceivedPartial,
     addAccount, updateAccount, deleteAccount, transferBetweenAccounts,
     addBudget, updateBudget, deleteBudget,
     addCategory, updateCategory, deleteCategory,

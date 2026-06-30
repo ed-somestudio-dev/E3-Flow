@@ -7,9 +7,14 @@ import { Plus, Trash2, Edit2, CheckCircle, CreditCard, CalendarIcon, X, RefreshC
 import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog';
 import { CalculatorInput } from '@/components/CalculatorInput';
 import { ContactAutocomplete } from '@/components/ContactAutocomplete';
+import { useContacts } from '@/lib/contacts-context';
 import { SearchAutocomplete } from '@/components/SearchAutocomplete';
 import { ShareDocumentDialog } from '@/components/ShareDocumentDialog';
 import { Button } from '@/components/ui/button';
+import {
+  AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction,
+} from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -39,8 +44,9 @@ function StatusBadge({ status }: { status: ReceivableStatus }) {
 }
 
 export default function ReceivablesPage() {
-  const { data, addReceivable, updateReceivable, deleteReceivable, markReceivableReceived, markReceivableReceivedPartial, getCategoryName, getAccountName } = useFinance();
+  const { data, addReceivable, updateReceivable, updateReceivableWithFuture, deleteReceivable, deleteReceivableWithFuture, markReceivableReceived, markReceivableReceivedPartial, getCategoryName, getAccountName } = useFinance();
   const { settings: pixSettings, isConfigured } = usePixSettings();
+  const { contacts } = useContacts();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('pending_overdue');
   const [editingItem, setEditingItem] = useState<Receivable | null>(null);
@@ -51,6 +57,8 @@ export default function ReceivablesPage() {
   const [receiveAccountId, setReceiveAccountId] = useState('');
   const [partialMode, setPartialMode] = useState(false);
   const [partialAmount, setPartialAmount] = useState('');
+  const [interestPercent, setInterestPercent] = useState('');
+  const [receiveDiscountAmount, setReceiveDiscountAmount] = useState('');
   const [showReceiveItems, setShowReceiveItems] = useState(false);
   const [dateFrom, setDateFrom] = useState<Date | undefined>(startOfMonth(new Date()));
   const [dateTo, setDateTo] = useState<Date | undefined>(endOfMonth(new Date()));
@@ -58,6 +66,9 @@ export default function ReceivablesPage() {
   const [pixWarningOpen, setPixWarningOpen] = useState(false);
   const [bulkPartialMode, setBulkPartialMode] = useState(false);
   const [bulkPartialAmount, setBulkPartialAmount] = useState('');
+  const [updateFuturePayload, setUpdateFuturePayload] = useState<Receivable | null>(null);
+  const [updateFutureTarget, setUpdateFutureTarget] = useState<Receivable | null>(null);
+  const [updateFutureCount, setUpdateFutureCount] = useState<number>(0);
 
   // OFX reconciliation states
   const [ofxDialogOpen, setOfxDialogOpen] = useState(false);
@@ -210,6 +221,8 @@ export default function ReceivablesPage() {
     setReceiveAccountId(receivable?.accountId || data.accounts[0]?.id || '');
     setPartialMode(false);
     setPartialAmount('');
+    setInterestPercent('');
+    setReceiveDiscountAmount('');
     setShowReceiveItems(false);
     setReceiveDialogOpen(true);
   };
@@ -228,6 +241,8 @@ export default function ReceivablesPage() {
       setPartialMode(false);
       setPartialAmount('');
     }
+    setInterestPercent('');
+    setReceiveDiscountAmount('');
     setShowReceiveItems(false);
     setReceiveDialogOpen(true);
   };
@@ -236,37 +251,57 @@ export default function ReceivablesPage() {
     if (receivingIds.length === 0 || !receiveAccountId) return;
     const accName = data.accounts.find(a => a.id === receiveAccountId)?.name || '';
     const items = receivingIds.map(id => data.receivables.find(r => r.id === id)).filter(Boolean) as Receivable[];
+    
+    const discountAmount = parseFloat(receiveDiscountAmount) || 0;
+    const baseTotal = items.reduce((sum, r) => sum + r.amount, 0);
+    const interestAmount = baseTotal > 0 ? (baseTotal * (parseFloat(interestPercent) || 0) / 100) : 0;
+    
     let partialAmtUsed = 0;
     if (partialMode) {
       const amt = parseFloat(partialAmount);
       if (!amt || amt <= 0) return;
       partialAmtUsed = amt;
       if (receivingIds.length === 1) {
-        await markReceivableReceivedPartial(receivingIds[0], receiveAccountId, amt);
+        await markReceivableReceivedPartial(receivingIds[0], receiveAccountId, amt, interestAmount, discountAmount);
       } else {
         // FIFO: quita os mais antigos primeiro até esgotar o valor recebido
         const sorted = [...items].sort((a, b) => a.dueDate.localeCompare(b.dueDate));
-        const total = sorted.reduce((s, r) => s + r.amount, 0);
-        if (total <= 0) return;
-        if (amt >= total) {
-          for (const r of sorted) await markReceivableReceived(r.id, receiveAccountId);
+        const totalDue = baseTotal + interestAmount - discountAmount;
+        if (totalDue <= 0) return;
+        
+        if (amt >= totalDue) {
+          for (const r of sorted) {
+             const rRatio = baseTotal > 0 ? r.amount / baseTotal : 0;
+             await markReceivableReceived(r.id, receiveAccountId, undefined, interestAmount * rRatio, discountAmount * rRatio);
+          }
         } else {
           let remaining = amt;
           for (const r of sorted) {
             if (remaining <= 0) break;
-            if (remaining >= r.amount - 0.005) {
-              await markReceivableReceived(r.id, receiveAccountId);
-              remaining = Math.round((remaining - r.amount) * 100) / 100;
+            const rRatio = baseTotal > 0 ? r.amount / baseTotal : 0;
+            const rInterest = interestAmount * rRatio;
+            const rDiscount = discountAmount * rRatio;
+            const rTotalDue = r.amount + rInterest - rDiscount;
+            
+            if (remaining >= rTotalDue - 0.005) {
+              await markReceivableReceived(r.id, receiveAccountId, undefined, rInterest, rDiscount);
+              remaining = Math.round((remaining - rTotalDue) * 100) / 100;
             } else {
-              await markReceivableReceivedPartial(r.id, receiveAccountId, Math.round(remaining * 100) / 100);
+              await markReceivableReceivedPartial(r.id, receiveAccountId, Math.round(remaining * 100) / 100, rInterest, rDiscount);
               remaining = 0;
             }
           }
         }
       }
     } else {
+      
       for (const id of receivingIds) {
-        await markReceivableReceived(id, receiveAccountId);
+        const r = data.receivables.find(x => x.id === id);
+        if (!r) continue;
+        const ratio = baseTotal > 0 ? r.amount / baseTotal : 0;
+        const itemInterest = interestAmount * ratio;
+        const itemDiscount = discountAmount * ratio;
+        await markReceivableReceived(id, receiveAccountId, undefined, itemInterest, itemDiscount);
       }
     }
     setReceiveDialogOpen(false);
@@ -276,48 +311,56 @@ export default function ReceivablesPage() {
     const partialAmt = partialAmtUsed;
     setPartialMode(false);
     setPartialAmount('');
+    setInterestPercent('');
+    setReceiveDiscountAmount('');
 
     // Sempre oferecer recibo após registrar o recebimento
     const today = format(new Date(), 'yyyy-MM-dd');
     if (items.length === 1) {
       const r = items[0];
       const isPartial = wasPartial && partialAmt > 0 && partialAmt < r.amount;
-      const receivedAmt = wasPartial && partialAmt > 0 ? Math.min(partialAmt, r.amount) : r.amount;
+      const baseReceivedAmt = wasPartial && partialAmt > 0 ? Math.min(partialAmt, r.amount) : r.amount;
+      const finalAmt = baseReceivedAmt + interestAmount - discountAmount;
       openShare({
         title: isPartial ? 'Compartilhar Recibo (Parcial)' : 'Compartilhar Recibo',
         filenameBase: `${isPartial ? 'recibo-parcial' : 'recibo'}-${r.clientName.replace(/\s+/g, '_')}-${today}`,
         generatePDF: () => generateReceiptPDF({
           id: r.id, clientName: r.clientName,
           description: isPartial ? `${r.description} (parcial)` : r.description,
-          amount: receivedAmt, receivedDate: today, accountName: accName,
+          amount: finalAmt, receivedDate: today, accountName: accName,
+          interestAmount, discountAmount
         }, pixSettings),
         generatePNG: () => generateReceiptPNG({
           id: r.id, clientName: r.clientName,
           description: isPartial ? `${r.description} (parcial)` : r.description,
-          amount: receivedAmt, receivedDate: today, accountName: accName,
+          amount: finalAmt, receivedDate: today, accountName: accName,
+          interestAmount, discountAmount
         }, pixSettings),
       });
     } else if (items.length > 1) {
       // Aggregated receipt
       const total = items.reduce((s, r) => s + r.amount, 0);
       // Se foi recebimento parcial em lote, usa o valor efetivamente recebido (não o total das contas)
-      const receivedAmount = wasPartial && partialAmt > 0 ? Math.min(partialAmt, total) : total;
-      const isPartial = wasPartial && receivedAmount < total;
+      const baseReceivedAmount = wasPartial && partialAmt > 0 ? Math.min(partialAmt, total) : total;
+      const finalReceivedAmount = baseReceivedAmount + interestAmount - discountAmount;
+      const isPartial = wasPartial && baseReceivedAmount < total;
       const clientName = items.every(i => i.clientName === items[0].clientName) ? items[0].clientName : 'Diversos';
       const baseDesc = `${items.length} recebimentos: ` + items.map(i => i.description).join(', ');
       const description = isPartial
-        ? `${baseDesc} (parcial — saldo restante: ${(total - receivedAmount).toFixed(2)})`
+        ? `${baseDesc} (parcial — saldo restante: ${(total - baseReceivedAmount).toFixed(2)})`
         : baseDesc;
       openShare({
         title: isPartial ? 'Compartilhar Recibo (Parcial)' : 'Compartilhar Recibo',
         filenameBase: `${isPartial ? 'recibo-parcial-multiplo' : 'recibo-multiplo'}-${today}`,
         generatePDF: () => generateReceiptPDF({
           id: items[0].id, clientName, description,
-          amount: receivedAmount, receivedDate: today, accountName: accName,
+          amount: finalReceivedAmount, receivedDate: today, accountName: accName,
+          interestAmount, discountAmount
         }, pixSettings),
         generatePNG: () => generateReceiptPNG({
           id: items[0].id, clientName, description,
-          amount: receivedAmount, receivedDate: today, accountName: accName,
+          amount: finalReceivedAmount, receivedDate: today, accountName: accName,
+          interestAmount, discountAmount
         }, pixSettings),
       });
     }
@@ -337,8 +380,20 @@ export default function ReceivablesPage() {
       .replace(/{nome}/g, r.clientName || 'Cliente')
       .replace(/{valor}/g, fmt(r.amount))
       .replace(/{vencimento}/g, fmtDate(r.dueDate));
+      
+    let phoneParam = '';
+    if (r.clientName) {
+      const contact = contacts.find(c => c.name === r.clientName);
+      if (contact && contact.phone) {
+        let cleanedPhone = contact.phone.replace(/\D/g, '');
+        if (cleanedPhone.length === 10 || cleanedPhone.length === 11) {
+          cleanedPhone = `55${cleanedPhone}`;
+        }
+        phoneParam = cleanedPhone;
+      }
+    }
     
-    const url = `https://wa.me/?text=${encodeURIComponent(msg)}`;
+    const url = `https://wa.me/${phoneParam}?text=${encodeURIComponent(msg)}`;
     window.open(url, '_blank');
   };
 
@@ -365,7 +420,19 @@ export default function ReceivablesPage() {
       .replace(/{vencimento}/g, fmtDate(r.dueDate))
       .replace(/{quantidade}/g, items.length.toString());
       
-    const url = `https://wa.me/?text=${encodeURIComponent(msg)}`;
+    let phoneParam = '';
+    if (clientName !== 'Diversos') {
+      const contact = contacts.find(c => c.name === clientName);
+      if (contact && contact.phone) {
+        let cleanedPhone = contact.phone.replace(/\D/g, '');
+        if (cleanedPhone.length === 10 || cleanedPhone.length === 11) {
+          cleanedPhone = `55${cleanedPhone}`;
+        }
+        phoneParam = cleanedPhone;
+      }
+    }
+      
+    const url = `https://wa.me/${phoneParam}?text=${encodeURIComponent(msg)}`;
     window.open(url, '_blank');
   };
 
@@ -408,11 +475,13 @@ export default function ReceivablesPage() {
       filenameBase: `recibo-${r.clientName.replace(/\s+/g, '_')}-${receivedDate}`,
       generatePDF: () => generateReceiptPDF({
         id: r.id, clientName: r.clientName, description: r.description,
-        amount: r.amount, receivedDate, accountName: accName,
+        amount: r.amount + (r.interestAmount || 0) - (r.discountAmount || 0), receivedDate, accountName: accName,
+        interestAmount: r.interestAmount, discountAmount: r.discountAmount
       }, pixSettings),
       generatePNG: () => generateReceiptPNG({
         id: r.id, clientName: r.clientName, description: r.description,
-        amount: r.amount, receivedDate, accountName: accName,
+        amount: r.amount + (r.interestAmount || 0) - (r.discountAmount || 0), receivedDate, accountName: accName,
+        interestAmount: r.interestAmount, discountAmount: r.discountAmount
       }, pixSettings),
     });
   };
@@ -471,6 +540,8 @@ export default function ReceivablesPage() {
     const r = data.receivables.find(x => x.id === id);
     return sum + (r?.amount || 0);
   }, 0);
+  const interestAmount = receivingTotal * (parseFloat(interestPercent) || 0) / 100;
+  const finalReceivingTotal = Math.max(0, receivingTotal + interestAmount - (parseFloat(receiveDiscountAmount) || 0));
   const selectedReceiveAccount = data.accounts.find(a => a.id === receiveAccountId);
 
   return (
@@ -492,7 +563,40 @@ export default function ReceivablesPage() {
             <DialogContent className="max-h-[90vh] overflow-y-auto">
               <DialogHeader><DialogTitle>{editingItem ? 'Editar' : 'Novo'} Recebível</DialogTitle></DialogHeader>
               <ReceivableForm item={editingItem} categories={data.categories.filter(c => c.type === 'income')} accounts={data.accounts}
-                onSave={(r) => { const { installments, recurrence, ...receivable } = r; if (editingItem) updateReceivable({ ...receivable, id: editingItem.id } as Receivable); else addReceivable(receivable, installments, recurrence); setDialogOpen(false); setEditingItem(null); }} />
+                onSave={(r) => {
+                  const { installments, recurrence, ...receivable } = r;
+                  if (editingItem) {
+                    const stripSuffix = (s: string) => s.replace(/\s*\(\d+\/\d+\)\s*$/, '').trim().toLowerCase();
+                    const baseDesc = stripSuffix(editingItem.description);
+                    const isLinked = editingItem.recurring || /\(\d+\/\d+\)\s*$/.test(editingItem.description);
+                    const linkedFuture = isLinked
+                      ? data.receivables.filter(x =>
+                          x.id !== editingItem.id &&
+                          (x.recurring || /\(\d+\/\d+\)\s*$/.test(x.description)) &&
+                          x.clientName === editingItem.clientName &&
+                          x.categoryId === editingItem.categoryId &&
+                          x.dueDate >= editingItem.dueDate &&
+                          stripSuffix(x.description) === baseDesc &&
+                          x.status !== 'received'
+                        )
+                      : [];
+                    if (linkedFuture.length > 0) {
+                      setUpdateFuturePayload(receivable as Receivable);
+                      setUpdateFutureTarget(editingItem);
+                      setUpdateFutureCount(linkedFuture.length);
+                      setDialogOpen(false);
+                      setEditingItem(null);
+                    } else {
+                      updateReceivable({ ...receivable, id: editingItem.id } as Receivable);
+                      setDialogOpen(false);
+                      setEditingItem(null);
+                    }
+                  } else {
+                    addReceivable(receivable, installments, recurrence);
+                    setDialogOpen(false);
+                    setEditingItem(null);
+                  }
+                }} />
             </DialogContent>
           </Dialog>
         </div>
@@ -603,8 +707,8 @@ export default function ReceivablesPage() {
                 )}
               </div>
             )}
-            <div className="flex items-center gap-2 flex-wrap">
-              <Button size="sm" variant="outline" onClick={() => {
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <Button size="sm" variant="outline" className="flex-1 sm:flex-none" onClick={() => {
                 if (bulkPartialMode && bulkPartialAmount && parseFloat(bulkPartialAmount) > 0) {
                   // Gerar boleto PIX com valor parcial
                   if (!isConfigured) { setPixWarningOpen(true); return; }
@@ -642,23 +746,27 @@ export default function ReceivablesPage() {
                   handleGenerateChargesSelected();
                 }
               }}>
-                <QrCode className="h-4 w-4 mr-1" />
-                {bulkPartialMode && bulkPartialAmount && parseFloat(bulkPartialAmount) > 0
-                  ? `Boleto PIX ${fmt(parseFloat(bulkPartialAmount))}`
-                  : 'Gerar boleto PIX'}
+                <QrCode className="h-4 w-4 sm:mr-1" />
+                <span className="hidden sm:inline">
+                  {bulkPartialMode && bulkPartialAmount && parseFloat(bulkPartialAmount) > 0
+                    ? `Boleto PIX ${fmt(parseFloat(bulkPartialAmount))}`
+                    : 'Gerar boleto PIX'}
+                </span>
               </Button>
-                <Button size="sm" variant="outline" onClick={handleGenerateReportSelected}>
-                  <FileText className="h-4 w-4 mr-1" />
-                  Gerar Relatório
-                </Button>
-                <Button size="sm" variant="outline" className="text-green-500 hover:text-green-600 border-green-500/30 hover:bg-green-500/10" onClick={handleWhatsAppReminderSelected}>
-                  <MessageCircle className="h-4 w-4 mr-1" />
-                  WhatsApp
-                </Button>
-                <Button size="sm" className="bg-success text-success-foreground hover:bg-success/90" onClick={handleReceiveSelected}>
-                  <CheckCircle className="h-4 w-4 mr-1" />
+              <Button size="sm" variant="outline" className="flex-1 sm:flex-none" onClick={handleGenerateReportSelected}>
+                <FileText className="h-4 w-4 sm:mr-1" />
+                <span className="hidden sm:inline">Gerar Relatório</span>
+              </Button>
+              <Button size="sm" variant="outline" className="flex-1 sm:flex-none text-green-500 hover:text-green-600 border-green-500/30 hover:bg-green-500/10" onClick={handleWhatsAppReminderSelected}>
+                <MessageCircle className="h-4 w-4 sm:mr-1" />
+                <span className="hidden sm:inline">WhatsApp</span>
+              </Button>
+              <Button size="sm" className="flex-1 sm:flex-none bg-success text-success-foreground hover:bg-success/90" onClick={handleReceiveSelected}>
+                <CheckCircle className="h-4 w-4 sm:mr-1" />
+                <span className="hidden sm:inline">
                   {bulkPartialMode ? 'Receber parcial' : 'Receber selecionados'}
-                </Button>
+                </span>
+              </Button>
             </div>
           </div>
         )}
@@ -740,8 +848,24 @@ export default function ReceivablesPage() {
           <DialogHeader><DialogTitle>Confirmar Recebimento</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div className="flex items-center justify-between p-3 rounded-md bg-muted/50">
-              <span className="text-sm text-muted-foreground">{receivingIds.length > 1 ? `${receivingIds.length} itens` : 'Valor'}</span>
-              <span className="text-lg font-bold text-success mono">{fmt(receivingTotal)}</span>
+              <span className="text-sm text-muted-foreground">{receivingIds.length > 1 ? `${receivingIds.length} itens` : 'Valor'} original</span>
+              <span className="text-lg font-bold text-muted-foreground mono">{fmt(receivingTotal)}</span>
+            </div>
+            
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Juros (%)</Label>
+                  <Input type="number" step="0.1" min="0" value={interestPercent} onChange={(e) => setInterestPercent(e.target.value)} placeholder="0.0" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Desconto (R$)</Label>
+                  <Input type="number" step="0.01" min="0" value={receiveDiscountAmount} onChange={(e) => setReceiveDiscountAmount(e.target.value)} placeholder="0,00" />
+                </div>
+              </div>
+
+            <div className="flex items-center justify-between p-3 rounded-md bg-primary/10 border border-primary/20">
+              <span className="text-sm font-semibold text-primary">Valor a receber</span>
+              <span className="text-xl font-bold text-success mono">{fmt(finalReceivingTotal)}</span>
             </div>
             {receivingIds.length > 1 && (() => {
               const items = receivingIds.map(id => data.receivables.find(r => r.id === id)).filter(Boolean) as Receivable[];
@@ -786,7 +910,7 @@ export default function ReceivablesPage() {
               </Select>
               {selectedReceiveAccount && (
                 <p className="text-xs text-muted-foreground">
-                  Saldo após recebimento: <span className="font-semibold mono">{fmt(selectedReceiveAccount.balance + (partialMode && partialAmount ? parseFloat(partialAmount) || 0 : receivingTotal))}</span>
+                  Saldo após recebimento: <span className="font-semibold mono">{fmt(selectedReceiveAccount.balance + (partialMode && partialAmount ? parseFloat(partialAmount) || 0 : finalReceivingTotal))}</span>
                 </p>
               )}
             </div>
@@ -812,8 +936,9 @@ export default function ReceivablesPage() {
                     <Label className="text-xs text-muted-foreground">
                       {recItems.length > 1 ? 'Valor recebido agora (FIFO — quita os mais antigos primeiro)' : 'Valor recebido agora'}
                     </Label>
-                    <Input type="number" step="0.01" min="0.01" max={receivingTotal} value={partialAmount}
+                    <Input type="number" step="0.01" min="0.01" max={finalReceivingTotal} value={partialAmount}
                       onChange={(e) => setPartialAmount(e.target.value)} placeholder="0,00" />
+                    <p className="text-xs text-muted-foreground mt-1">O saldo restante de {fmt(Math.max(0, finalReceivingTotal - (parseFloat(partialAmount) || 0)))} será criado como uma nova conta pendente.</p>
                     {partialAmount && parseFloat(partialAmount) > 0 && parseFloat(partialAmount) < receivingTotal && (
                       <p className="text-xs text-muted-foreground">
                         Saldo restante: <span className="font-semibold mono text-success">{fmt(receivingTotal - parseFloat(partialAmount))}</span> — {recItems.length > 1 ? `os recebíveis mais antigos serão quitados integralmente; o próximo ficará parcial com saldo restante individual.` : 'será criado um novo recebível pendente com os mesmos dados.'}
@@ -905,9 +1030,108 @@ export default function ReceivablesPage() {
         />
       )}
 
-      <ConfirmDeleteDialog open={!!deleteId} onOpenChange={(o) => { if (!o) setDeleteId(null); }}
-        onConfirm={() => { if (deleteId) { deleteReceivable(deleteId); setDeleteId(null); } }}
-        title="Excluir recebível?" description="Tem certeza que deseja excluir este recebível? Esta ação não pode ser desfeita." />
+      {(() => {
+        const target = deleteId ? data.receivables.find(r => r.id === deleteId) : null;
+        if (!target) {
+          return (
+            <ConfirmDeleteDialog open={!!deleteId} onOpenChange={(o) => { if (!o) setDeleteId(null); }}
+              onConfirm={() => { if (deleteId) { deleteReceivable(deleteId); setDeleteId(null); } }}
+              title="Excluir recebível?" description="Tem certeza que deseja excluir este recebível? Esta ação não pode ser desfeita." />
+          );
+        }
+        const stripSuffix = (s: string) => s.replace(/\s*\(\d+\/\d+\)\s*$/, '').trim().toLowerCase();
+        const baseDesc = stripSuffix(target.description);
+        const isLinked = target.recurring || /\(\d+\/\d+\)\s*$/.test(target.description);
+        const linkedFuture = isLinked
+          ? data.receivables.filter(r =>
+              r.id !== target.id &&
+              (r.recurring || /\(\d+\/\d+\)\s*$/.test(r.description)) &&
+              r.clientName === target.clientName &&
+              r.categoryId === target.categoryId &&
+              r.dueDate >= target.dueDate &&
+              stripSuffix(r.description) === baseDesc &&
+              r.status !== 'received'
+            )
+          : [];
+        const hasFuture = linkedFuture.length > 0;
+        if (!hasFuture) {
+          return (
+            <ConfirmDeleteDialog open={!!deleteId} onOpenChange={(o) => { if (!o) setDeleteId(null); }}
+              onConfirm={() => { deleteReceivable(target.id); setDeleteId(null); }}
+              title="Excluir recebível?" description="Tem certeza que deseja excluir este recebível? Esta ação não pode ser desfeita." />
+          );
+        }
+        return (
+          <AlertDialog open={!!deleteId} onOpenChange={(o) => { if (!o) setDeleteId(null); }}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Excluir conta recorrente ou parcelada?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Esta conta faz parte de uma série recorrente ou parcelada. Existem <strong>{linkedFuture.length}</strong> ocorrência(s) futura(s) pendente(s) vinculada(s). O que deseja excluir?
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+                <AlertDialogCancel className="mt-0">Cancelar</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                  onClick={() => { deleteReceivable(target.id); setDeleteId(null); }}
+                >
+                  Apenas esta
+                </AlertDialogAction>
+                <AlertDialogAction
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  onClick={async () => {
+                    const n = await deleteReceivableWithFuture(target.id);
+                    setDeleteId(null);
+                    if (n > 1) toast.success(`${n} recebíveis vinculados excluídos`);
+                  }}
+                >
+                  Esta e {linkedFuture.length} futura(s)
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        );
+      })()}
+
+      <AlertDialog open={!!updateFutureTarget} onOpenChange={(o) => { if (!o) { setUpdateFutureTarget(null); setUpdateFuturePayload(null); } }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Alterar conta vinculada?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta conta faz parte de uma série recorrente ou parcelada. Existem <strong>{updateFutureCount}</strong> ocorrência(s) futura(s) pendente(s) vinculada(s). Deseja aplicar as alterações de cliente, categoria, valor e observações apenas nesta conta ou em todas as futuras também?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+            <AlertDialogCancel className="mt-0">Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-secondary text-secondary-foreground hover:bg-secondary/80"
+              onClick={() => {
+                if (updateFuturePayload && updateFutureTarget) {
+                  updateReceivable({ ...updateFuturePayload, id: updateFutureTarget.id });
+                }
+                setUpdateFutureTarget(null);
+                setUpdateFuturePayload(null);
+              }}
+            >
+              Apenas esta
+            </AlertDialogAction>
+            <AlertDialogAction
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
+              onClick={async () => {
+                if (updateFuturePayload && updateFutureTarget) {
+                  const n = await updateReceivableWithFuture({ ...updateFuturePayload, id: updateFutureTarget.id });
+                  if (n > 1) toast.success(`${n} recebíveis vinculados alterados`);
+                }
+                setUpdateFutureTarget(null);
+                setUpdateFuturePayload(null);
+              }}
+            >
+              Esta e {updateFutureCount} futura(s)
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* OFX Reconciliation Dialog */}
       <Dialog open={ofxDialogOpen} onOpenChange={(open) => {

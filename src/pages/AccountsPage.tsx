@@ -116,7 +116,11 @@ export default function AccountsPage() {
 
           return (
             <motion.div key={acc.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-              className="finance-card relative group col-span-1">
+              className="finance-card relative group col-span-1"
+              style={{
+                backgroundColor: acc.color ? `${acc.color}0C` : undefined,
+                borderColor: acc.color ? `${acc.color}33` : undefined,
+              }}>
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <div className="p-2 rounded-lg" style={{ backgroundColor: acc.color + '20' }}>
@@ -262,7 +266,10 @@ function AccountForm({ item, onSave }: {
   const [creditUsed, setCreditUsed] = useState(item?.creditUsed?.toString() || '0');
   const [billingCloseDay, setBillingCloseDay] = useState(item?.billingCloseDay?.toString() || '');
   const [dueDay, setDueDay] = useState(item?.dueDay?.toString() || '');
-  const colors = ['#0ea5e9', '#10b981', '#eab308', '#ef4444', '#8b5cf6', '#f97316'];
+  const colors = [
+    '#0ea5e9', '#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#ec4899', '#f43f5e',
+    '#ef4444', '#f97316', '#f59e0b', '#eab308', '#84cc16', '#10b981', '#14b8a6', '#06b6d4', '#64748b'
+  ];
   const [color, setColor] = useState(item?.color || colors[0]);
 
   const toggleType = (t: AccountType) => {
@@ -308,9 +315,9 @@ function AccountForm({ item, onSave }: {
         </>
       )}
       <div><Label>Cor</Label>
-        <div className="flex gap-2 mt-1">
+        <div className="flex flex-wrap gap-2 mt-2">
           {colors.map(c => (
-            <button key={c} className={`w-7 h-7 rounded-full border-2 transition-transform ${c === color ? 'border-foreground scale-110' : 'border-transparent'}`}
+            <button key={c} className={`w-8 h-8 rounded-full border-2 transition-transform ${c === color ? 'border-foreground scale-110 shadow-sm' : 'border-transparent'}`}
               style={{ backgroundColor: c }} onClick={() => setColor(c)} />
           ))}
         </div>

@@ -76,6 +76,16 @@ export default function AuthPage() {
           }
         });
         if (error) throw error;
+        
+        // Dispara a conversão de Inscrição no Google Ads
+        if (typeof window !== 'undefined' && (window as any).gtag) {
+          (window as any).gtag('event', 'conversion', {
+              'send_to': 'AW-18264257358/QBKcCOP0psgcEM7miYVE',
+              'value': 1.0,
+              'currency': 'BRL'
+          });
+        }
+
         toast.success('Conta criada! Verifique seu email para confirmar.');
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });

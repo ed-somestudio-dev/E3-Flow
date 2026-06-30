@@ -57,6 +57,8 @@ export interface Payable {
   paymentDate?: string;
   paymentMethod?: string;
   status: PayableStatus;
+  interestAmount?: number;
+  discountAmount?: number;
   notes?: string;
   purchaseDate?: string;
   recurring?: boolean;
@@ -75,6 +77,8 @@ export interface Receivable {
   paymentDate?: string;
   paymentMethod?: string;
   status: ReceivableStatus;
+  interestAmount?: number;
+  discountAmount?: number;
   notes?: string;
   recurring?: boolean;
   recurrenceFrequency?: RecurrenceFrequency;
@@ -95,6 +99,8 @@ export interface Contact {
   phone?: string;
   document?: string;
   notes?: string;
+  address?: string;
+  cep?: string;
 }
 
 export interface FinanceData {
@@ -134,6 +140,7 @@ export interface Sale {
   clientName?: string;
   status: SaleStatus;
   total: number;
+  discountAmount?: number;
   paymentMethod?: string;
   notes?: string;
   saleDate: string;

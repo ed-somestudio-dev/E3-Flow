@@ -53,8 +53,8 @@ function mapSale(row: any, items: SaleItem[] = []): Sale {
     trackingCode: row.tracking_code ?? undefined,
     carrier: row.carrier ?? undefined,
     shippingCost: row.shipping_cost ? Number(row.shipping_cost) : undefined,
-    estimatedDelivery: row.estimated_delivery ?? undefined,
     requiresShipping: row.requires_shipping ?? false,
+    discountAmount: row.discount_amount ? Number(row.discount_amount) : undefined,
     items,
     createdAt: row.created_at,
   };
@@ -80,6 +80,7 @@ export interface NewSalePayload {
   shippingCost?: number;
   estimatedDelivery?: string;
   requiresShipping?: boolean;
+  discountAmount?: number;
   items: NewSaleItem[];
 }
 
@@ -97,6 +98,7 @@ interface SalesContextType {
     categoryId?: string,
     accountId?: string,
   ) => Promise<Sale | null>;
+  updateSale: (id: string, payload: Partial<NewSalePayload>) => Promise<void>;
   updateSaleStatus: (id: string, status: SaleStatus) => Promise<void>;
   updateSaleShipping: (id: string, trackingInfo: { trackingCode?: string; carrier?: string; shippingCost?: number; estimatedDelivery?: string }) => Promise<void>;
   deleteSale: (id: string) => Promise<void>;
@@ -337,7 +339,8 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
     ): Promise<Sale | null> => {
       if (!user) return null;
       const isOnline = assertOnline() && !user.id.startsWith('guest_');
-      const total = payload.items.reduce((s, i) => s + i.total, 0);
+      const subtotal = payload.items.reduce((s, i) => s + i.total, 0);
+      const total = Math.max(0, subtotal - (payload.discountAmount || 0));
       const saleId = generateId();
 
       const salePayload = {
@@ -354,6 +357,7 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
         shipping_cost: payload.shippingCost || null,
         estimated_delivery: payload.estimatedDelivery || null,
         requires_shipping: payload.requiresShipping ?? false,
+        discount_amount: payload.discountAmount || 0,
         created_at: new Date().toISOString(),
       };
 
@@ -511,6 +515,146 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
       return newSale;
     },
     [user, products, refreshSales, refreshProducts, finance],
+  );
+
+  const updateSale = useCallback(
+    async (id: string, payload: Partial<NewSalePayload>) => {
+      if (!user) return;
+      const isOnline = assertOnline() && !user.id.startsWith('guest_');
+      const sale = sales.find((s) => s.id === id);
+      if (!sale) return;
+
+      let newTotal = sale.total;
+      let newDiscount = sale.discountAmount;
+      if (payload.discountAmount !== undefined) {
+        newDiscount = payload.discountAmount;
+      }
+      let itemsPayload: any[] = [];
+      let newItems: SaleItem[] = sale.items;
+
+      if (payload.items) {
+        const subtotal = payload.items.reduce((s, i) => s + i.total, 0);
+        newTotal = Math.max(0, subtotal - (newDiscount || 0));
+        itemsPayload = payload.items.map((item) => ({
+          sale_id: id,
+          product_id: item.productId || null,
+          product_name: item.productName,
+          quantity: item.quantity,
+          unit_price: item.unitPrice,
+          total: item.total,
+        }));
+        newItems = payload.items.map((item, i) => ({
+          id: `tmp-${i}-${generateId()}`,
+          saleId: id,
+          productId: item.productId,
+          productName: item.productName,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          total: item.total,
+        }));
+        
+        // Handle Stock Re-calculation
+        // If sale is 'completed' or 'pending', stock was affected.
+        if (sale.status === "completed" || sale.status === "pending") {
+          const stockChanges: Record<string, number> = {};
+          // 1. Revert old items
+          for (const item of sale.items) {
+            if (item.productId) stockChanges[item.productId] = (stockChanges[item.productId] || 0) + item.quantity;
+          }
+          // 2. Apply new items
+          for (const item of payload.items) {
+            if (item.productId) stockChanges[item.productId] = (stockChanges[item.productId] || 0) - item.quantity;
+          }
+          
+          for (const [productId, change] of Object.entries(stockChanges)) {
+            if (change !== 0) {
+              const prod = products.find((p) => p.id === productId);
+              if (prod) {
+                const nextStock = Math.max(0, prod.stockQuantity + change);
+                const stockPayload = { stock_quantity: nextStock, updated_at: new Date().toISOString() };
+                
+                setProducts(prev => {
+                  const next = prev.map(p => p.id === productId ? { ...p, stockQuantity: nextStock } : p);
+                  saveSnapshot(effectiveUserId, next, SALES_SNAPSHOT_STORE).catch(() => {});
+                  return next;
+                });
+
+                if (isOnline) {
+                  await supabase.from("products").update(stockPayload).eq("id", productId);
+                } else {
+                  await enqueueMutation({ userId: effectiveUserId, type: 'UPDATE', payload: { table: 'products', data: stockPayload, match: { id: productId } } });
+                }
+              }
+            }
+          }
+        }
+      } else if (payload.discountAmount !== undefined) {
+        // Se só mudou o desconto, recalcula com os itens atuais
+        const subtotal = sale.items.reduce((s, i) => s + i.total, 0);
+        newTotal = Math.max(0, subtotal - (newDiscount || 0));
+      }
+
+      const salePayload: any = {};
+      if (payload.clientName !== undefined) salePayload.client_name = payload.clientName || null;
+      if (payload.paymentMethod !== undefined) salePayload.payment_method = payload.paymentMethod || null;
+      if (payload.notes !== undefined) salePayload.notes = payload.notes || null;
+      if (payload.saleDate !== undefined) salePayload.sale_date = payload.saleDate;
+      if (payload.requiresShipping !== undefined) salePayload.requires_shipping = payload.requiresShipping;
+      if (payload.discountAmount !== undefined) salePayload.discount_amount = payload.discountAmount;
+      if (payload.items || payload.discountAmount !== undefined) salePayload.total = newTotal;
+
+      const updatedSale = {
+        ...sale,
+        clientName: payload.clientName !== undefined ? (payload.clientName || undefined) : sale.clientName,
+        paymentMethod: payload.paymentMethod !== undefined ? (payload.paymentMethod || undefined) : sale.paymentMethod,
+        notes: payload.notes !== undefined ? (payload.notes || undefined) : sale.notes,
+        saleDate: payload.saleDate !== undefined ? payload.saleDate : sale.saleDate,
+        requiresShipping: payload.requiresShipping !== undefined ? payload.requiresShipping : sale.requiresShipping,
+        discountAmount: payload.discountAmount !== undefined ? payload.discountAmount : sale.discountAmount,
+        items: newItems,
+        total: newTotal,
+      };
+
+      setSales(prev => {
+        const next = prev.map(s => s.id === id ? updatedSale : s);
+        saveSnapshot(effectiveUserId, next, SALES_LIST_SNAPSHOT_STORE).catch(() => {});
+        return next;
+      });
+
+      if (isOnline) {
+        if (Object.keys(salePayload).length > 0) {
+          await supabase.from("sales").update(salePayload).eq("id", id);
+        }
+        if (payload.items) {
+          await supabase.from("sale_items" as any).delete().eq("sale_id", id);
+          await supabase.from("sale_items" as any).insert(itemsPayload);
+        }
+      } else {
+        if (Object.keys(salePayload).length > 0) {
+          await enqueueMutation({ userId: effectiveUserId, type: 'UPDATE', payload: { table: 'sales', data: salePayload, match: { id } } });
+        }
+        if (payload.items) {
+          await enqueueMutation({ userId: effectiveUserId, type: 'DELETE', payload: { table: 'sale_items', match: { sale_id: id } } });
+          await enqueueMutation({ userId: effectiveUserId, type: 'INSERT', payload: { table: 'sale_items', data: itemsPayload } });
+        }
+      }
+
+      // Sync with finance if there's a linked receivable
+      if (sale.receivableId) {
+        const rec = finance.data.receivables.find(r => r.id === sale.receivableId);
+        if (rec) {
+          await finance.updateReceivable({
+            ...rec,
+            clientName: updatedSale.clientName || "Consumidor Final",
+            amount: updatedSale.total,
+            notes: updatedSale.notes || undefined,
+          });
+        }
+      }
+
+      toast.success("Venda atualizada com sucesso!");
+    },
+    [user, sales, finance, products, refreshSales, refreshProducts]
   );
 
   const updateSaleStatus = useCallback(
@@ -673,12 +817,17 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
         return next;
       });
 
-      // 1. Remove financial link if pending
-      const saleIdShort = id.slice(0, 8).toUpperCase();
-      const rec = finance.data.receivables.find(
-        (r) => r.description?.includes(`Venda #${saleIdShort}`) && r.status === "pending",
-      );
-      if (rec) await finance.deleteReceivable(rec.id);
+      // 1. Remove financial link (conta a receber vinculada)
+      if (sale.receivableId) {
+        await finance.deleteReceivable(sale.receivableId);
+      } else {
+        // Fallback: busca pela descrição (vendas antigas sem receivableId)
+        const saleIdShort = id.slice(0, 8).toUpperCase();
+        const rec = finance.data.receivables.find(
+          (r) => r.description?.includes(`Venda #${saleIdShort}`) && r.status === "pending",
+        );
+        if (rec) await finance.deleteReceivable(rec.id);
+      }
 
       // 2. Restore stock if completed
       if (sale.status === "completed") {
@@ -754,33 +903,119 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
       }
     };
     const handleReceivablePartial = async (e: any) => {
-      const { originalId, newId } = e.detail || {};
+      const { originalId, newId, receivedAmount, remaining } = e.detail || {};
       if (originalId && newId && user) {
         const sale = sales.find(s => s.receivableId === originalId);
-        if (sale) {
+        if (sale && receivedAmount !== undefined && remaining !== undefined) {
           console.log(`[SalesContext] Sincronizando saldo restante: ${sale.id} -> ${newId}`);
           
-          // Update local state optimistically
-          setSales(prev => prev.map(s => s.id === sale.id ? { ...s, receivableId: newId } : s));
-
-          const updatePayload = { receivable_id: newId };
           const isOnline = typeof navigator !== 'undefined' && navigator.onLine;
 
+          // 1. Atualizar venda original para concluída com o valor recebido
+          const updatePayload = { total: receivedAmount, status: 'completed' as SaleStatus };
+          
+          // 2. Criar nova venda pendente com o saldo restante
+          const newSaleId = generateId();
+          const newSalePayload = {
+            id: newSaleId,
+            user_id: effectiveUserId,
+            client_name: sale.clientName,
+            total: remaining,
+            status: 'pending',
+            payment_method: sale.paymentMethod,
+            notes: `Saldo restante da venda ${sale.id.slice(0, 8)}`,
+            sale_date: new Date().toISOString().split('T')[0],
+            requires_shipping: sale.requiresShipping,
+            receivable_id: newId
+          };
+
+          const newSaleItemPayload = {
+            id: generateId(),
+            sale_id: newSaleId,
+            product_name: 'Saldo Restante',
+            quantity: 1,
+            unit_price: remaining,
+            total: remaining
+          };
+
+          setSales(prev => {
+            const next = prev.map(s => s.id === sale.id ? { ...s, total: receivedAmount, status: 'completed' as SaleStatus } : s);
+            const newSaleObj = mapSale(newSalePayload as any, [mapSaleItem(newSaleItemPayload as any)]);
+            next.unshift(newSaleObj);
+            saveSnapshot(effectiveUserId, next, SALES_LIST_SNAPSHOT_STORE).catch(() => {});
+            return next;
+          });
+
           if (isOnline) {
-            const { error } = await supabase.from('sales').update(updatePayload).eq('id', sale.id);
-            if (error) {
-              if (error.message?.includes('Failed to fetch')) {
-                await enqueueMutation({ userId: effectiveUserId, type: 'UPDATE', payload: { table: 'sales', data: updatePayload, match: { id: sale.id } } });
-              } else {
-                console.error('[SalesContext] Error updating sale receivable link:', error);
-              }
-            }
+            await supabase.from('sales').update(updatePayload).eq('id', sale.id);
+            await supabase.from('sales').insert(newSalePayload);
+            await supabase.from('sale_items' as any).insert(newSaleItemPayload);
           } else {
             await enqueueMutation({ userId: effectiveUserId, type: 'UPDATE', payload: { table: 'sales', data: updatePayload, match: { id: sale.id } } });
+            await enqueueMutation({ userId: effectiveUserId, type: 'INSERT', payload: { table: 'sales', data: newSalePayload } });
+            await enqueueMutation({ userId: effectiveUserId, type: 'INSERT', payload: { table: 'sale_items', data: newSaleItemPayload } });
           }
         }
       }
     };
+
+const handleReceivableDeleted = async (e: any) => {
+       // Suporta tanto id único quanto array de ids
+       const ids: string[] = e.detail?.ids || (e.detail?.id ? [e.detail.id] : []);
+       if (!ids || ids.length === 0) return;
+       
+       // Encontrar todas as vendas vinculadas a esses recebíveis
+       const linkedSales = sales.filter(s => s.receivableId && ids.includes(s.receivableId));
+       if (linkedSales.length === 0) return;
+       
+       const saleIds = linkedSales.map(s => s.id);
+       console.log(`[SalesContext] ${ids.length} contas a receber excluídas, excluindo ${saleIds.length} vendas vinculadas`);
+       
+       const isOnline = typeof navigator !== 'undefined' && navigator.onLine && !user?.id?.startsWith('guest_');
+       
+       for (const sale of linkedSales) {
+         // Remove sale from state without re-triggering deleteReceivable
+         setSales(prev => {
+           const next = prev.filter(s => s.id !== sale.id);
+           saveSnapshot(effectiveUserId, next, SALES_LIST_SNAPSHOT_STORE).catch(() => {});
+           return next;
+         });
+         
+         // Restaurar estoque se a venda foi "pending" (a prazo) - estoque já foi deduzido
+         if (sale.status === "pending") {
+           for (const item of sale.items) {
+             if (item.productId) {
+               const prod = products.find((p) => p.id === item.productId);
+               if (prod) {
+                 const nextStock = prod.stockQuantity + item.quantity;
+                 const stockPayload = { stock_quantity: nextStock, updated_at: new Date().toISOString() };
+                 
+                 setProducts(prev => {
+                   const next = prev.map(p => p.id === item.productId ? { ...p, stockQuantity: nextStock } : p);
+                   saveSnapshot(effectiveUserId, next, SALES_SNAPSHOT_STORE).catch(() => {});
+                   return next;
+                 });
+                 
+                 if (isOnline) {
+                   await supabase.from("products").update(stockPayload).eq("id", item.productId);
+                 } else {
+                   await enqueueMutation({ userId: effectiveUserId, type: 'UPDATE', payload: { table: 'products', data: stockPayload, match: { id: item.productId } } });
+                 }
+               }
+             }
+           }
+         }
+         
+         if (isOnline) {
+           await supabase.from("sales").delete().eq("id", sale.id);
+           await supabase.from("sale_items" as any).delete().eq("sale_id", sale.id);
+         } else {
+           await enqueueMutation({ userId: effectiveUserId, type: 'DELETE', payload: { table: 'sales', match: { id: sale.id } } });
+           await enqueueMutation({ userId: effectiveUserId, type: 'DELETE', payload: { table: 'sale_items', match: { sale_id: sale.id } } });
+         }
+       }
+       toast.success(`${linkedSales.length} venda(s) vinculada(s) também excluída(s)`);
+     };
 
     const handleResetSales = () => {
       console.log('[SalesContext] Reiniciando dados de vendas e produtos...');
@@ -795,13 +1030,15 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
 
     window.addEventListener('receivable_paid', handleReceivablePaid);
     window.addEventListener('receivable_partial_received', handleReceivablePartial);
+    window.addEventListener('receivable_deleted', handleReceivableDeleted);
     window.addEventListener('reset_sales', handleResetSales);
     return () => {
       window.removeEventListener('receivable_paid', handleReceivablePaid);
       window.removeEventListener('receivable_partial_received', handleReceivablePartial);
+      window.removeEventListener('receivable_deleted', handleReceivableDeleted);
       window.removeEventListener('reset_sales', handleResetSales);
     };
-  }, [sales, updateSaleStatus, refreshSales]);
+  }, [sales, products, enqueueMutation, updateSaleStatus, refreshSales]);
 
   return (
     <SalesContext.Provider
@@ -814,6 +1051,7 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
         updateProduct,
         deleteProduct,
         createSale,
+        updateSale,
         updateSaleStatus,
         updateSaleShipping,
         deleteSale,

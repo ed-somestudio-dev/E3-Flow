@@ -191,6 +191,8 @@ export default function PayablesPage() {
   const [payAccountId, setPayAccountId] = useState('');
   const [partialMode, setPartialMode] = useState(false);
   const [partialAmount, setPartialAmount] = useState('');
+  const [interestPercent, setInterestPercent] = useState('');
+  const [payDiscountAmount, setPayDiscountAmount] = useState('');
   const [showPayItems, setShowPayItems] = useState(false);
   const [showMorePayOptions, setShowMorePayOptions] = useState(false);
   const [dateFrom, setDateFrom] = useState<Date | undefined>(startOfMonth(new Date()));
@@ -264,6 +266,8 @@ export default function PayablesPage() {
     setPayAccountId(payable?.accountId || data.accounts[0]?.id || '');
     setPartialMode(false);
     setPartialAmount('');
+    setInterestPercent('');
+    setPayDiscountAmount('');
     setShowPayItems(false);
     setShowMorePayOptions(false);
     setPayDialogOpen(true);
@@ -275,6 +279,8 @@ export default function PayablesPage() {
     setPayAccountId(first?.accountId || data.accounts[0]?.id || '');
     setPartialMode(false);
     setPartialAmount('');
+    setInterestPercent('');
+    setPayDiscountAmount('');
     setShowPayItems(false);
     setShowMorePayOptions(false);
     setPayDialogOpen(true);
@@ -291,6 +297,10 @@ export default function PayablesPage() {
       const itemsToPay = payingIds.map(id => data.payables.find(x => x.id === id)).filter(Boolean) as Payable[];
       const isInvoice = itemsToPay.length > 0 && itemsToPay.every(p => p.supplier?.startsWith('cartao:'));
       
+      const discountAmount = parseFloat(payDiscountAmount) || 0;
+      const baseTotal = itemsToPay.reduce((sum, p) => sum + p.amount, 0);
+      const interestAmount = baseTotal > 0 ? (baseTotal * (parseFloat(interestPercent) || 0) / 100) : 0;
+      
       let totalActuallyPaid = 0;
 
       if (partialMode) {
@@ -299,25 +309,34 @@ export default function PayablesPage() {
         totalActuallyPaid = amt;
 
         if (payingIds.length === 1) {
-          await markPayablePaidPartial(payingIds[0], payAccountId, amt, isInvoice);
+          await markPayablePaidPartial(payingIds[0], payAccountId, amt, isInvoice, interestAmount, discountAmount);
         } else {
           // FIFO: paga itens mais antigos primeiro até esgotar o valor
           const items = itemsToPay.sort((a, b) => a.dueDate.localeCompare(b.dueDate));
-          const total = items.reduce((s, p) => s + p.amount, 0);
-          if (total <= 0) return;
-          if (amt >= total) {
-            for (const p of items) await markPayablePaid(p.id, payAccountId, isInvoice);
+          const totalDue = baseTotal + interestAmount - discountAmount;
+          if (totalDue <= 0) return;
+          
+          if (amt >= totalDue) {
+            for (const p of items) {
+              const pRatio = baseTotal > 0 ? p.amount / baseTotal : 0;
+              await markPayablePaid(p.id, payAccountId, isInvoice, interestAmount * pRatio, discountAmount * pRatio);
+            }
           } else {
             let remaining = amt;
             for (const p of items) {
               if (remaining <= 0) break;
-              if (remaining >= p.amount - 0.005) {
+              const pRatio = baseTotal > 0 ? p.amount / baseTotal : 0;
+              const pInterest = interestAmount * pRatio;
+              const pDiscount = discountAmount * pRatio;
+              const pTotalDue = p.amount + pInterest - pDiscount;
+              
+              if (remaining >= pTotalDue - 0.005) {
                 // quita integralmente este item
-                await markPayablePaid(p.id, payAccountId, isInvoice);
-                remaining = Math.round((remaining - p.amount) * 100) / 100;
+                await markPayablePaid(p.id, payAccountId, isInvoice, pInterest, pDiscount);
+                remaining = Math.round((remaining - pTotalDue) * 100) / 100;
               } else {
                 // pagamento parcial deste item — gera saldo restante individual
-                await markPayablePaidPartial(p.id, payAccountId, Math.round(remaining * 100) / 100, isInvoice);
+                await markPayablePaidPartial(p.id, payAccountId, Math.round(remaining * 100) / 100, isInvoice, pInterest, pDiscount);
                 remaining = 0;
               }
             }
@@ -325,8 +344,14 @@ export default function PayablesPage() {
         }
       } else {
         totalActuallyPaid = itemsToPay.reduce((s, p) => s + p.amount, 0);
+
         for (const id of payingIds) {
-          await markPayablePaid(id, payAccountId, isInvoice);
+          const p = data.payables.find(x => x.id === id);
+          if (!p) continue;
+          const ratio = baseTotal > 0 ? p.amount / baseTotal : 0;
+          const itemInterest = interestAmount * ratio;
+          const itemDiscount = discountAmount * ratio;
+          await markPayablePaid(id, payAccountId, isInvoice, itemInterest, itemDiscount);
         }
       }
 
@@ -350,6 +375,8 @@ export default function PayablesPage() {
       setPayingIds([]);
       setPartialMode(false);
       setPartialAmount('');
+      setInterestPercent('');
+      setPayDiscountAmount('');
     }
   };
 
@@ -357,6 +384,8 @@ export default function PayablesPage() {
     const p = data.payables.find(x => x.id === id);
     return sum + (p?.amount || 0);
   }, 0);
+  const interestAmount = payingTotal * (parseFloat(interestPercent) || 0) / 100;
+  const finalPayingTotal = Math.max(0, payingTotal + interestAmount - (parseFloat(payDiscountAmount) || 0));
   const selectedPayAccount = data.accounts.find(a => a.id === payAccountId);
   const selectedTotal = Array.from(selectedIds).reduce((s, id) => {
     const p = data.payables.find(x => x.id === id);
@@ -476,9 +505,9 @@ export default function PayablesPage() {
         {selectedIds.size > 0 && (
           <div className="ml-auto flex items-center gap-3 flex-wrap">
             <span className="text-xs text-muted-foreground">Selecionado: <strong className="text-foreground mono">{fmt(selectedTotal)}</strong> ({selectedIds.size})</span>
-            <Button size="sm" className="bg-success text-success-foreground hover:bg-success/90" onClick={handlePaySelected}>
-              <CheckCircle className="h-4 w-4 mr-1" />
-              Pagar selecionados
+            <Button size="sm" className="bg-success text-success-foreground hover:bg-success/90 flex-1 sm:flex-none" onClick={handlePaySelected}>
+              <CheckCircle className="h-4 w-4 sm:mr-1" />
+              <span className="hidden sm:inline">Pagar selecionados</span>
             </Button>
           </div>
         )}
@@ -579,8 +608,24 @@ export default function PayablesPage() {
           <DialogHeader><DialogTitle>Confirmar Pagamento</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div className="flex items-center justify-between p-3 rounded-md bg-muted/50">
-              <span className="text-sm text-muted-foreground">{payingIds.length > 1 ? `${payingIds.length} itens` : 'Valor'}</span>
-              <span className="text-lg font-bold text-destructive mono">{fmt(payingTotal)}</span>
+              <span className="text-sm text-muted-foreground">{payingIds.length > 1 ? `${payingIds.length} itens` : 'Valor'} original</span>
+              <span className="text-lg font-bold text-muted-foreground mono">{fmt(payingTotal)}</span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Juros (%)</Label>
+                <Input type="number" step="0.1" min="0" value={interestPercent} onChange={(e) => setInterestPercent(e.target.value)} placeholder="0.0" />
+              </div>
+              <div className="space-y-2">
+                <Label>Desconto (R$)</Label>
+                <Input type="number" step="0.01" min="0" value={payDiscountAmount} onChange={(e) => setPayDiscountAmount(e.target.value)} placeholder="0,00" />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between p-3 rounded-md bg-primary/10 border border-primary/20">
+              <span className="text-sm font-semibold text-primary">Valor a pagar</span>
+              <span className="text-xl font-bold text-destructive mono">{fmt(finalPayingTotal)}</span>
             </div>
             {payingIds.length > 1 && (() => {
               const items = payingIds.map(id => data.payables.find(x => x.id === id)).filter(Boolean) as Payable[];
@@ -625,15 +670,15 @@ export default function PayablesPage() {
               </Select>
               {selectedPayAccount && (
                 <p className="text-xs text-muted-foreground">
-                  Saldo após pagamento: <span className="font-semibold mono">{fmt(selectedPayAccount.balance - (partialMode && partialAmount ? parseFloat(partialAmount) || 0 : payingTotal))}</span>
+                  Saldo após pagamento: <span className="font-semibold mono">{fmt(selectedPayAccount.balance - (partialMode && partialAmount ? parseFloat(partialAmount) || 0 : finalPayingTotal))}</span>
                 </p>
               )}
             </div>
             {(() => {
-              const payingItems = payingIds.map(id => data.payables.find(x => x.id === id)).filter(Boolean) as Payable[];
-              const sameSupplier = payingItems.length > 0 && payingItems.every(p => p.supplier === payingItems[0].supplier);
-              const allowPartial = payingItems.length === 1 || (payingItems.length > 1 && sameSupplier);
-              const isInvoice = payingItems.length > 1 && payingItems.every(p => p.supplier?.startsWith('cartao:'));
+              const recItems = payingIds.map(id => data.payables.find(x => x.id === id)).filter(Boolean) as Payable[];
+              const sameSupplier = recItems.length > 0 && recItems.every(p => p.supplier === recItems[0].supplier);
+              const allowPartial = recItems.length === 1 || (recItems.length > 1 && sameSupplier);
+              const isInvoice = recItems.length > 1 && recItems.every(p => p.supplier?.startsWith('cartao:'));
               if (!allowPartial) return null;
               const partialBlock = (
               <div className="space-y-2 p-3 rounded-lg bg-primary/5 border border-primary/20">
@@ -641,26 +686,27 @@ export default function PayablesPage() {
                   <Checkbox id="partialPay" checked={partialMode} onCheckedChange={(c) => {
                     const checked = c === true;
                     setPartialMode(checked);
-                    if (checked && !partialAmount) setPartialAmount((payingTotal / 2).toFixed(2));
+                    if (checked && !partialAmount) setPartialAmount((finalPayingTotal / 2).toFixed(2));
                     if (!checked) setPartialAmount('');
                   }} />
                   <Label htmlFor="partialPay" className="cursor-pointer text-sm">
-                    Pagamento parcial{payingItems.length > 1 ? ` (${payingItems.length} itens · ${payingItems[0].supplier})` : ''}
+                    Pagamento parcial{recItems.length > 1 ? ` (${recItems.length} itens)` : ''}
                   </Label>
                 </div>
                 {partialMode && (
-                  <div className="space-y-1">
+                  <div className="space-y-2">
                     <Label className="text-xs text-muted-foreground">
-                      {payingItems.length > 1 ? 'Valor pago agora (FIFO — quita as mais antigas primeiro)' : 'Valor pago agora'}
+                      {recItems.length > 1 ? 'Valor pago agora (FIFO — quita os mais antigos primeiro)' : 'Valor pago agora'}
                     </Label>
-                    <Input type="number" step="0.01" min="0.01" max={payingTotal} value={partialAmount}
+                    <Input type="number" step="0.01" min="0.01" max={finalPayingTotal} value={partialAmount}
                       onChange={(e) => setPartialAmount(e.target.value)} placeholder="0,00" />
-                    {partialAmount && parseFloat(partialAmount) > 0 && parseFloat(partialAmount) < payingTotal && (
+                    <p className="text-xs text-muted-foreground mt-1">O saldo restante de {fmt(Math.max(0, finalPayingTotal - (parseFloat(partialAmount) || 0)))} será criado como uma nova conta pendente.</p>
+                    {partialAmount && parseFloat(partialAmount) > 0 && parseFloat(partialAmount) < finalPayingTotal && (
                       <p className="text-xs text-muted-foreground">
-                        Saldo restante: <span className="font-semibold mono text-destructive">{fmt(payingTotal - parseFloat(partialAmount))}</span> — {payingItems.length > 1 ? `as contas mais antigas serão quitadas integralmente; a próxima ficará parcial com saldo restante individual.` : 'será criada uma nova conta pendente com os mesmos dados.'}
+                        Saldo restante: <span className="font-semibold mono text-destructive">{fmt(finalPayingTotal - parseFloat(partialAmount))}</span> — {recItems.length > 1 ? `as contas mais antigas serão quitadas integralmente; a próxima ficará parcial com saldo restante individual.` : 'será criada uma nova conta pendente com os mesmos dados.'}
                       </p>
                     )}
-                    {partialAmount && parseFloat(partialAmount) >= payingTotal && (
+                    {partialAmount && parseFloat(partialAmount) >= finalPayingTotal && (
                       <p className="text-xs text-warning">Valor igual ou maior que o total — será registrado como pagamento integral.</p>
                     )}
                   </div>
@@ -730,9 +776,9 @@ export default function PayablesPage() {
           <AlertDialog open={!!deleteId} onOpenChange={(o) => { if (!o) setDeleteId(null); }}>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Excluir conta recorrente?</AlertDialogTitle>
+                <AlertDialogTitle>Excluir conta recorrente ou parcelada?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Esta conta faz parte de uma série recorrente. Existem <strong>{linkedFuture.length}</strong> ocorrência(s) futura(s) pendente(s) vinculada(s). O que deseja excluir?
+                  Esta conta faz parte de uma série recorrente ou parcelada. Existem <strong>{linkedFuture.length}</strong> ocorrência(s) futura(s) pendente(s) vinculada(s). O que deseja excluir?
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter className="flex-col sm:flex-row gap-2">
