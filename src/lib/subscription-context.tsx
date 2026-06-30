@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './auth-context';
 import { toast } from 'sonner';
+import { assertOnline } from './online-guard';
 
 export type SubscriptionStatus = 'PENDING' | 'RECEIVED' | 'CONFIRMED' | 'OVERDUE' | 'CANCELLED' | 'INACTIVE' | 'TRIAL';
 
@@ -105,6 +106,20 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
       return;
     }
 
+    if (!assertOnline()) {
+      console.log('[SubscriptionProvider] Offline: usando cache da assinatura');
+      const cached = localStorage.getItem(`fluxopro_sub_${user.id}`);
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          setSubscription(parsed.subscription);
+          setIsAdmin(parsed.isAdmin);
+        } catch(e) {}
+      }
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     try {
       // The auto_provision_trial RPC function will:
@@ -115,10 +130,12 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
         .rpc('auto_provision_trial' as any);
 
       if (!rpcError && newSub) {
-        setSubscription({
+        const subToSave = {
           ...(newSub as unknown as Subscription),
           trial_end_date: (newSub as any).trial_end_date ?? null,
-        });
+        };
+        setSubscription(subToSave);
+        localStorage.setItem(`fluxopro_sub_${user.id}`, JSON.stringify({ subscription: subToSave, isAdmin: isAdminState }));
       } else {
         console.warn('[SubscriptionProvider] Falha ao executar auto_provision_trial:', rpcError);
         // Fallback: tentar buscar a assinatura normalmente se a RPC falhar
@@ -129,10 +146,12 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
           .maybeSingle();
         
         if (data) {
-          setSubscription({
+          const subToSave = {
             ...(data as Subscription),
             trial_end_date: (data as any).trial_end_date ?? null,
-          });
+          };
+          setSubscription(subToSave);
+          localStorage.setItem(`fluxopro_sub_${user.id}`, JSON.stringify({ subscription: subToSave, isAdmin: isAdminState }));
         } else {
           setSubscription(null);
         }
@@ -147,6 +166,14 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
 
         if (roleData && roleData.role === 'admin') {
           setIsAdmin(true);
+          
+          // Atualiza cache de isAdmin no localStorage (mesmo se a subscription falhar em carregar antes, garantimos que isAdmin foi cacheado)
+          const cached = localStorage.getItem(`fluxopro_sub_${user.id}`);
+          let parsed = { subscription: null, isAdmin: true };
+          if (cached) {
+            try { parsed = JSON.parse(cached); parsed.isAdmin = true; } catch(e){}
+          }
+          localStorage.setItem(`fluxopro_sub_${user.id}`, JSON.stringify(parsed));
         } else {
           setIsAdmin(false);
         }
@@ -295,19 +322,19 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
     ? Math.ceil((new Date(effectiveSubscription.subscription_due_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
     : null;
 
-  let trialDaysRemaining = effectiveSubscription?.trial_end_date
+  const trialDaysRemaining = effectiveSubscription?.trial_end_date
     ? Math.max(0, Math.ceil((new Date(effectiveSubscription.trial_end_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)))
     : (isDefaultTrialActive && defaultTrialEndDate ? Math.max(0, Math.ceil((defaultTrialEndDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))) : null);
 
-  let isPaidStatus = effectiveSubscription?.subscription_status === 'RECEIVED' || effectiveSubscription?.subscription_status === 'CONFIRMED';
+  const isPaidStatus = effectiveSubscription?.subscription_status === 'RECEIVED' || effectiveSubscription?.subscription_status === 'CONFIRMED';
 
-  let isInTrial = Boolean(
+  const isInTrial = Boolean(
     !isPaidStatus &&
     ((effectiveSubscription?.trial_end_date && new Date(effectiveSubscription.trial_end_date).getTime() > new Date().getTime())
     || isDefaultTrialActive)
   );
 
-  let isActive = isDeveloperBypass
+  const isActive = isDeveloperBypass
     || isPaidStatus
     || isInTrial;
 
