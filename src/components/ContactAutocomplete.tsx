@@ -4,6 +4,8 @@ import { useContacts, Contact } from '@/lib/contacts-context';
 import { User, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
+import { removeAccents } from '@/lib/utils';
+
 interface ContactAutocompleteProps {
   value: string;
   onChange: (name: string) => void;
@@ -39,9 +41,9 @@ export function ContactAutocomplete({
     return () => document.removeEventListener('mousedown', onClickOutside);
   }, []);
 
-  const term = value.trim().toLowerCase();
+  const term = removeAccents(value.trim().toLowerCase());
   const suggestions = (term
-    ? contacts.filter(c => c.name.toLowerCase().includes(term))
+    ? contacts.filter(c => removeAccents(c.name.toLowerCase()).includes(term))
     : contacts
   ).slice(0, 8);
 

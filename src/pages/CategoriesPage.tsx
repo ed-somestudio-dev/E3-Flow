@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { motion } from 'framer-motion';
+import { removeAccents } from '@/lib/utils';
 
 const typeLabels: Record<TransactionType, string> = { income: 'Receita', expense: 'Despesa' };
 
@@ -20,9 +21,10 @@ export default function CategoriesPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
+  const normalizedSearch = removeAccents(search.toLowerCase());
   const filtered = data.categories
     .filter(c => typeFilter === 'all' || c.type === typeFilter)
-    .filter(c => c.name.toLowerCase().includes(search.toLowerCase()))
+    .filter(c => removeAccents(c.name.toLowerCase()).includes(normalizedSearch))
     .sort((a, b) => a.name.localeCompare(b.name));
 
   return (

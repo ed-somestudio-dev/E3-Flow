@@ -28,7 +28,7 @@ import { fmt, fmtDate } from '@/lib/format';
 import { SAFE_LABELS } from '@/lib/safe-labels';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { cn } from '@/lib/utils';
+import { cn, removeAccents } from '@/lib/utils';
 import { Link } from 'react-router-dom';
 import {
   generateChargePDF, generateChargePNG, generateChargesPDF,
@@ -175,13 +175,14 @@ export default function ReceivablesPage() {
   };
   const clearDateFilter = () => { setDateFrom(undefined); setDateTo(undefined); };
 
+  const normalizedSearch = removeAccents(search.toLowerCase());
   const filtered = data.receivables
     .filter(r => {
       if (statusFilter === 'all') return true;
       if (statusFilter === 'pending_overdue') return r.status === 'pending' || r.status === 'overdue';
       return r.status === statusFilter;
     })
-    .filter(r => r.description.toLowerCase().includes(search.toLowerCase()) || r.clientName.toLowerCase().includes(search.toLowerCase()))
+    .filter(r => removeAccents(r.description.toLowerCase()).includes(normalizedSearch) || removeAccents(r.clientName.toLowerCase()).includes(normalizedSearch))
     .filter(r => {
       if (dateFrom && r.dueDate < format(dateFrom, 'yyyy-MM-dd')) return false;
       if (dateTo && r.dueDate > format(dateTo, 'yyyy-MM-dd')) return false;
@@ -344,7 +345,8 @@ export default function ReceivablesPage() {
       const baseReceivedAmount = wasPartial && partialAmt > 0 ? Math.min(partialAmt, total) : total;
       const finalReceivedAmount = baseReceivedAmount + interestAmount - discountAmount;
       const isPartial = wasPartial && baseReceivedAmount < total;
-      const clientName = items.every(i => i.clientName === items[0].clientName) ? items[0].clientName : 'Diversos';
+      const isSameClient = items.every(i => (i.clientName || '').trim().toLowerCase() === (items[0].clientName || '').trim().toLowerCase());
+      const clientName = isSameClient ? items[0].clientName : 'Diversos';
       const baseDesc = `${items.length} recebimentos: ` + items.map(i => i.description).join(', ');
       const description = isPartial
         ? `${baseDesc} (parcial — saldo restante: ${(total - baseReceivedAmount).toFixed(2)})`
@@ -412,7 +414,8 @@ export default function ReceivablesPage() {
       : items.reduce((s, r) => s + r.amount, 0);
       
     const r = items[0];
-    const clientName = items.every(i => i.clientName === r.clientName) ? r.clientName : 'Diversos';
+    const isSameClient = items.every(i => (i.clientName || '').trim().toLowerCase() === (r.clientName || '').trim().toLowerCase());
+    const clientName = isSameClient ? r.clientName : 'Diversos';
     
     const msg = msgTemplate
       .replace(/{nome}/g, clientName || 'Cliente')
@@ -422,7 +425,7 @@ export default function ReceivablesPage() {
       
     let phoneParam = '';
     if (clientName !== 'Diversos') {
-      const contact = contacts.find(c => c.name === clientName);
+      const contact = contacts.find(c => (c.name || '').trim().toLowerCase() === (clientName || '').trim().toLowerCase());
       if (contact && contact.phone) {
         let cleanedPhone = contact.phone.replace(/\D/g, '');
         if (cleanedPhone.length === 10 || cleanedPhone.length === 11) {
@@ -506,7 +509,8 @@ export default function ReceivablesPage() {
 
     // Consolidated single charge: sum amounts, earliest due date
     const total = items.reduce((s, r) => s + r.amount, 0);
-    const clientName = items.every(i => i.clientName === items[0].clientName) ? items[0].clientName : 'Diversos';
+    const isSameClient = items.every(i => (i.clientName || '').trim().toLowerCase() === (items[0].clientName || '').trim().toLowerCase());
+    const clientName = isSameClient ? items[0].clientName : 'Diversos';
     const earliestDue = items.map(i => i.dueDate).sort()[0];
     const description = `${items.length} cobranças: ` + items.map(i => i.description).join(', ');
     const consolidated = {
@@ -716,7 +720,8 @@ export default function ReceivablesPage() {
                   if (items.length === 0) return;
                   const amt = parseFloat(bulkPartialAmount);
                   const r = items[0];
-                  const clientName = items.every(i => i.clientName === r.clientName) ? r.clientName : 'Diversos';
+                  const isSameClient = items.every(i => (i.clientName || '').trim().toLowerCase() === (r.clientName || '').trim().toLowerCase());
+                  const clientName = isSameClient ? r.clientName : 'Diversos';
                   const description = items.length > 1
                     ? `Pagamento parcial \u2014 ${items.length} cobran\u00e7as`
                     : `${r.description} (parcial)`;
@@ -916,7 +921,7 @@ export default function ReceivablesPage() {
             </div>
             {(() => {
               const recItems = receivingIds.map(id => data.receivables.find(r => r.id === id)).filter(Boolean) as Receivable[];
-              const sameClient = recItems.length > 0 && recItems.every(r => r.clientName === recItems[0].clientName);
+              const sameClient = recItems.length > 0 && recItems.every(r => (r.clientName || '').trim().toLowerCase() === (recItems[0].clientName || '').trim().toLowerCase());
               const allowPartial = recItems.length === 1 || (recItems.length > 1 && sameClient);
               return allowPartial && (
               <div className="space-y-2 p-3 rounded-lg bg-primary/5 border border-primary/20">
@@ -957,7 +962,8 @@ export default function ReceivablesPage() {
                           const amt = parseFloat(partialAmount);
                           if (!amt || amt <= 0) return;
                           const r = recItems[0];
-                          const clientName = recItems.every(i => i.clientName === r.clientName) ? r.clientName : 'Diversos';
+                          const isSameClient = recItems.every(i => (i.clientName || '').trim().toLowerCase() === (r.clientName || '').trim().toLowerCase());
+                          const clientName = isSameClient ? r.clientName : 'Diversos';
                           const description = recItems.length > 1
                             ? `Pagamento parcial — ${recItems.length} cobranças`
                             : `${r.description} (parcial)`;

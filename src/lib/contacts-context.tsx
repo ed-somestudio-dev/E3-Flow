@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useCallback } from 'react';
 import { useFinance } from './finance-context';
+import { removeAccents } from './utils';
 
 export interface Contact {
   id: string;
@@ -29,8 +30,8 @@ export function ContactsProvider({ children }: { children: React.ReactNode }) {
 
   const findByName = useCallback((name: string) => {
     if (!name) return undefined;
-    const n = name.trim().toLowerCase();
-    return data.contacts.find(c => c.name.toLowerCase() === n);
+    const n = removeAccents(name.trim().toLowerCase());
+    return data.contacts.find(c => removeAccents(c.name.toLowerCase()) === n);
   }, [data.contacts]);
 
   return (

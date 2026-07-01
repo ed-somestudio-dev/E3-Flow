@@ -5,6 +5,7 @@ import { useSales, NewSaleItem, NewSalePayload } from '@/lib/sales-context';
 import { useFinance } from '@/lib/finance-context';
 import { usePixSettings } from '@/lib/pix-settings-context';
 import { Sale, SaleStatus } from '@/lib/types';
+import { cn, removeAccents } from '@/lib/utils';
 import { ShareDocumentDialog } from '@/components/ShareDocumentDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -335,12 +336,13 @@ export default function SalesPage() {
     };
   }, [sales]);
 
+  const normalizedSearch = removeAccents(search.toLowerCase());
   const filtered = useMemo(() => sales.filter(s => {
     if (tab !== 'all' && s.status !== tab) return false;
     if (paymentFilter !== 'all' && s.paymentMethod !== paymentFilter) return false;
-    if (search && !s.clientName?.toLowerCase().includes(search.toLowerCase())) return false;
+    if (search && !removeAccents(s.clientName?.toLowerCase() || '').includes(normalizedSearch)) return false;
     return true;
-  }), [sales, tab, paymentFilter, search]);
+  }), [sales, tab, paymentFilter, normalizedSearch, search]);
 
   const addToCart = (productId: string) => {
     const prod = products.find(p => p.id === productId);
@@ -744,8 +746,8 @@ export default function SalesPage() {
           />
           {showSearchSuggestions && search.length >= 1 && (() => {
             const suggestions = contacts
-              .filter(c => c.name.toLowerCase().includes(search.toLowerCase()))
-              .slice(0, 6);
+              .filter(c => removeAccents(c.name.toLowerCase()).includes(removeAccents(search.toLowerCase())))
+              .slice(0, 10);
             return suggestions.length > 0 ? (
               <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-popover border border-border rounded-md shadow-lg overflow-hidden">
                 {suggestions.map(c => (

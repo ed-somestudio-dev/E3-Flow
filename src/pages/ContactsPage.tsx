@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { Capacitor } from '@capacitor/core';
 import { Contacts as CapacitorContacts } from '@capacitor-community/contacts';
 import { Checkbox } from '@/components/ui/checkbox';
+import { removeAccents } from '@/lib/utils';
 
 // Chrome Android Contact Picker API
 declare global {
@@ -40,10 +41,11 @@ export default function ContactsPage() {
   const [selectedDeviceContacts, setSelectedDeviceContacts] = useState<Set<string>>(new Set());
   const [deviceSearch, setDeviceSearch] = useState('');
 
+  const normalizedSearch = removeAccents(search.toLowerCase());
   const filtered = contacts.filter(c =>
-    c.name.toLowerCase().includes(search.toLowerCase()) ||
-    (c.phone || '').includes(search) ||
-    (c.email || '').toLowerCase().includes(search.toLowerCase())
+    removeAccents(c.name.toLowerCase()).includes(normalizedSearch) ||
+    (c.phone || '').includes(normalizedSearch) ||
+    removeAccents((c.email || '').toLowerCase()).includes(normalizedSearch)
   );
 
   const handleVCardFile = async (file: File) => {
@@ -308,7 +310,7 @@ export default function ContactsPage() {
           </div>
           <div className="flex-1 overflow-y-auto px-4 py-2 space-y-2 max-h-[50vh]">
             {deviceContacts
-              .filter(c => c.name.toLowerCase().includes(deviceSearch.toLowerCase()) || (c.phone || '').includes(deviceSearch))
+              .filter(c => removeAccents(c.name.toLowerCase()).includes(removeAccents(deviceSearch.toLowerCase())) || (c.phone || '').includes(deviceSearch))
               .map(c => (
                 <div key={c.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 cursor-pointer" onClick={() => {
                   const next = new Set(selectedDeviceContacts);

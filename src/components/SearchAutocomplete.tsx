@@ -3,6 +3,8 @@ import { Input } from '@/components/ui/input';
 import { Search, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
+import { removeAccents } from '@/lib/utils';
+
 interface SearchAutocompleteProps {
   value: string;
   onChange: (v: string) => void;
@@ -36,9 +38,9 @@ export function SearchAutocomplete({
     return () => document.removeEventListener('mousedown', onClickOutside);
   }, []);
 
-  const term = value.trim().toLowerCase();
+  const term = removeAccents(value.trim().toLowerCase());
   const suggestions = (term
-    ? options.filter(o => o.toLowerCase().includes(term))
+    ? options.filter(o => removeAccents(o.toLowerCase()).includes(term))
     : options
   ).slice(0, 8);
 

@@ -25,7 +25,7 @@ import { fmt, fmtDate } from '@/lib/format';
 import { SAFE_LABELS } from '@/lib/safe-labels';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { cn } from '@/lib/utils';
+import { cn, removeAccents } from '@/lib/utils';
 import { toast } from 'sonner';
 
 const statusLabels: Record<PayableStatus, string> = { pending: 'Pendente', paid: 'Pago', overdue: 'Vencida' };
@@ -208,13 +208,14 @@ export default function PayablesPage() {
     setDateTo(undefined);
   };
 
+  const normalizedSearch = removeAccents(search.toLowerCase());
   const allFiltered = data.payables
     .filter(p => {
       if (statusFilter === 'all') return true;
       if (statusFilter === 'pending_overdue') return p.status === 'pending' || p.status === 'overdue';
       return p.status === statusFilter;
     })
-    .filter(p => p.description.toLowerCase().includes(search.toLowerCase()) || p.supplier.toLowerCase().includes(search.toLowerCase()))
+    .filter(p => removeAccents(p.description.toLowerCase()).includes(normalizedSearch) || removeAccents(p.supplier.toLowerCase()).includes(normalizedSearch))
     .filter(p => {
       if (dateFrom && p.dueDate < format(dateFrom, 'yyyy-MM-dd')) return false;
       if (dateTo && p.dueDate > format(dateTo, 'yyyy-MM-dd')) return false;

@@ -14,7 +14,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { MonthYearPicker } from '@/components/MonthYearPicker';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { cn } from '@/lib/utils';
+import { cn, removeAccents } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import { fmt, fmtDate } from '@/lib/format';
 
@@ -30,9 +30,10 @@ export default function TransactionsPage() {
 
   const clearDateFilter = () => { setDateFrom(undefined); setDateTo(undefined); };
 
+  const normalizedSearch = removeAccents(search.toLowerCase());
   const filtered = data.transactions
     .filter(t => typeFilter === 'all' || t.type === typeFilter)
-    .filter(t => t.description.toLowerCase().includes(search.toLowerCase()))
+    .filter(t => removeAccents(t.description.toLowerCase()).includes(normalizedSearch))
     .filter(t => {
       if (dateFrom && t.date < format(dateFrom, 'yyyy-MM-dd')) return false;
       if (dateTo && t.date > format(dateTo, 'yyyy-MM-dd')) return false;

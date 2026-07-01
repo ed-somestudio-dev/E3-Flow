@@ -13,6 +13,7 @@ import { motion } from 'framer-motion';
 import { Plus, Search, Package, Pencil, Trash2, AlertCircle, Camera, Image as ImageIcon, X } from 'lucide-react';
 import { fmt } from '@/lib/format';
 import { toast } from 'sonner';
+import { removeAccents } from '@/lib/utils';
 import Cropper from 'react-easy-crop';
 import { getCroppedImg } from '@/lib/cropImage';
 import { Camera as CapacitorCamera, CameraResultType, CameraSource } from '@capacitor/camera';
@@ -155,8 +156,9 @@ export default function ProductsPage() {
     }
   };
 
+  const normalizedSearch = removeAccents(search.toLowerCase());
   const filtered = products.filter(p =>
-    p.name.toLowerCase().includes(search.toLowerCase())
+    removeAccents(p.name.toLowerCase()).includes(normalizedSearch)
   );
 
   const openAdd = () => {
