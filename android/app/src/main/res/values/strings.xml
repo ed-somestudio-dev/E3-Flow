@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">FluxoPro</string>
-    <string name="title_activity_main">FluxoPro</string>
-    <string name="package_name">com.somestudio.fluxopro</string>
-    <string name="custom_url_scheme">com.somestudio.fluxopro</string>
+    <string name="app_name">E3 Flow</string>
+    <string name="title_activity_main">E3 Flow</string>
+    <string name="package_name">com.somestudio.e3flow</string>
+    <string name="custom_url_scheme">com.somestudio.e3flow</string>
 </resources>

@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Download, Smartphone, Apple, Monitor, CheckCircle2, Share2, Plus, MonitorDown } from 'lucide-react';
-import logoFluxoPro from '@/assets/Logo_FluxoPro.png';
+import logoE3Flow from '@/assets/Logo_E3Flow.png';
 
 // Tipo do evento `beforeinstallprompt` (não está no lib.dom padrão)
 interface BeforeInstallPromptEvent extends Event {
@@ -65,10 +65,10 @@ export default function InstallPage() {
   return (
     <div className="max-w-3xl mx-auto p-4 sm:p-6 space-y-6">
       <div className="flex flex-col items-center text-center gap-3">
-        <img src={logoFluxoPro} alt="FluxoPro" className="h-32 sm:h-40 object-contain" />
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Instalar o FluxoPro</h1>
+        <img src={logoE3Flow} alt="E3 Flow" className="h-32 sm:h-40 object-contain" />
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Instalar o E3 Flow</h1>
         <p className="text-muted-foreground max-w-xl">
-          Tenha o FluxoPro como um aplicativo na tela inicial do seu dispositivo, com acesso rápido,
+          Tenha o E3 Flow como um aplicativo na tela inicial do seu dispositivo, com acesso rápido,
           ícone próprio e funcionamento em tela cheia.
         </p>
       </div>
@@ -78,7 +78,7 @@ export default function InstallPage() {
           <CheckCircle2 className="h-4 w-4" />
           <AlertTitle>App já instalado</AlertTitle>
           <AlertDescription>
-            Você está acessando o FluxoPro como aplicativo instalado. Procure o ícone na tela inicial
+            Você está acessando o E3 Flow como aplicativo instalado. Procure o ícone na tela inicial
             ou no menu de aplicativos do seu dispositivo.
           </AlertDescription>
         </Alert>
@@ -98,7 +98,7 @@ export default function InstallPage() {
           <CardContent>
             <Button size="lg" onClick={handleInstall} className="w-full sm:w-auto">
               <Download className="h-4 w-4 mr-2" />
-              Instalar FluxoPro
+              Instalar E3 Flow
             </Button>
           </CardContent>
         </Card>

@@ -32,7 +32,7 @@ import WelcomeSubscriptionPage from "@/pages/WelcomeSubscriptionPage";
 import AdminSubscriptionsPage from "@/pages/AdminSubscriptionsPage";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import NotFound from "@/pages/NotFound";
-import logoFluxoPro from '@/assets/Logo_FluxoPro.png';
+import logoE3Flow from '@/assets/Logo_E3Flow.png';
 
 const queryClient = new QueryClient();
 
@@ -71,7 +71,7 @@ function ProtectedRoutes() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-3">
-          <img src={logoFluxoPro} alt="FluxoPro" className="h-48 object-contain animate-pulse" />
+          <img src={logoE3Flow} alt="E3 Flow" className="h-48 object-contain animate-pulse" />
           <p className="text-muted-foreground text-sm">Carregando...</p>
         </div>
       </div>

@@ -5,7 +5,7 @@ import {
   ChevronDown, MoreHorizontal, Smartphone, ShoppingCart, Package, Crown, HelpCircle, Loader2
 } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import logoFluxoPro from '@/assets/Logo_FluxoPro.png';
+import logoE3Flow from '@/assets/Logo_E3Flow.png';
 import { NavLink } from '@/components/NavLink';
 import { useTheme } from '@/lib/theme-context';
 import { useAuth } from '@/lib/auth-context';
@@ -99,11 +99,11 @@ export function AppSidebar() {
     <>
       <Sidebar collapsible="icon">
         <SidebarContent>
-          <div className="px-4 pt-8 pb-4">
+          <div className="px-4 pt-8 pb-4 flex justify-center">
             {!collapsed && (
-              <img src={logoFluxoPro} alt="FluxoPro" className="h-24 w-full object-contain" />
+              <img src={logoE3Flow} alt="E3 Flow" className="h-24 w-auto object-contain rounded-2xl" />
             )}
-            {collapsed && <img src={logoFluxoPro} alt="FluxoPro" className="h-10 w-10 object-contain mx-auto" />}
+            {collapsed && <img src={logoE3Flow} alt="E3 Flow" className="h-10 w-10 object-contain mx-auto rounded-xl" />}
           </div>
           <SidebarGroup>
             <SidebarGroupLabel>Visão Geral</SidebarGroupLabel>

@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Lock, Eye, EyeOff } from 'lucide-react';
-import logoFluxoPro from '@/assets/Logo_FluxoPro.png';
+import logoE3Flow from '@/assets/Logo_E3Flow.png';
 import { toast } from 'sonner';
 
 export default function ResetPasswordPage() {
@@ -57,7 +57,7 @@ export default function ResetPasswordPage() {
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center space-y-2">
           <div className="flex items-center justify-center">
-            <img src={logoFluxoPro} alt="FluxoPro" className="h-48 object-contain" />
+            <img src={logoE3Flow} alt="E3 Flow" className="h-48 object-contain" />
           </div>
           <h1 className="text-xl font-semibold">Redefinir senha</h1>
           <p className="text-muted-foreground text-sm">

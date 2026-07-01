@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Mail, Lock, Chrome, ArrowLeft, PieChart, QrCode, Package, Users, Eye, EyeOff, HelpCircle, Loader2 } from 'lucide-react';
-import logoFluxoPro from '@/assets/Logo_FluxoPro.png';
+import logoE3Flow from '@/assets/Logo_E3Flow.png';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { useAuth } from '@/lib/auth-context';
@@ -17,7 +17,7 @@ export default function AuthPage() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  
+
   const [supportOpen, setSupportOpen] = useState(false);
   const [supportEmail, setSupportEmail] = useState('');
   const [supportSubject, setSupportSubject] = useState('');
@@ -60,15 +60,15 @@ export default function AuthPage() {
     e.preventDefault();
     setLoading(true);
     const { Capacitor } = await import('@capacitor/core');
-    const redirectUri = Capacitor.isNativePlatform() 
-      ? 'com.somestudio.fluxopro://login-callback' 
+    const redirectUri = Capacitor.isNativePlatform()
+      ? 'com.somestudio.e3flow://login-callback'
       : window.location.origin;
 
     try {
       if (mode === 'signup') {
         const { error } = await supabase.auth.signUp({
           email, password,
-          options: { 
+          options: {
             emailRedirectTo: redirectUri,
             data: {
               full_name: name
@@ -76,13 +76,13 @@ export default function AuthPage() {
           }
         });
         if (error) throw error;
-        
+
         // Dispara a conversão de Inscrição no Google Ads
         if (typeof window !== 'undefined' && (window as any).gtag) {
           (window as any).gtag('event', 'conversion', {
-              'send_to': 'AW-18264257358/QBKcCOP0psgcEM7miYVE',
-              'value': 1.0,
-              'currency': 'BRL'
+            'send_to': 'AW-18264257358/QBKcCOP0psgcEM7miYVE',
+            'value': 1.0,
+            'currency': 'BRL'
           });
         }
 
@@ -124,7 +124,7 @@ export default function AuthPage() {
       const { Capacitor } = await import('@capacitor/core');
       const isNative = Capacitor.isNativePlatform();
       const redirectUri = isNative
-        ? 'com.somestudio.fluxopro://login-callback'
+        ? 'com.somestudio.e3flow://login-callback'
         : window.location.origin;
 
       const { data, error } = await supabase.auth.signInWithOAuth({
@@ -165,12 +165,12 @@ export default function AuthPage() {
         </div>
 
         <div className="relative z-10 max-w-lg">
-          <div className="bg-white p-5 rounded-[2rem] shadow-xl inline-flex items-center justify-center mb-10 w-[200px] h-[200px]">
-            <img src={logoFluxoPro} alt="FluxoPro" className="w-full h-full object-contain" />
+          <div className="bg-white p-2 rounded-[2rem] shadow-xl inline-flex items-center justify-center mb-10 w-[200px] h-[200px] overflow-hidden">
+            <img src={logoE3Flow} alt="E3 Flow" className="w-full h-full object-contain scale-110" />
           </div>
-          
+
           <h1 className="text-4xl font-bold mb-4 tracking-tight">
-            Seu financeiro sob controle, em qualquer lugar.
+            Dê asas ao seu controle financeiro com E3 Flow!
           </h1>
           <p className="text-primary-foreground/80 text-lg mb-12">
             A plataforma completa e inteligente para simplificar a gestão do seu negócio.
@@ -217,12 +217,12 @@ export default function AuthPage() {
               </div>
             </div>
           </div>
-          
+
           <div className="mt-12 pt-6 border-t border-primary-foreground/10">
-             <button onClick={() => setSupportOpen(true)} className="flex items-center gap-2 text-primary-foreground/80 hover:text-white transition-colors">
-               <HelpCircle className="h-5 w-5" />
-               <span className="font-medium">Precisa de ajuda ou está com problemas no acesso?</span>
-             </button>
+            <button onClick={() => setSupportOpen(true)} className="flex items-center gap-2 text-primary-foreground/80 hover:text-white transition-colors">
+              <HelpCircle className="h-5 w-5" />
+              <span className="font-medium">Precisa de ajuda ou está com problemas no acesso?</span>
+            </button>
           </div>
         </div>
       </div>
@@ -230,25 +230,25 @@ export default function AuthPage() {
       {/* Lado Direito - Formulário */}
       <div className="flex-1 flex flex-col justify-center items-center p-6 bg-background">
         <div className="w-full max-w-sm space-y-8">
-          
+
           <div className="text-center space-y-2 lg:hidden">
             <div className="flex items-center justify-center">
-              <img src={logoFluxoPro} alt="FluxoPro" className="h-24 object-contain" />
+              <img src={logoE3Flow} alt="E3 Flow" className="h-24 object-contain rounded-2xl" />
             </div>
             <h1 className="text-2xl font-bold tracking-tight mt-4">Bem-vindo(a)</h1>
             <p className="text-muted-foreground text-sm">
-              A melhor gestão financeira na palma da mão
+              Dê asas ao seu controle financeiro com E3 Flow!
             </p>
           </div>
 
           <div className="text-center space-y-2 hidden lg:block">
             <h2 className="text-3xl font-bold tracking-tight">
-              {mode === 'signup' ? 'Crie sua conta' : 
-               mode === 'forgot' ? 'Recuperação' : 'Acesse o sistema'}
+              {mode === 'signup' ? 'Crie sua conta' :
+                mode === 'forgot' ? 'Recuperação' : 'Acesse o sistema'}
             </h2>
             <p className="text-muted-foreground">
-              {mode === 'signup' ? 'Preencha os dados para começar' : 
-               mode === 'forgot' ? 'Siga os passos para redefinir' : 'Bem-vindo(a) de volta!'}
+              {mode === 'signup' ? 'Preencha os dados para começar' :
+                mode === 'forgot' ? 'Siga os passos para redefinir' : 'Bem-vindo(a) de volta!'}
             </p>
           </div>
 
@@ -304,17 +304,17 @@ export default function AuthPage() {
                     <Label>Senha</Label>
                     <div className="relative">
                       <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input 
-                        type={showPassword ? "text" : "password"} 
-                        placeholder="••••••••" 
-                        value={password} 
-                        onChange={e => setPassword(e.target.value)} 
-                        className="pl-9 pr-10 h-11" 
-                        required 
-                        minLength={6} 
+                      <Input
+                        type={showPassword ? "text" : "password"}
+                        placeholder="••••••••"
+                        value={password}
+                        onChange={e => setPassword(e.target.value)}
+                        className="pl-9 pr-10 h-11"
+                        required
+                        minLength={6}
                       />
-                      <button 
-                        type="button" 
+                      <button
+                        type="button"
                         onClick={() => setShowPassword(!showPassword)}
                         className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                         tabIndex={-1}
@@ -323,7 +323,7 @@ export default function AuthPage() {
                       </button>
                     </div>
                   </div>
-                  
+
                   <Button type="submit" className="w-full h-11 text-base font-semibold shadow-sm" disabled={loading}>
                     {loading ? 'Carregando...' : mode === 'signup' ? 'Criar Conta' : 'Entrar na Conta'}
                   </Button>
