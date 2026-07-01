@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Download, Smartphone, Apple, Monitor, CheckCircle2, Share2, Plus, MonitorDown } from 'lucide-react';
-import logoE3Flow from '@/assets/Logo_E3Flow.png';
+import logoE3Flow from '@/assets/Logo_E3Flow_Final.png';
 
 // Tipo do evento `beforeinstallprompt` (não está no lib.dom padrão)
 interface BeforeInstallPromptEvent extends Event {

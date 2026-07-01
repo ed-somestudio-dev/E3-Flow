@@ -5,7 +5,7 @@ import {
   ChevronDown, MoreHorizontal, Smartphone, ShoppingCart, Package, Crown, HelpCircle, Loader2
 } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import logoE3Flow from '@/assets/Logo_E3Flow.png';
+import logoE3Flow from '@/assets/Logo_E3Flow_Final.png';
 import { NavLink } from '@/components/NavLink';
 import { useTheme } from '@/lib/theme-context';
 import { useAuth } from '@/lib/auth-context';

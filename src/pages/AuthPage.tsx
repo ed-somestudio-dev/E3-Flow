@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Mail, Lock, Chrome, ArrowLeft, PieChart, QrCode, Package, Users, Eye, EyeOff, HelpCircle, Loader2 } from 'lucide-react';
-import logoE3Flow from '@/assets/Logo_E3Flow.png';
+import logoE3Flow from '@/assets/Logo_E3Flow_Final.png';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { useAuth } from '@/lib/auth-context';

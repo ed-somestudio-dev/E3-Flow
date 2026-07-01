@@ -32,7 +32,7 @@ import WelcomeSubscriptionPage from "@/pages/WelcomeSubscriptionPage";
 import AdminSubscriptionsPage from "@/pages/AdminSubscriptionsPage";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import NotFound from "@/pages/NotFound";
-import logoE3Flow from '@/assets/Logo_E3Flow.png';
+import logoE3Flow from '@/assets/Logo_E3Flow_Final.png';
 
 const queryClient = new QueryClient();
 

@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Lock, Eye, EyeOff } from 'lucide-react';
-import logoE3Flow from '@/assets/Logo_E3Flow.png';
+import logoE3Flow from '@/assets/Logo_E3Flow_Final.png';
 import { toast } from 'sonner';
 
 export default function ResetPasswordPage() {
