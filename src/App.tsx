@@ -18,6 +18,7 @@ import PayablesPage from "@/pages/PayablesPage";
 import ReceivablesPage from "@/pages/ReceivablesPage";
 import AccountsPage from "@/pages/AccountsPage";
 import BudgetsPage from "@/pages/BudgetsPage";
+import GoalsPage from "@/pages/GoalsPage"; // Metas/Sonhos module
 import ReportsPage from "@/pages/ReportsPage";
 import CategoriesPage from "@/pages/CategoriesPage";
 import SettingsPage from "@/pages/SettingsPage";
@@ -102,6 +103,7 @@ function ProtectedRoutes() {
                 <Route path="/accounts" element={<AccountsPage />} />
                 <Route path="/contacts" element={<ContactsPage />} />
                 <Route path="/budgets" element={<BudgetsPage />} />
+                <Route path="/goals" element={<GoalsPage />} />
                 <Route path="/reports" element={<ReportsPage />} />
                 <Route path="/categories" element={<CategoriesPage />} />
                 <Route path="/settings" element={<SettingsPage />} />

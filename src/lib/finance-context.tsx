@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
-import { FinanceData, FinancialAccount, Transaction, Payable, Receivable, Budget, Category, hasAccountType, Contact } from './types';
+import { FinanceData, FinancialAccount, Transaction, Payable, Receivable, Budget, Category, hasAccountType, Contact, Goal, GoalTransaction } from './types';
 import { usePixSettings } from './pix-settings-context';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './auth-context';
@@ -50,6 +50,11 @@ interface FinanceContextType {
   getCategoryName: (id: string) => string;
   getAccountName: (id: string) => string;
   getCategoryColor: (id: string) => string;
+  addGoal: (goal: Omit<Goal, 'id' | 'createdAt' | 'updatedAt' | 'status'>) => Promise<void>;
+  updateGoal: (goal: Goal) => Promise<void>;
+  deleteGoal: (id: string) => Promise<void>;
+  depositToGoal: (goalId: string, accountId: string, amount: number, date: string) => Promise<void>;
+  withdrawFromGoal: (goalId: string, accountId: string, amount: number, date: string) => Promise<void>;
   resetAllData: () => Promise<void>;
   exportBackup: () => void;
   importBackup: (file: File) => Promise<void>;
@@ -58,7 +63,7 @@ interface FinanceContextType {
 const FinanceContext = createContext<FinanceContextType | null>(null);
 
 const emptyData: FinanceData = {
-  accounts: [], categories: [], transactions: [], payables: [], receivables: [], budgets: [], contacts: [],
+  accounts: [], categories: [], transactions: [], payables: [], receivables: [], budgets: [], contacts: [], goals: [], goalTransactions: [],
 };
 
 const defaultCategories: Omit<Category, 'id'>[] = [
@@ -138,6 +143,36 @@ function mapBudget(row: any): Budget {
   return { id: row.id, categoryId: row.category_id, amount: Number(row.amount), month: row.month };
 }
 
+function mapGoal(row: any): any {
+  return {
+    id: row.id,
+    title: row.title,
+    targetAmount: Number(row.target_amount),
+    deadlineMonths: Number(row.deadline_months),
+    type: row.type,
+    estimatedYield: Number(row.estimated_yield ?? 0.8),
+    autoDeposit: row.auto_deposit ?? false,
+    autoDepositAmount: Number(row.auto_deposit_amount || 0),
+    autoDepositDay: row.auto_deposit_day ?? undefined,
+    accountId: row.account_id ?? undefined,
+    status: row.status || 'active',
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function mapGoalTransaction(row: any): any {
+  return {
+    id: row.id,
+    goalId: row.goal_id,
+    type: row.type,
+    amount: Number(row.amount),
+    date: row.date,
+    accountId: row.account_id ?? undefined,
+    createdAt: row.created_at,
+  };
+}
+
 export function FinanceProvider({ children }: { children: React.ReactNode }) {
   const { user, tenantUserId } = useAuth();
   const effectiveUserId = tenantUserId || user?.id;
@@ -168,7 +203,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
     setLoading(true);
     try {
-      const [cats, accs, txs, pays, recs, buds, conts] = await Promise.all([
+      const [cats, accs, txs, pays, recs, buds, conts, gls, gltxs] = await Promise.all([
         supabase.from('categories').select('*').eq('user_id', effectiveUserId),
         supabase.from('financial_accounts').select('*').eq('user_id', effectiveUserId),
         supabase.from('transactions').select('*').eq('user_id', effectiveUserId).order('date', { ascending: false }),
@@ -176,6 +211,8 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
         supabase.from('receivables').select('*').eq('user_id', effectiveUserId).order('due_date'),
         supabase.from('budgets').select('*').eq('user_id', effectiveUserId),
         supabase.from('contacts').select('*').eq('user_id', effectiveUserId).order('name'),
+        supabase.from('goals').select('*').eq('user_id', effectiveUserId).order('created_at'),
+        supabase.from('goal_transactions').select('*').eq('user_id', effectiveUserId).order('date', { ascending: false }),
       ]);
 
       let categories = (cats.data || []).map(mapCategory);
@@ -235,6 +272,8 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
             address: row.address ?? undefined, cep: row.cep ?? undefined,
             notes: row.notes ?? undefined
           })),
+          goals: (gls.data || []).map(mapGoal),
+          goalTransactions: (gltxs.data || []).map(mapGoalTransaction),
         });
         setLoading(false);
         return;
@@ -253,6 +292,8 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
           address: row.address ?? undefined, cep: row.cep ?? undefined,
           notes: row.notes ?? undefined
         })),
+        goals: (gls.data || []).map(mapGoal),
+        goalTransactions: (gltxs.data || []).map(mapGoalTransaction),
       };
       setData(fresh);
       // Salva snapshot para acesso offline
@@ -1086,6 +1127,10 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     const targetAccountId = accountId || payable?.accountId;
     const today = new Date().toISOString().split('T')[0];
 
+    const isGoalPayable = payable?.supplier?.startsWith('meta:');
+    const goalId = isGoalPayable ? payable.supplier.split(':')[1] : null;
+    const finalSkipTransaction = isGoalPayable ? true : skipTransaction;
+
     const finalAmount = Math.max(0, (payable?.amount || 0) + (interestAmount || 0) - (discountAmount || 0));
 
     const updatePayload = {
@@ -1135,8 +1180,34 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
+      // Se for pagamento de meta, insere a transação de depósito na meta
+      if (isGoalPayable && goalId) {
+        const gtId = generateId();
+        const gtPayload = {
+          id: gtId,
+          user_id: effectiveUserId,
+          goal_id: goalId,
+          type: 'deposit',
+          amount: finalAmount,
+          date: today,
+          account_id: targetAccountId
+        };
+
+        if (isOnline) {
+          await supabase.from('goal_transactions').insert(gtPayload);
+        } else {
+          await enqueueMutation({ userId: effectiveUserId, type: 'INSERT', payload: { table: 'goal_transactions', data: gtPayload } });
+          const newGoalTx = mapGoalTransaction(gtPayload);
+          setData(prev => {
+            const fresh = { ...prev, goalTransactions: [newGoalTx, ...prev.goalTransactions] };
+            saveSnapshot(effectiveUserId, fresh).catch(() => {});
+            return fresh;
+          });
+        }
+      }
+
       // Criar transação de despesa automaticamente
-      if (!skipTransaction) {
+      if (!finalSkipTransaction) {
         const txId = generateId();
         const txPayload = {
           id: txId,
@@ -1171,7 +1242,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     if (isOnline) {
       await fetchAll();
     } else {
-      toast.success('Pagamento registrado offline');
+      toast.success('Pagamento registrado com sucesso');
     }
   }, [user, data, fetchAll]);
 
@@ -2183,6 +2254,375 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     if (isOnline) await fetchAll();
   }, [user, fetchAll]);
 
+  // --- Goals (Metas e Sonhos) ---
+  const addGoal = useCallback(async (g: Omit<Goal, 'id' | 'createdAt' | 'updatedAt' | 'status'>) => {
+    if (!user) return;
+    const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
+    const id = generateId();
+    const now = new Date().toISOString();
+    const payload = {
+      id,
+      user_id: effectiveUserId,
+      title: g.title,
+      target_amount: g.targetAmount,
+      deadline_months: g.deadlineMonths,
+      type: g.type,
+      estimated_yield: g.estimatedYield,
+      auto_deposit: g.autoDeposit,
+      auto_deposit_amount: g.autoDepositAmount,
+      auto_deposit_day: g.autoDepositDay || null,
+      account_id: g.accountId || null,
+      status: 'active',
+      created_at: now,
+      updated_at: now
+    };
+
+    let successOnline = false;
+    if (isOnline) {
+      const { error } = await supabase.from('goals').insert(payload);
+      if (error) {
+        console.error('addGoal online error, falling back to offline:', error);
+        toast.warning('Servidor indisponível. Salvando meta offline...');
+      } else {
+        successOnline = true;
+      }
+    }
+
+    if (!successOnline) {
+      await enqueueMutation({ userId: effectiveUserId, type: 'INSERT', payload: { table: 'goals', data: payload } });
+      const newGoal = mapGoal(payload);
+      setData(prev => {
+        const fresh = { ...prev, goals: [...prev.goals, newGoal] };
+        saveSnapshot(effectiveUserId, fresh).catch(() => {});
+        return fresh;
+      });
+      toast.success('Meta criada offline com sucesso!');
+    }
+
+    // Se o aporte automático estiver ativo, gerar lançamentos recorrentes em payables
+    if (g.autoDeposit && g.autoDepositAmount > 0 && g.autoDepositDay && g.accountId) {
+      const deadline = g.deadlineMonths;
+      const baseDate = new Date();
+      for (let i = 1; i <= deadline; i++) {
+        const d = new Date(baseDate);
+        d.setMonth(d.getMonth() + i);
+        const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+        const dueDay = Math.min(g.autoDepositDay, lastDay);
+        const dueStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(dueDay).padStart(2, '0')}`;
+
+        const payablePayload = {
+          id: generateId(),
+          user_id: effectiveUserId,
+          description: `Aporte: ${g.title} (${i}/${deadline})`,
+          supplier: `meta:${id}`,
+          category_id: data.categories.find(c => c.type === 'expense')?.id || data.categories[0]?.id || '',
+          account_id: g.accountId,
+          amount: g.autoDepositAmount,
+          due_date: dueStr,
+          status: 'pending',
+          recurring: true,
+          recurrence_frequency: 'monthly'
+        };
+
+        if (isOnline) {
+          await supabase.from('payables').insert(payablePayload);
+        } else {
+          await enqueueMutation({ userId: effectiveUserId, type: 'INSERT', payload: { table: 'payables', data: payablePayload } });
+          const newPayable = mapPayable(payablePayload);
+          setData(prev => {
+            const fresh = { ...prev, payables: [...prev.payables, newPayable] };
+            saveSnapshot(effectiveUserId, fresh).catch(() => {});
+            return fresh;
+          });
+        }
+      }
+    }
+
+    if (isOnline) await fetchAll();
+  }, [user, data.categories, fetchAll]);
+
+  const updateGoal = useCallback(async (g: Goal) => {
+    if (!user) return;
+    const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
+    const now = new Date().toISOString();
+    const payload = {
+      title: g.title,
+      target_amount: g.targetAmount,
+      deadline_months: g.deadlineMonths,
+      type: g.type,
+      estimated_yield: g.estimatedYield,
+      auto_deposit: g.autoDeposit,
+      auto_deposit_amount: g.autoDepositAmount,
+      auto_deposit_day: g.autoDepositDay || null,
+      account_id: g.accountId || null,
+      status: g.status,
+      updated_at: now
+    };
+
+    if (isOnline) {
+      const { error } = await supabase.from('goals').update(payload).eq('id', g.id).eq('user_id', effectiveUserId);
+      if (error) {
+        console.error('updateGoal error:', error);
+        toast.error('Erro ao atualizar meta: ' + error.message);
+        return;
+      }
+    } else {
+      await enqueueMutation({
+        userId: effectiveUserId,
+        type: 'UPDATE',
+        payload: { table: 'goals', data: payload, match: { id: g.id } }
+      });
+      setData(prev => {
+        const fresh = { ...prev, goals: prev.goals.map(x => x.id === g.id ? g : x) };
+        saveSnapshot(effectiveUserId, fresh).catch(() => {});
+        return fresh;
+      });
+      toast.success('Meta atualizada offline');
+    }
+
+    // Ajustar Contas a Pagar automáticas associadas à meta:
+    const pendingPayables = data.payables.filter(p => p.supplier === `meta:${g.id}` && p.status !== 'paid');
+    const pendingIds = pendingPayables.map(p => p.id);
+    if (pendingIds.length > 0) {
+      if (isOnline) {
+        await supabase.from('payables').delete().in('id', pendingIds).eq('user_id', effectiveUserId);
+      } else {
+        await enqueueMutation({
+          userId: effectiveUserId,
+          type: 'DELETE',
+          payload: { table: 'payables', matchIn: { column: 'id', values: pendingIds } }
+        });
+        setData(prev => {
+          const fresh = { ...prev, payables: prev.payables.filter(p => !pendingIds.includes(p.id)) };
+          saveSnapshot(effectiveUserId, fresh).catch(() => {});
+          return fresh;
+        });
+      }
+    }
+
+    if (g.autoDeposit && g.autoDepositAmount > 0 && g.autoDepositDay && g.accountId) {
+      const paidCount = data.payables.filter(p => p.supplier === `meta:${g.id}` && p.status === 'paid').length;
+      const remaining = g.deadlineMonths - paidCount;
+      if (remaining > 0) {
+        const baseDate = new Date();
+        for (let i = 1; i <= remaining; i++) {
+          const d = new Date(baseDate);
+          d.setMonth(d.getMonth() + i);
+          const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+          const dueDay = Math.min(g.autoDepositDay, lastDay);
+          const dueStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(dueDay).padStart(2, '0')}`;
+
+          const payablePayload = {
+            id: generateId(),
+            user_id: effectiveUserId,
+            description: `Aporte: ${g.title} (${paidCount + i}/${g.deadlineMonths})`,
+            supplier: `meta:${g.id}`,
+            category_id: data.categories.find(c => c.type === 'expense')?.id || data.categories[0]?.id || '',
+            account_id: g.accountId,
+            amount: g.autoDepositAmount,
+            due_date: dueStr,
+            status: 'pending',
+            recurring: true,
+            recurrence_frequency: 'monthly'
+          };
+
+          if (isOnline) {
+            await supabase.from('payables').insert(payablePayload);
+          } else {
+            await enqueueMutation({ userId: effectiveUserId, type: 'INSERT', payload: { table: 'payables', data: payablePayload } });
+            const newPayable = mapPayable(payablePayload);
+            setData(prev => {
+              const fresh = { ...prev, payables: [...prev.payables, newPayable] };
+              saveSnapshot(effectiveUserId, fresh).catch(() => {});
+              return fresh;
+            });
+          }
+        }
+      }
+    }
+
+    if (isOnline) await fetchAll();
+  }, [user, data.payables, data.categories, fetchAll]);
+
+  const deleteGoal = useCallback(async (id: string) => {
+    if (!user) return;
+    const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
+
+    if (isOnline) {
+      const { error } = await supabase.from('goals').delete().eq('id', id).eq('user_id', effectiveUserId);
+      if (error) {
+        console.error('deleteGoal error:', error);
+        toast.error('Erro ao excluir meta: ' + error.message);
+        return;
+      }
+    } else {
+      await enqueueMutation({
+        userId: effectiveUserId,
+        type: 'DELETE',
+        payload: { table: 'goals', match: { id } }
+      });
+      setData(prev => {
+        const fresh = {
+          ...prev,
+          goals: prev.goals.filter(g => g.id !== id),
+          goalTransactions: prev.goalTransactions.filter(t => t.goalId !== id)
+        };
+        saveSnapshot(effectiveUserId, fresh).catch(() => {});
+        return fresh;
+      });
+      toast.success('Meta excluída offline');
+    }
+
+    const allPayableIds = data.payables.filter(p => p.supplier === `meta:${id}`).map(p => p.id);
+    if (allPayableIds.length > 0) {
+      if (isOnline) {
+        await supabase.from('payables').delete().in('id', allPayableIds).eq('user_id', effectiveUserId);
+      } else {
+        await enqueueMutation({
+          userId: effectiveUserId,
+          type: 'DELETE',
+          payload: { table: 'payables', matchIn: { column: 'id', values: allPayableIds } }
+        });
+        setData(prev => {
+          const fresh = { ...prev, payables: prev.payables.filter(p => !allPayableIds.includes(p.id)) };
+          saveSnapshot(effectiveUserId, fresh).catch(() => {});
+          return fresh;
+        });
+      }
+    }
+
+    if (isOnline) await fetchAll();
+  }, [user, data.payables, fetchAll]);
+
+  const depositToGoal = useCallback(async (goalId: string, accountId: string, amount: number, date: string) => {
+    if (!user) return;
+    const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
+    const acc = data.accounts.find(a => a.id === accountId);
+    if (!acc) { toast.error('Conta financeira não encontrada'); return; }
+
+    const id = generateId();
+    const payload = {
+      id,
+      user_id: effectiveUserId,
+      goal_id: goalId,
+      type: 'deposit',
+      amount,
+      date,
+      account_id: accountId
+    };
+
+    if (isOnline) {
+      const { error: txErr } = await supabase.from('goal_transactions').insert(payload);
+      if (txErr) {
+        console.error('depositToGoal error:', txErr);
+        toast.error('Erro ao realizar aporte: ' + txErr.message);
+        return;
+      }
+
+      const { error: balErr } = await supabase.rpc('decrement_account_balance', { p_account_id: accountId, p_amount: amount });
+      if (balErr) console.error('decrement balance error:', balErr);
+    } else {
+      await enqueueMutation({ userId: effectiveUserId, type: 'INSERT', payload: { table: 'goal_transactions', data: payload } });
+      await enqueueMutation({
+        userId: effectiveUserId,
+        type: 'RPC',
+        payload: { rpc: 'decrement_account_balance', args: { p_account_id: accountId, p_amount: amount } }
+      });
+
+      const newTx = mapGoalTransaction(payload);
+      setData(prev => {
+        const fresh = {
+          ...prev,
+          goalTransactions: [newTx, ...prev.goalTransactions],
+          accounts: prev.accounts.map(a => a.id === accountId ? { ...a, balance: a.balance - amount } : a)
+        };
+        saveSnapshot(effectiveUserId, fresh).catch(() => {});
+        return fresh;
+      });
+      toast.success('Aporte registrado offline');
+    }
+
+    if (isOnline) await fetchAll();
+  }, [user, data.accounts, fetchAll]);
+
+  const withdrawFromGoal = useCallback(async (goalId: string, accountId: string, amount: number, date: string) => {
+    if (!user) return;
+    const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
+    const acc = data.accounts.find(a => a.id === accountId);
+    if (!acc) { toast.error('Conta financeira não encontrada'); return; }
+
+    const id = generateId();
+    const payload = {
+      id,
+      user_id: effectiveUserId,
+      goal_id: goalId,
+      type: 'withdrawal',
+      amount,
+      date,
+      account_id: accountId
+    };
+
+    if (isOnline) {
+      const { error: txErr } = await supabase.from('goal_transactions').insert(payload);
+      if (txErr) {
+        console.error('withdrawFromGoal error:', txErr);
+        toast.error('Erro ao realizar resgate: ' + txErr.message);
+        return;
+      }
+
+      const { error: balErr } = await supabase.rpc('increment_account_balance', { p_account_id: accountId, p_amount: amount });
+      if (balErr) console.error('increment balance error:', balErr);
+    } else {
+      await enqueueMutation({ userId: effectiveUserId, type: 'INSERT', payload: { table: 'goal_transactions', data: payload } });
+      await enqueueMutation({
+        userId: effectiveUserId,
+        type: 'RPC',
+        payload: { rpc: 'increment_account_balance', args: { p_account_id: accountId, p_amount: amount } }
+      });
+
+      const newTx = mapGoalTransaction(payload);
+      setData(prev => {
+        const fresh = {
+          ...prev,
+          goalTransactions: [newTx, ...prev.goalTransactions],
+          accounts: prev.accounts.map(a => a.id === accountId ? { ...a, balance: a.balance + amount } : a)
+        };
+        saveSnapshot(effectiveUserId, fresh).catch(() => {});
+        return fresh;
+      });
+      toast.success('Resgate registrado offline');
+    }
+
+    if (isOnline) await fetchAll();
+  }, [user, data.accounts, fetchAll]);
+
+  // Automação: Processamento de aportes de metas vencidos
+  useEffect(() => {
+    if (loading || !user) return;
+    
+    const checkAndProcessAutoDeposits = async () => {
+      const today = new Date().toISOString().split('T')[0];
+      const pendingAutoDeposits = data.payables.filter(p => 
+        p.supplier?.startsWith('meta:') && 
+        p.status !== 'paid' && 
+        p.dueDate <= today
+      );
+
+      if (pendingAutoDeposits.length === 0) return;
+
+      console.log(`[FinanceProvider] Processando ${pendingAutoDeposits.length} aportes automáticos de metas...`);
+      for (const p of pendingAutoDeposits) {
+        try {
+          await markPayablePaid(p.id, p.accountId, true);
+        } catch (err) {
+          console.error(`Erro ao processar aporte automático para payable ${p.id}:`, err);
+        }
+      }
+    };
+
+    checkAndProcessAutoDeposits();
+  }, [loading, user, data.payables, markPayablePaid]);
+
   // --- Categories ---
   const addCategory = useCallback(async (c: Omit<Category, 'id'>) => {
     if (!user) return;
@@ -2430,6 +2870,8 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
     try {
       // 1. Delete in order to respect foreign keys
+      await supabase.from('goal_transactions').delete().eq('user_id', effectiveUserId);
+      await supabase.from('goals').delete().eq('user_id', effectiveUserId);
       await supabase.from('transactions').delete().eq('user_id', effectiveUserId);
       await supabase.from('payables').delete().eq('user_id', effectiveUserId);
       await supabase.from('receivables').delete().eq('user_id', effectiveUserId);
@@ -2515,6 +2957,8 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       const bd = backup.data as FinanceData;
 
       // Clear existing data
+      await supabase.from('goal_transactions').delete().eq('user_id', effectiveUserId);
+      await supabase.from('goals').delete().eq('user_id', effectiveUserId);
       await supabase.from('budgets').delete().eq('user_id', effectiveUserId);
       await supabase.from('transactions').delete().eq('user_id', effectiveUserId);
       await supabase.from('payables').delete().eq('user_id', effectiveUserId);
@@ -2591,6 +3035,25 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
         })));
       }
 
+      // Restore goals
+      if (bd.goals && bd.goals.length > 0) {
+        await supabase.from('goals').insert(bd.goals.map(g => ({
+          id: g.id, title: g.title, target_amount: g.targetAmount, deadline_months: g.deadlineMonths,
+          type: g.type, estimated_yield: g.estimatedYield, auto_deposit: g.autoDeposit,
+          auto_deposit_amount: g.autoDepositAmount, auto_deposit_day: g.autoDepositDay ?? null,
+          account_id: g.accountId ?? null, status: g.status, user_id: effectiveUserId,
+          created_at: g.createdAt, updated_at: g.updatedAt
+        })));
+      }
+
+      // Restore goal transactions
+      if (bd.goalTransactions && bd.goalTransactions.length > 0) {
+        await supabase.from('goal_transactions').insert(bd.goalTransactions.map(gt => ({
+          id: gt.id, goal_id: gt.goalId, type: gt.type, amount: gt.amount, date: gt.date,
+          account_id: gt.accountId ?? null, user_id: effectiveUserId, created_at: gt.createdAt
+        })));
+      }
+
       // Restore settings if present
       if (backup.pixSettings) {
         const settingsToRestore = { ...backup.pixSettings };
@@ -2629,6 +3092,11 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     getCategoryName,
     getAccountName,
     getCategoryColor,
+    addGoal,
+    updateGoal,
+    deleteGoal,
+    depositToGoal,
+    withdrawFromGoal,
     resetAllData,
     exportBackup,
     importBackup,

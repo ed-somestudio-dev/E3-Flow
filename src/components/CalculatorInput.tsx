@@ -29,9 +29,17 @@ export function CalculatorInput({ value, onChange, placeholder, className }: Cal
 
   const calculate = () => {
     try {
-      // Safe eval: only allow numbers and basic operators
-      const sanitized = expression.replace(/[^0-9+\-*/().]/g, '');
+      // Safe eval: only allow numbers, basic operators, parenthesis and percent
+      let sanitized = expression.replace(/[^0-9+\-*/().%]/g, '');
       if (!sanitized) return;
+
+      // 1. Replace A + B% or A - B% (financial calculators style: 100 + 10% = 110)
+      sanitized = sanitized.replace(/(\d+(?:\.\d+)?)\s*([+\-])\s*(\d+(?:\.\d+)?)%/g, '$1 $2 ($1 * $3 / 100)');
+      // 2. Replace A * B% or A / B% (e.g. 50 * 20% = 10)
+      sanitized = sanitized.replace(/(\d+(?:\.\d+)?)\s*([\*/])\s*(\d+(?:\.\d+)?)%/g, '$1 $2 ($3 / 100)');
+      // 3. Replace any remaining number% (e.g. 10% = 0.1)
+      sanitized = sanitized.replace(/(\d+(?:\.\d+)?)%/g, '($1 / 100)');
+
       const result = Function('"use strict";return (' + sanitized + ')')();
       if (typeof result === 'number' && isFinite(result)) {
         const formatted = parseFloat(result.toFixed(2)).toString();
@@ -54,6 +62,7 @@ export function CalculatorInput({ value, onChange, placeholder, className }: Cal
   };
 
   const buttons = [
+    ['C', '%', '(', ')'],
     ['7', '8', '9', '/'],
     ['4', '5', '6', '*'],
     ['1', '2', '3', '-'],
@@ -61,7 +70,7 @@ export function CalculatorInput({ value, onChange, placeholder, className }: Cal
   ];
 
   return (
-    <div className="flex gap-1">
+    <div className="flex gap-1 w-full">
       <Input
         type="number"
         step="0.01"
@@ -72,36 +81,37 @@ export function CalculatorInput({ value, onChange, placeholder, className }: Cal
       />
       <Popover open={calcOpen} onOpenChange={setCalcOpen}>
         <PopoverTrigger asChild>
-          <Button type="button" variant="outline" size="icon" className="shrink-0">
+          <Button type="button" variant="outline" size="icon" className="shrink-0 h-10 w-10">
             <Calculator className="h-4 w-4" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-[220px] p-3 pointer-events-auto" align="end">
-          <div className="space-y-2">
-            <div className="bg-muted rounded-md px-3 py-2 text-right font-mono text-sm min-h-[32px]">
+        <PopoverContent className="w-[290px] md:w-[220px] p-4 md:p-3 pointer-events-auto" align="end">
+          <div className="space-y-3 md:space-y-2">
+            <div className="bg-muted rounded-md px-3 py-3 md:py-2 text-right font-mono text-lg md:text-sm min-h-[44px] md:min-h-[32px] flex items-center justify-end break-all">
               {display || '0'}
             </div>
-            <div className="grid grid-cols-4 gap-1">
+            <div className="grid grid-cols-4 gap-1.5 md:gap-1">
               {buttons.map((row, ri) =>
                 row.map((btn) => (
                   <Button
                     key={`${ri}-${btn}`}
                     type="button"
-                    variant={btn === '=' ? 'default' : ['+', '-', '*', '/'].includes(btn) ? 'secondary' : 'outline'}
+                    variant={btn === '=' ? 'default' : ['+', '-', '*', '/', '%'].includes(btn) ? 'secondary' : btn === 'C' ? 'destructive' : 'outline'}
                     size="sm"
-                    className="h-9 text-sm font-mono"
-                    onClick={() => btn === '=' ? calculate() : appendToExpression(btn)}
+                    className="h-11 md:h-9 text-base md:text-sm font-mono w-full"
+                    onClick={() => {
+                      if (btn === '=') calculate();
+                      else if (btn === 'C') clearCalc();
+                      else appendToExpression(btn);
+                    }}
                   >
                     {btn}
                   </Button>
                 ))
               )}
             </div>
-            <div className="flex gap-1">
-              <Button type="button" variant="ghost" size="sm" className="flex-1 text-xs" onClick={clearCalc}>
-                Limpar
-              </Button>
-              <Button type="button" size="sm" className="flex-1 text-xs" onClick={useValue}>
+            <div className="flex gap-1 pt-1">
+              <Button type="button" size="sm" className="w-full h-10 md:h-8 text-xs font-semibold" onClick={useValue}>
                 Usar Valor
               </Button>
             </div>

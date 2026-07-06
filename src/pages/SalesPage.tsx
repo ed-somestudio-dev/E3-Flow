@@ -293,6 +293,7 @@ export default function SalesPage() {
   const [bulkReceivePaymentMethod, setBulkReceivePaymentMethod] = useState<string>('keep');
   const [receiveInterestPercent, setReceiveInterestPercent] = useState('');
   const [receiveDiscountAmount, setReceiveDiscountAmount] = useState('');
+  const [receiveDiscountType, setReceiveDiscountType] = useState<'BRL' | 'PERCENT'>('BRL');
   const [receivePartialMode, setReceivePartialMode] = useState(false);
 
   // New Sale form
@@ -302,6 +303,7 @@ export default function SalesPage() {
   const [paymentMethod, setPaymentMethod] = useState('');
   const [notes, setNotes] = useState('');
   const [saleDiscountAmount, setSaleDiscountAmount] = useState('');
+  const [saleDiscountType, setSaleDiscountType] = useState<'BRL' | 'PERCENT'>('BRL');
   const [completeOnSave, setCompleteOnSave] = useState(true);
   const [createReceivable, setCreateReceivable] = useState(true);
   const [requiresShipping, setRequiresShipping] = useState(false);
@@ -322,7 +324,10 @@ export default function SalesPage() {
   );
 
   const cartTotal = cartItems.reduce((s, i) => s + i.total, 0);
-  const finalSaleTotal = Math.max(0, cartTotal - (parseFloat(saleDiscountAmount) || 0));
+  const calculatedSaleDiscount = saleDiscountType === 'PERCENT'
+    ? cartTotal * (parseFloat(saleDiscountAmount) || 0) / 100
+    : (parseFloat(saleDiscountAmount) || 0);
+  const finalSaleTotal = Math.max(0, cartTotal - calculatedSaleDiscount);
 
   const stats = useMemo(() => {
     const completed = sales.filter(s => s.status === 'completed');
@@ -407,6 +412,7 @@ export default function SalesPage() {
     setPaymentMethod('');
     setNotes('');
     setSaleDiscountAmount('');
+    setSaleDiscountType('BRL');
     setCartItems([]);
     setCompleteOnSave(true);
     setCreateReceivable(true);
@@ -425,13 +431,17 @@ export default function SalesPage() {
     try {
       if (editingSaleId) {
         // Modo edição: atualizar venda existente
+        const finalDiscount = saleDiscountType === 'PERCENT'
+          ? cartTotal * (parseFloat(saleDiscountAmount) || 0) / 100
+          : (parseFloat(saleDiscountAmount) || 0);
+
         await updateSale(editingSaleId, {
           clientName: clientName || undefined,
           paymentMethod: paymentMethod || undefined,
           notes: notes || undefined,
           saleDate,
           requiresShipping,
-          discountAmount: parseFloat(saleDiscountAmount) || undefined,
+          discountAmount: finalDiscount || undefined,
           items: cartItems,
         });
         
@@ -445,6 +455,10 @@ export default function SalesPage() {
         }
       } else {
         // Modo criação: nova venda
+        const finalDiscount = saleDiscountType === 'PERCENT'
+          ? cartTotal * (parseFloat(saleDiscountAmount) || 0) / 100
+          : (parseFloat(saleDiscountAmount) || 0);
+
         const payload: NewSalePayload = {
           clientName: clientName || undefined,
           status: completeOnSave ? 'completed' : 'pending',
@@ -453,7 +467,7 @@ export default function SalesPage() {
           saleDate,
           dueDate: !completeOnSave ? dueDate : undefined,
           requiresShipping,
-          discountAmount: parseFloat(saleDiscountAmount) || undefined,
+          discountAmount: finalDiscount || undefined,
           items: cartItems,
         };
         await createSale(payload, createReceivable, selectedCategoryId || undefined, selectedAccountId || undefined);
@@ -471,7 +485,9 @@ export default function SalesPage() {
       const baseTotal = items.reduce((sum, i) => sum + i.total, 0);
       const interestRatio = (parseFloat(receiveInterestPercent) || 0) / 100;
       const totalInterest = baseTotal * interestRatio;
-      const totalDiscount = parseFloat(receiveDiscountAmount) || 0;
+      const totalDiscount = receiveDiscountType === 'PERCENT'
+        ? baseTotal * (parseFloat(receiveDiscountAmount) || 0) / 100
+        : (parseFloat(receiveDiscountAmount) || 0);
       
       // Receber cada um (do mais antigo para o mais novo)
       const sorted = [...items].sort((a, b) => new Date(a.saleDate).getTime() - new Date(b.saleDate).getTime());
@@ -669,6 +685,12 @@ export default function SalesPage() {
       return acc + (s?.total || 0);
     }, 0);
   }, [selectedSales, sales]);
+
+  const bulkCalculatedDiscount = receiveDiscountType === 'PERCENT'
+    ? selectedSalesTotal * (parseFloat(receiveDiscountAmount) || 0) / 100
+    : (parseFloat(receiveDiscountAmount) || 0);
+
+  const bulkFinalTotal = Math.max(0, selectedSalesTotal + (selectedSalesTotal * (parseFloat(receiveInterestPercent) || 0) / 100) - bulkCalculatedDiscount);
 
   return (
     <div className="p-4 sm:p-8 max-w-7xl mx-auto space-y-6 relative pb-24">
@@ -1047,14 +1069,24 @@ export default function SalesPage() {
                     <span className="font-medium mono">{fmt(cartTotal)}</span>
                   </div>
                   <div className="flex items-center justify-between gap-3 px-1">
-                    <Label className="text-sm shrink-0">Desconto (R$)</Label>
-                    <Input 
-                      type="number" step="0.01" min="0" max={cartTotal}
-                      className="w-32 h-8 text-right"
-                      value={saleDiscountAmount} 
-                      onChange={e => setSaleDiscountAmount(e.target.value)} 
-                      placeholder="0,00" 
-                    />
+                    <Label className="text-sm shrink-0">Desconto</Label>
+                    <div className="flex gap-1">
+                      <Input 
+                        type="number" step="0.01" min="0" max={saleDiscountType === 'PERCENT' ? 100 : cartTotal}
+                        className="w-32 h-8 text-right"
+                        value={saleDiscountAmount} 
+                        onChange={e => setSaleDiscountAmount(e.target.value)} 
+                        placeholder="0,00" 
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-8 w-12 font-bold text-xs"
+                        onClick={() => setSaleDiscountType(prev => prev === 'BRL' ? 'PERCENT' : 'BRL')}
+                      >
+                        {saleDiscountType === 'BRL' ? 'R$' : '%'}
+                      </Button>
+                    </div>
                   </div>
                   <div className="flex justify-between items-center p-3 rounded-md bg-primary/10 border border-primary/20">
                     <span className="font-semibold text-sm">Total a Cobrar</span>
@@ -1193,15 +1225,25 @@ export default function SalesPage() {
                 <Input type="number" step="0.1" min="0" value={receiveInterestPercent} onChange={(e) => setReceiveInterestPercent(e.target.value)} placeholder="0.0" />
               </div>
               <div className="space-y-2">
-                <Label>Desconto (R$)</Label>
-                <Input type="number" step="0.01" min="0" value={receiveDiscountAmount} onChange={(e) => setReceiveDiscountAmount(e.target.value)} placeholder="0,00" />
+                <Label>Desconto</Label>
+                <div className="flex gap-1">
+                  <Input type="number" step="0.01" min="0" value={receiveDiscountAmount} onChange={(e) => setReceiveDiscountAmount(e.target.value)} placeholder="0,00" />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-12 shrink-0 font-bold"
+                    onClick={() => setReceiveDiscountType(prev => prev === 'BRL' ? 'PERCENT' : 'BRL')}
+                  >
+                    {receiveDiscountType === 'BRL' ? 'R$' : '%'}
+                  </Button>
+                </div>
               </div>
             </div>
 
             <div className="flex items-center justify-between p-3 rounded-md bg-primary/10 border border-primary/20">
               <span className="text-sm font-semibold text-primary">Valor a receber</span>
               <span className="text-xl font-bold text-success mono">
-                {fmt(Math.max(0, selectedSalesTotal + (selectedSalesTotal * (parseFloat(receiveInterestPercent) || 0) / 100) - (parseFloat(receiveDiscountAmount) || 0)))}
+                {fmt(bulkFinalTotal)}
               </span>
             </div>
 
@@ -1211,8 +1253,7 @@ export default function SalesPage() {
                   const checked = c === true;
                   setReceivePartialMode(checked);
                   if (checked && !bulkReceiveAmount) {
-                    const finalTotal = Math.max(0, selectedSalesTotal + (selectedSalesTotal * (parseFloat(receiveInterestPercent) || 0) / 100) - (parseFloat(receiveDiscountAmount) || 0));
-                    setBulkReceiveAmount((finalTotal / 2).toFixed(2));
+                    setBulkReceiveAmount((bulkFinalTotal / 2).toFixed(2));
                   }
                   if (!checked) setBulkReceiveAmount('');
                 }} />
@@ -1227,7 +1268,7 @@ export default function SalesPage() {
                   </Label>
                   <Input type="number" step="0.01" min="0.01" value={bulkReceiveAmount}
                     onChange={(e) => setBulkReceiveAmount(e.target.value)} placeholder="0,00" />
-                  <p className="text-xs text-muted-foreground mt-1">O saldo restante de {fmt(Math.max(0, Math.max(0, selectedSalesTotal + (selectedSalesTotal * (parseFloat(receiveInterestPercent) || 0) / 100) - (parseFloat(receiveDiscountAmount) || 0)) - (parseFloat(bulkReceiveAmount) || 0)))} será criado como uma nova conta pendente.</p>
+                  <p className="text-xs text-muted-foreground mt-1">O saldo restante de {fmt(Math.max(0, bulkFinalTotal - (parseFloat(bulkReceiveAmount) || 0)))} será criado como uma nova conta pendente.</p>
                 </div>
               )}
             </div>

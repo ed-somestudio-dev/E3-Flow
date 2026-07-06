@@ -2,7 +2,7 @@ import { useState, useRef } from 'react';
 import {
   LayoutDashboard, FileText, FileInput, ArrowUpDown, Wallet, Target, Sun, Moon,
   BarChart3, LogOut, Tag, RotateCcw, Download, Upload, Settings, Users,
-  ChevronDown, MoreHorizontal, Smartphone, ShoppingCart, Package, Crown, HelpCircle, Loader2
+  ChevronDown, MoreHorizontal, Smartphone, ShoppingCart, Package, Crown, HelpCircle, Loader2, Trophy
 } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import logoE3Flow from '@/assets/Logo_E3Flow_Final.png';
@@ -41,6 +41,7 @@ const manageItems = [
   { title: 'Contatos', url: '/contacts', icon: Users },
   { title: 'Categorias', url: '/categories', icon: Tag },
   { title: 'Orçamentos', url: '/budgets', icon: Target },
+  { title: 'Metas/Sonhos', url: '/goals', icon: Trophy },
   { title: 'Relatórios', url: '/reports', icon: BarChart3 },
   { title: 'Assinatura', url: '/subscription', icon: Crown },
   { title: 'Configurações', url: '/settings', icon: Settings },

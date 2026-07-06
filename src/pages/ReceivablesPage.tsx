@@ -59,6 +59,7 @@ export default function ReceivablesPage() {
   const [partialAmount, setPartialAmount] = useState('');
   const [interestPercent, setInterestPercent] = useState('');
   const [receiveDiscountAmount, setReceiveDiscountAmount] = useState('');
+  const [receiveDiscountType, setReceiveDiscountType] = useState<'BRL' | 'PERCENT'>('BRL');
   const [showReceiveItems, setShowReceiveItems] = useState(false);
   const [dateFrom, setDateFrom] = useState<Date | undefined>(startOfMonth(new Date()));
   const [dateTo, setDateTo] = useState<Date | undefined>(endOfMonth(new Date()));
@@ -224,6 +225,7 @@ export default function ReceivablesPage() {
     setPartialAmount('');
     setInterestPercent('');
     setReceiveDiscountAmount('');
+    setReceiveDiscountType('BRL');
     setShowReceiveItems(false);
     setReceiveDialogOpen(true);
   };
@@ -244,6 +246,7 @@ export default function ReceivablesPage() {
     }
     setInterestPercent('');
     setReceiveDiscountAmount('');
+    setReceiveDiscountType('BRL');
     setShowReceiveItems(false);
     setReceiveDialogOpen(true);
   };
@@ -253,8 +256,10 @@ export default function ReceivablesPage() {
     const accName = data.accounts.find(a => a.id === receiveAccountId)?.name || '';
     const items = receivingIds.map(id => data.receivables.find(r => r.id === id)).filter(Boolean) as Receivable[];
     
-    const discountAmount = parseFloat(receiveDiscountAmount) || 0;
     const baseTotal = items.reduce((sum, r) => sum + r.amount, 0);
+    const discountAmount = receiveDiscountType === 'PERCENT'
+      ? baseTotal * (parseFloat(receiveDiscountAmount) || 0) / 100
+      : (parseFloat(receiveDiscountAmount) || 0);
     const interestAmount = baseTotal > 0 ? (baseTotal * (parseFloat(interestPercent) || 0) / 100) : 0;
     
     let partialAmtUsed = 0;
@@ -314,6 +319,7 @@ export default function ReceivablesPage() {
     setPartialAmount('');
     setInterestPercent('');
     setReceiveDiscountAmount('');
+    setReceiveDiscountType('BRL');
 
     // Sempre oferecer recibo após registrar o recebimento
     const today = format(new Date(), 'yyyy-MM-dd');
@@ -545,7 +551,10 @@ export default function ReceivablesPage() {
     return sum + (r?.amount || 0);
   }, 0);
   const interestAmount = receivingTotal * (parseFloat(interestPercent) || 0) / 100;
-  const finalReceivingTotal = Math.max(0, receivingTotal + interestAmount - (parseFloat(receiveDiscountAmount) || 0));
+  const calculatedDiscount = receiveDiscountType === 'PERCENT'
+    ? receivingTotal * (parseFloat(receiveDiscountAmount) || 0) / 100
+    : (parseFloat(receiveDiscountAmount) || 0);
+  const finalReceivingTotal = Math.max(0, receivingTotal + interestAmount - calculatedDiscount);
   const selectedReceiveAccount = data.accounts.find(a => a.id === receiveAccountId);
 
   return (
@@ -863,8 +872,18 @@ export default function ReceivablesPage() {
                   <Input type="number" step="0.1" min="0" value={interestPercent} onChange={(e) => setInterestPercent(e.target.value)} placeholder="0.0" />
                 </div>
                 <div className="space-y-2">
-                  <Label>Desconto (R$)</Label>
-                  <Input type="number" step="0.01" min="0" value={receiveDiscountAmount} onChange={(e) => setReceiveDiscountAmount(e.target.value)} placeholder="0,00" />
+                  <Label>Desconto</Label>
+                  <div className="flex gap-1">
+                    <Input type="number" step="0.01" min="0" value={receiveDiscountAmount} onChange={(e) => setReceiveDiscountAmount(e.target.value)} placeholder="0,00" />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-12 shrink-0 font-bold"
+                      onClick={() => setReceiveDiscountType(prev => prev === 'BRL' ? 'PERCENT' : 'BRL')}
+                    >
+                      {receiveDiscountType === 'BRL' ? 'R$' : '%'}
+                    </Button>
+                  </div>
                 </div>
               </div>
 

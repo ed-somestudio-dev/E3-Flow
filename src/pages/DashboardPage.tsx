@@ -12,8 +12,9 @@ import { consolidatePayables } from '@/lib/consolidate-payables';
 import { usePixSettings } from '@/lib/pix-settings-context';
 import { APP_VERSION, APP_VERSION_DATE } from '@/lib/version';
 
-function StatCard({ label, value, icon: Icon, trend, color }: {
+function StatCard({ label, value, icon: Icon, trend, color, subValue }: {
   label: string; value: string; icon: React.ElementType; trend?: 'up' | 'down'; color?: string;
+  subValue?: string;
 }) {
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="finance-card">
@@ -22,6 +23,9 @@ function StatCard({ label, value, icon: Icon, trend, color }: {
         <div className="p-2 rounded-lg bg-muted"><Icon className="h-4 w-4 text-muted-foreground" /></div>
       </div>
       <p className="finance-stat mono" style={color ? { color } : undefined}>{value}</p>
+      {subValue && (
+        <p className="text-[10px] text-muted-foreground mt-1">{subValue}</p>
+      )}
       {trend && (
         <div className="flex items-center gap-1 mt-2 text-xs">
           {trend === 'up' ? <ArrowUpRight className="h-3 w-3 text-success" /> : <ArrowDownRight className="h-3 w-3 text-destructive" />}
@@ -53,7 +57,9 @@ export default function DashboardPage() {
     const monthTx = data.transactions.filter(t => t.date.startsWith(monthStr));
     const monthIncome = monthTx.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
     const monthExpense = monthTx.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
-    return { totalBalance, totalPayable, totalReceivable, monthIncome, monthExpense };
+    const goalsTotal = (data.goalTransactions || []).reduce((s, t) => s + (t.type === 'deposit' ? t.amount : -t.amount), 0);
+    const patrimonioTotal = totalBalance + goalsTotal;
+    return { totalBalance, totalPayable, totalReceivable, monthIncome, monthExpense, patrimonioTotal };
   }, [data]);
 
   const overduePayables = consolidated.filter(p => p.status === 'overdue');
@@ -75,8 +81,79 @@ export default function DashboardPage() {
     return d >= 0 && d <= lead;
   }), [data.receivables, lead, todayStr]);
 
+  const goalReminders = useMemo(() => {
+    const reminders: { id: string; title: string; suggestedAmount: number; remaining: number; dueDate: string }[] = [];
+    const now = new Date();
+    const currentYearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+    data.goals.forEach(goal => {
+      if (goal.status !== 'active') return;
+
+      // 1. Calculate suggested monthly installment
+      let suggested = 0;
+      if (goal.targetAmount > 0 && goal.deadlineMonths > 0) {
+        if (goal.type === 'save') {
+          suggested = goal.targetAmount / goal.deadlineMonths;
+        } else {
+          const r = (goal.estimatedYield || 0.8) / 100;
+          const n = goal.deadlineMonths;
+          if (r > 0) {
+            suggested = goal.targetAmount * r / (Math.pow(1 + r, n) - 1);
+          } else {
+            suggested = goal.targetAmount / n;
+          }
+        }
+      }
+      suggested = Math.round(suggested * 100) / 100;
+      if (suggested <= 0) return;
+
+      // 2. Sum deposits for the current month
+      const depositsThisMonth = (data.goalTransactions || [])
+        .filter(t => t.goalId === goal.id && t.type === 'deposit' && t.date.startsWith(currentYearMonth))
+        .reduce((sum, t) => sum + t.amount, 0);
+
+      const remaining = Math.round((suggested - depositsThisMonth) * 100) / 100;
+      if (remaining <= 0.01) return; // Contribution fully made this month
+
+      // 3. Determine due date in the current month based on creation day
+      const creationDate = new Date(goal.createdAt);
+      const creationDay = creationDate.getDate();
+      
+      // Get last day of current month to clamp creationDay if necessary
+      const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+      const dueDay = Math.min(creationDay, lastDayOfMonth);
+      const due = new Date(now.getFullYear(), now.getMonth(), dueDay);
+      const dueDateStr = due.toISOString().split('T')[0];
+
+      reminders.push({
+        id: goal.id,
+        title: goal.title,
+        suggestedAmount: suggested,
+        remaining,
+        dueDate: dueDateStr
+      });
+    });
+
+    return reminders;
+  }, [data.goals, data.goalTransactions]);
+
+  const overdueGoalReminders = useMemo(() => {
+    return goalReminders.filter(g => g.dueDate < todayStr);
+  }, [goalReminders, todayStr]);
+
+  const upcomingGoalReminders = useMemo(() => {
+    return goalReminders.filter(g => {
+      if (g.dueDate < todayStr) return false;
+      const d = differenceInCalendarDays(new Date(g.dueDate + 'T12:00:00'), new Date());
+      return d >= 0 && d <= lead;
+    });
+  }, [goalReminders, todayStr, lead]);
+
   const remindersOn = settingsLoaded && settings.remindersEnabled;
-  const showAlertsCard = remindersOn && (overduePayables.length + overdueReceivables.length + upcomingPayables.length + upcomingReceivables.length) > 0;
+  const showAlertsCard = remindersOn && (
+    overduePayables.length + overdueReceivables.length + overdueGoalReminders.length +
+    upcomingPayables.length + upcomingReceivables.length + upcomingGoalReminders.length
+  ) > 0;
 
   const cashFlowData = useMemo(() => {
     const months: { name: string; receitas: number; despesas: number; saldo: number }[] = [];
@@ -173,7 +250,7 @@ export default function DashboardPage() {
             </Link>
           </div>
 
-          {(overduePayables.length > 0 || overdueReceivables.length > 0) && (
+          {(overduePayables.length > 0 || overdueReceivables.length > 0 || overdueGoalReminders.length > 0) && (
             <div className="mb-3">
               <div className="flex items-center gap-2 text-destructive mb-1.5">
                 <AlertTriangle className="h-3.5 w-3.5" />
@@ -190,11 +267,16 @@ export default function DashboardPage() {
                     <Link to="/receivables" className="text-destructive font-medium hover:underline">{SAFE_LABELS.shortReceivable}</Link>: <span className="text-foreground font-medium">{r.description}</span> de {r.clientName} — {fmt(r.amount)} venceu em {fmtDate(r.dueDate)}
                   </p>
                 ))}
+                {overdueGoalReminders.map(g => (
+                  <p key={g.id} className="text-muted-foreground">
+                    <Link to="/goals" className="text-destructive font-medium hover:underline">Meta/Sonho</Link>: Aporte sugerido da meta <span className="text-foreground font-medium">{g.title}</span> de {fmt(g.suggestedAmount)} venceu em {fmtDate(g.dueDate)} (Falta {fmt(g.remaining)})
+                  </p>
+                ))}
               </div>
             </div>
           )}
 
-          {(upcomingPayables.length > 0 || upcomingReceivables.length > 0) && (
+          {(upcomingPayables.length > 0 || upcomingReceivables.length > 0 || upcomingGoalReminders.length > 0) && (
             <div>
               <div className="flex items-center gap-2 text-warning mb-1.5">
                 <Bell className="h-3.5 w-3.5" />
@@ -211,6 +293,11 @@ export default function DashboardPage() {
                 {upcomingReceivables.map(r => (
                   <p key={r.id} className="text-muted-foreground">
                     <Link to="/receivables" className="text-warning font-medium hover:underline">{SAFE_LABELS.shortReceivable}</Link>: <span className="text-foreground font-medium">{r.description}</span> de {r.clientName} — {fmt(r.amount)} vence em {fmtDate(r.dueDate)}
+                  </p>
+                ))}
+                {upcomingGoalReminders.map(g => (
+                  <p key={g.id} className="text-muted-foreground">
+                    <Link to="/goals" className="text-warning font-medium hover:underline">Meta/Sonho</Link>: Aporte sugerido da meta <span className="text-foreground font-medium">{g.title}</span> de {fmt(g.suggestedAmount)} vence em {fmtDate(g.dueDate)} (Falta {fmt(g.remaining)})
                   </p>
                 ))}
               </div>
@@ -260,7 +347,7 @@ export default function DashboardPage() {
 
       {/* Estatísticas */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        <StatCard label="Saldo Total" value={fmt(stats.totalBalance)} icon={Wallet} />
+        <StatCard label="Saldo Disponível" value={fmt(stats.totalBalance)} icon={Wallet} subValue={`Patrimônio: ${fmt(stats.patrimonioTotal)}`} />
         <StatCard label={SAFE_LABELS.payables} value={fmt(stats.totalPayable)} icon={TrendingDown} color="hsl(var(--destructive))" />
         <StatCard label={SAFE_LABELS.receivables} value={fmt(stats.totalReceivable)} icon={TrendingUp} color="hsl(var(--success))" />
         <StatCard label="Receitas do Mês" value={fmt(stats.monthIncome)} icon={ArrowUpRight} trend="up" />

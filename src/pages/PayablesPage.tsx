@@ -193,6 +193,7 @@ export default function PayablesPage() {
   const [partialAmount, setPartialAmount] = useState('');
   const [interestPercent, setInterestPercent] = useState('');
   const [payDiscountAmount, setPayDiscountAmount] = useState('');
+  const [payDiscountType, setPayDiscountType] = useState<'BRL' | 'PERCENT'>('BRL');
   const [showPayItems, setShowPayItems] = useState(false);
   const [showMorePayOptions, setShowMorePayOptions] = useState(false);
   const [dateFrom, setDateFrom] = useState<Date | undefined>(startOfMonth(new Date()));
@@ -269,6 +270,7 @@ export default function PayablesPage() {
     setPartialAmount('');
     setInterestPercent('');
     setPayDiscountAmount('');
+    setPayDiscountType('BRL');
     setShowPayItems(false);
     setShowMorePayOptions(false);
     setPayDialogOpen(true);
@@ -282,6 +284,7 @@ export default function PayablesPage() {
     setPartialAmount('');
     setInterestPercent('');
     setPayDiscountAmount('');
+    setPayDiscountType('BRL');
     setShowPayItems(false);
     setShowMorePayOptions(false);
     setPayDialogOpen(true);
@@ -298,8 +301,10 @@ export default function PayablesPage() {
       const itemsToPay = payingIds.map(id => data.payables.find(x => x.id === id)).filter(Boolean) as Payable[];
       const isInvoice = itemsToPay.length > 0 && itemsToPay.every(p => p.supplier?.startsWith('cartao:'));
       
-      const discountAmount = parseFloat(payDiscountAmount) || 0;
       const baseTotal = itemsToPay.reduce((sum, p) => sum + p.amount, 0);
+      const discountAmount = payDiscountType === 'PERCENT'
+        ? baseTotal * (parseFloat(payDiscountAmount) || 0) / 100
+        : (parseFloat(payDiscountAmount) || 0);
       const interestAmount = baseTotal > 0 ? (baseTotal * (parseFloat(interestPercent) || 0) / 100) : 0;
       
       let totalActuallyPaid = 0;
@@ -378,6 +383,7 @@ export default function PayablesPage() {
       setPartialAmount('');
       setInterestPercent('');
       setPayDiscountAmount('');
+      setPayDiscountType('BRL');
     }
   };
 
@@ -386,7 +392,10 @@ export default function PayablesPage() {
     return sum + (p?.amount || 0);
   }, 0);
   const interestAmount = payingTotal * (parseFloat(interestPercent) || 0) / 100;
-  const finalPayingTotal = Math.max(0, payingTotal + interestAmount - (parseFloat(payDiscountAmount) || 0));
+  const calculatedDiscount = payDiscountType === 'PERCENT'
+    ? payingTotal * (parseFloat(payDiscountAmount) || 0) / 100
+    : (parseFloat(payDiscountAmount) || 0);
+  const finalPayingTotal = Math.max(0, payingTotal + interestAmount - calculatedDiscount);
   const selectedPayAccount = data.accounts.find(a => a.id === payAccountId);
   const selectedTotal = Array.from(selectedIds).reduce((s, id) => {
     const p = data.payables.find(x => x.id === id);
@@ -619,8 +628,18 @@ export default function PayablesPage() {
                 <Input type="number" step="0.1" min="0" value={interestPercent} onChange={(e) => setInterestPercent(e.target.value)} placeholder="0.0" />
               </div>
               <div className="space-y-2">
-                <Label>Desconto (R$)</Label>
-                <Input type="number" step="0.01" min="0" value={payDiscountAmount} onChange={(e) => setPayDiscountAmount(e.target.value)} placeholder="0,00" />
+                <Label>Desconto</Label>
+                <div className="flex gap-1">
+                  <Input type="number" step="0.01" min="0" value={payDiscountAmount} onChange={(e) => setPayDiscountAmount(e.target.value)} placeholder="0,00" />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-12 shrink-0 font-bold"
+                    onClick={() => setPayDiscountType(prev => prev === 'BRL' ? 'PERCENT' : 'BRL')}
+                  >
+                    {payDiscountType === 'BRL' ? 'R$' : '%'}
+                  </Button>
+                </div>
               </div>
             </div>
 

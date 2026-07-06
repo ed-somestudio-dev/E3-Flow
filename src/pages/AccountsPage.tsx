@@ -3,6 +3,7 @@ import { useFinance } from '@/lib/finance-context';
 import { FinancialAccount, AccountType, getAccountTypes, hasAccountType } from '@/lib/types';
 import { Plus, Trash2, Edit2, Wallet, PiggyBank, Banknote, CreditCard, ArrowRightLeft, Receipt } from 'lucide-react';
 import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog';
+import { CalculatorInput } from '@/components/CalculatorInput';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -237,7 +238,7 @@ function TransferForm({ accounts, onTransfer }: {
       </div>
       <div>
         <Label>Valor</Label>
-        <Input type="number" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0,00" />
+        <CalculatorInput value={amount} onChange={setAmount} placeholder="0,00" />
         {fromAccount && <p className="text-xs text-muted-foreground mt-1">Saldo disponível: {fmt(fromAccount.balance)}</p>}
       </div>
       <Button className="w-full" disabled={!isValid} onClick={() => onTransfer(fromId, toId, parseFloat(amount))}>
@@ -296,18 +297,18 @@ function AccountForm({ item, onSave }: {
       </div>
       {hasChecking && (
         <div><Label>Saldo {selectedTypes.includes('checking') ? 'Conta Corrente' : 'Dinheiro'}</Label>
-          <Input type="number" step="0.01" value={balance} onChange={e => setBalance(e.target.value)} />
+          <CalculatorInput value={balance} onChange={setBalance} placeholder="0,00" />
         </div>
       )}
       {hasSavings && (
         <div><Label>Saldo Poupança</Label>
-          <Input type="number" step="0.01" value={savingsBalance} onChange={e => setSavingsBalance(e.target.value)} />
+          <CalculatorInput value={savingsBalance} onChange={setSavingsBalance} placeholder="0,00" />
         </div>
       )}
       {hasCreditCard && (
         <>
-          <div><Label>Limite de Crédito</Label><Input type="number" step="0.01" value={creditLimit} onChange={e => setCreditLimit(e.target.value)} placeholder="Ex: 5000" /></div>
-          <div><Label>Limite Utilizado</Label><Input type="number" step="0.01" value={creditUsed} onChange={e => setCreditUsed(e.target.value)} placeholder="Ex: 1500" /></div>
+          <div><Label>Limite de Crédito</Label><CalculatorInput value={creditLimit} onChange={setCreditLimit} placeholder="Ex: 5000" /></div>
+          <div><Label>Limite Utilizado</Label><CalculatorInput value={creditUsed} onChange={setCreditUsed} placeholder="Ex: 1500" /></div>
           <div className="grid grid-cols-2 gap-3">
             <div><Label>Dia Fechamento</Label><Input type="number" min="1" max="31" value={billingCloseDay} onChange={e => setBillingCloseDay(e.target.value)} placeholder="Ex: 15" /></div>
             <div><Label>Dia Vencimento</Label><Input type="number" min="1" max="31" value={dueDay} onChange={e => setDueDay(e.target.value)} placeholder="Ex: 10" /></div>

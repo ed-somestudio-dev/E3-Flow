@@ -103,6 +103,32 @@ export interface Contact {
   cep?: string;
 }
 
+export interface Goal {
+  id: string;
+  title: string;
+  targetAmount: number;
+  deadlineMonths: number;
+  type: 'save' | 'invest';
+  estimatedYield: number; // monthly interest rate in percentage, e.g. 0.8
+  autoDeposit: boolean;
+  autoDepositAmount: number;
+  autoDepositDay?: number;
+  accountId?: string;
+  status: 'active' | 'completed' | 'archived';
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GoalTransaction {
+  id: string;
+  goalId: string;
+  type: 'deposit' | 'withdrawal';
+  amount: number;
+  date: string;
+  accountId?: string;
+  createdAt: string;
+}
+
 export interface FinanceData {
   accounts: FinancialAccount[];
   categories: Category[];
@@ -111,6 +137,8 @@ export interface FinanceData {
   receivables: Receivable[];
   budgets: Budget[];
   contacts: Contact[];
+  goals: Goal[];
+  goalTransactions: GoalTransaction[];
 }
 
 export interface Product {
