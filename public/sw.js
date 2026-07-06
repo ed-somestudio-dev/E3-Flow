@@ -1,4 +1,4 @@
-// Service Worker do FluxoPro.
+// Service Worker do E3 Flow.
 // Network-first para navegação/HTML (nunca serve HTML em cache se a rede responder),
 // cache-first para assets estáticos com hash. Não intercepta APIs/Supabase.
 //

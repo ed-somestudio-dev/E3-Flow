@@ -2493,7 +2493,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     };
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
     const { downloadBlob } = await import('./documents');
-    const filename = `fluxopro-backup-${new Date().toISOString().split('T')[0]}.json`;
+    const filename = `e3flow-backup-${new Date().toISOString().split('T')[0]}.json`;
     const saved = await downloadBlob(blob, filename);
     if (saved) {
       toast.success(Capacitor.isNativePlatform() ? 'Backup salvo na pasta Documentos' : 'Backup baixado com sucesso');

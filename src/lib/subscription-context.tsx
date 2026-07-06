@@ -108,7 +108,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
 
     if (!assertOnline()) {
       console.log('[SubscriptionProvider] Offline: usando cache da assinatura');
-      const cached = localStorage.getItem(`fluxopro_sub_${user.id}`);
+      const cached = localStorage.getItem(`e3flow_sub_${user.id}`);
       if (cached) {
         try {
           const parsed = JSON.parse(cached);
@@ -135,7 +135,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
           trial_end_date: (newSub as any).trial_end_date ?? null,
         };
         setSubscription(subToSave);
-        localStorage.setItem(`fluxopro_sub_${user.id}`, JSON.stringify({ subscription: subToSave, isAdmin: isAdminState }));
+        localStorage.setItem(`e3flow_sub_${user.id}`, JSON.stringify({ subscription: subToSave, isAdmin: isAdminState }));
       } else {
         console.warn('[SubscriptionProvider] Falha ao executar auto_provision_trial:', rpcError);
         // Fallback: tentar buscar a assinatura normalmente se a RPC falhar
@@ -151,7 +151,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
             trial_end_date: (data as any).trial_end_date ?? null,
           };
           setSubscription(subToSave);
-          localStorage.setItem(`fluxopro_sub_${user.id}`, JSON.stringify({ subscription: subToSave, isAdmin: isAdminState }));
+          localStorage.setItem(`e3flow_sub_${user.id}`, JSON.stringify({ subscription: subToSave, isAdmin: isAdminState }));
         } else {
           setSubscription(null);
         }
@@ -168,12 +168,12 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
           setIsAdmin(true);
           
           // Atualiza cache de isAdmin no localStorage (mesmo se a subscription falhar em carregar antes, garantimos que isAdmin foi cacheado)
-          const cached = localStorage.getItem(`fluxopro_sub_${user.id}`);
+          const cached = localStorage.getItem(`e3flow_sub_${user.id}`);
           let parsed = { subscription: null, isAdmin: true };
           if (cached) {
             try { parsed = JSON.parse(cached); parsed.isAdmin = true; } catch(e){}
           }
-          localStorage.setItem(`fluxopro_sub_${user.id}`, JSON.stringify(parsed));
+          localStorage.setItem(`e3flow_sub_${user.id}`, JSON.stringify(parsed));
         } else {
           setIsAdmin(false);
         }

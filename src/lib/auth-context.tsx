@@ -61,16 +61,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       // If we just logged in and had a guest session, migrate data
       if (session?.user && !session.user.id.startsWith('guest_')) {
-        localStorage.setItem('fluxopro_offline_user', JSON.stringify({
+        localStorage.setItem('e3flow_offline_user', JSON.stringify({
           user: session.user,
           timestamp: Date.now()
         }));
         
-        const guestId = localStorage.getItem('fluxopro_guest_id');
+        const guestId = localStorage.getItem('e3flow_guest_id');
         if (guestId && guestId !== session.user.id) {
           console.log('[AuthContext] Sessão real detectada. Migrando dados do visitante...');
           await migrateGuestData(guestId, session.user.id);
-          localStorage.removeItem('fluxopro_guest_id');
+          localStorage.removeItem('e3flow_guest_id');
           toast.success('Dados sincronizados com sua conta!');
         }
       }
@@ -124,7 +124,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } finally {
         if (!finalSession) {
           // Check 24-hour offline fallback first
-          const offlineDataStr = localStorage.getItem('fluxopro_offline_user');
+          const offlineDataStr = localStorage.getItem('e3flow_offline_user');
           if (offlineDataStr && !assertOnline()) {
              try {
                const offlineData = JSON.parse(offlineDataStr);
@@ -146,10 +146,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           
           // Otherwise check for guest session in localStorage
           if (!finalSession) {
-            const guestId = localStorage.getItem('fluxopro_guest_id');
+            const guestId = localStorage.getItem('e3flow_guest_id');
             if (guestId) {
               finalSession = {
-                user: { id: guestId, email: 'visitante@fluxopro.local', user_metadata: { name: 'Visitante' } } as any,
+                user: { id: guestId, email: 'visitante@e3flow.local', user_metadata: { name: 'Visitante' } } as any,
                 access_token: 'guest',
                 refresh_token: 'guest',
                 expires_in: 3600,
@@ -209,9 +209,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signInAsGuest = () => {
     const guestId = 'guest_' + Math.random().toString(36).substring(2, 15);
-    localStorage.setItem('fluxopro_guest_id', guestId);
+    localStorage.setItem('e3flow_guest_id', guestId);
     setSession({
-      user: { id: guestId, email: 'visitante@fluxopro.local', user_metadata: { name: 'Visitante' } } as any,
+      user: { id: guestId, email: 'visitante@e3flow.local', user_metadata: { name: 'Visitante' } } as any,
       access_token: 'guest',
       refresh_token: 'guest',
       expires_in: 3600,
@@ -220,8 +220,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
-    localStorage.removeItem('fluxopro_guest_id');
-    localStorage.removeItem('fluxopro_offline_user');
+    localStorage.removeItem('e3flow_guest_id');
+    localStorage.removeItem('e3flow_offline_user');
     await supabase.auth.signOut();
     setSession(null);
   };

@@ -9,6 +9,12 @@ import { SAFE_LABELS } from '@/lib/safe-labels';
 import { consolidatePayables } from '@/lib/consolidate-payables';
 import { MonthYearPicker } from '@/components/MonthYearPicker';
 import { format as fmtFn, startOfMonth, endOfMonth } from 'date-fns';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { Button } from '@/components/ui/button';
+import { CalendarIcon, X } from 'lucide-react';
+import { ptBR } from 'date-fns/locale';
+import { cn } from '@/lib/utils';
 
 export default function ReportsPage() {
   const { data, getCategoryName, getCategoryColor, getAccountName } = useFinance();
@@ -17,9 +23,20 @@ export default function ReportsPage() {
 
   // Period filter for payables/receivables
   const todayStr = now.toISOString().split('T')[0];
-  const [startDate, setStartDate] = useState(() => `${now.getFullYear()}-01-01`);
-  const [endDate, setEndDate] = useState(() => `${now.getFullYear()}-12-31`);
-  const [forecastDate, setForecastDate] = useState(todayStr);
+  const [startDate, setStartDate] = useState<Date | undefined>(startOfMonth(new Date()));
+  const [endDate, setEndDate] = useState<Date | undefined>(endOfMonth(new Date()));
+
+  const clearDateFilter = () => {
+    setStartDate(undefined);
+    setEndDate(undefined);
+  };
+  const [forecastDateFrom, setForecastDateFrom] = useState<Date | undefined>(startOfMonth(new Date()));
+  const [forecastDateTo, setForecastDateTo] = useState<Date | undefined>(endOfMonth(new Date()));
+
+  const clearForecastDateFilter = () => {
+    setForecastDateFrom(undefined);
+    setForecastDateTo(undefined);
+  };
 
   // Monthly summary for year
   const monthlySummary = useMemo(() => {
@@ -79,8 +96,14 @@ export default function ReportsPage() {
   const consolidated = useMemo(() => consolidatePayables(data.payables, getAccountName), [data.payables, getAccountName]);
 
   const payablesByPeriod = useMemo(() => {
+    const fromStr = startDate ? fmtFn(startDate, 'yyyy-MM-dd') : undefined;
+    const toStr = endDate ? fmtFn(endDate, 'yyyy-MM-dd') : undefined;
     return consolidated
-      .filter(p => p.dueDate >= startDate && p.dueDate <= endDate)
+      .filter(p => {
+        if (fromStr && p.dueDate < fromStr) return false;
+        if (toStr && p.dueDate > toStr) return false;
+        return true;
+      })
       .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
   }, [consolidated, startDate, endDate]);
 
@@ -94,8 +117,14 @@ export default function ReportsPage() {
 
   // Receivables by period
   const receivablesByPeriod = useMemo(() => {
+    const fromStr = startDate ? fmtFn(startDate, 'yyyy-MM-dd') : undefined;
+    const toStr = endDate ? fmtFn(endDate, 'yyyy-MM-dd') : undefined;
     return data.receivables
-      .filter(r => r.dueDate >= startDate && r.dueDate <= endDate)
+      .filter(r => {
+        if (fromStr && r.dueDate < fromStr) return false;
+        if (toStr && r.dueDate > toStr) return false;
+        return true;
+      })
       .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
   }, [data.receivables, startDate, endDate]);
 
@@ -107,18 +136,61 @@ export default function ReportsPage() {
     return { pending, received, overdue, total };
   }, [receivablesByPeriod]);
 
-  // Forecast: what will be the financial position on a specific date
+  // Forecast: what will be the financial position on a specific date range
   const forecast = useMemo(() => {
     const currentBalance = data.accounts.reduce((s, a) => s + a.balance, 0);
+    const fromStr = forecastDateFrom ? fmtFn(forecastDateFrom, 'yyyy-MM-dd') : undefined;
+    const toStr = forecastDateTo ? fmtFn(forecastDateTo, 'yyyy-MM-dd') : undefined;
+
     const futurePayables = consolidated
-      .filter(p => p.status !== 'paid' && p.dueDate >= todayStr && p.dueDate <= forecastDate)
+      .filter(p => {
+        if (p.status === 'paid') return false;
+        if (fromStr && p.dueDate < fromStr) return false;
+        if (toStr && p.dueDate > toStr) return false;
+        return true;
+      })
       .reduce((s, p) => s + p.amount, 0);
+
     const futureReceivables = data.receivables
-      .filter(r => r.status !== 'received' && r.dueDate >= todayStr && r.dueDate <= forecastDate)
+      .filter(r => {
+        if (r.status === 'received') return false;
+        if (fromStr && r.dueDate < fromStr) return false;
+        if (toStr && r.dueDate > toStr) return false;
+        return true;
+      })
       .reduce((s, r) => s + r.amount, 0);
+
     const projected = currentBalance + futureReceivables - futurePayables;
     return { currentBalance, futurePayables, futureReceivables, projected };
-  }, [data, forecastDate, todayStr]);
+  }, [data, consolidated, forecastDateFrom, forecastDateTo]);
+
+  // Filtered payables for forecast list
+  const forecastPayables = useMemo(() => {
+    const fromStr = forecastDateFrom ? fmtFn(forecastDateFrom, 'yyyy-MM-dd') : undefined;
+    const toStr = forecastDateTo ? fmtFn(forecastDateTo, 'yyyy-MM-dd') : undefined;
+    return data.payables
+      .filter(p => {
+        if (p.status === 'paid') return false;
+        if (fromStr && p.dueDate < fromStr) return false;
+        if (toStr && p.dueDate > toStr) return false;
+        return true;
+      })
+      .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+  }, [data.payables, forecastDateFrom, forecastDateTo]);
+
+  // Filtered receivables for forecast list
+  const forecastReceivables = useMemo(() => {
+    const fromStr = forecastDateFrom ? fmtFn(forecastDateFrom, 'yyyy-MM-dd') : undefined;
+    const toStr = forecastDateTo ? fmtFn(forecastDateTo, 'yyyy-MM-dd') : undefined;
+    return data.receivables
+      .filter(r => {
+        if (r.status === 'received') return false;
+        if (fromStr && r.dueDate < fromStr) return false;
+        if (toStr && r.dueDate > toStr) return false;
+        return true;
+      })
+      .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+  }, [data.receivables, forecastDateFrom, forecastDateTo]);
 
   const tooltipStyle = {
     backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))',
@@ -281,34 +353,40 @@ export default function ReportsPage() {
 
         {/* === ABA CONTAS A PAGAR/RECEBER === */}
         <TabsContent value="bills" className="space-y-6 mt-4">
-          <div className="flex items-end gap-4 flex-wrap">
-            <div className="flex flex-col gap-1">
-              <Label className="text-xs text-muted-foreground">Mês</Label>
-              <MonthYearPicker
-                value={(() => {
-                  const s = startOfMonth(new Date(startDate + 'T00:00:00'));
-                  const e = endOfMonth(s);
-                  return fmtFn(s, 'yyyy-MM-dd') === startDate && fmtFn(e, 'yyyy-MM-dd') === endDate ? s : undefined;
-                })()}
-                onChange={(from, to) => {
-                  setStartDate(fmtFn(from, 'yyyy-MM-dd'));
-                  setEndDate(fmtFn(to, 'yyyy-MM-dd'));
-                }}
-                active={(() => {
-                  const s = startOfMonth(new Date(startDate + 'T00:00:00'));
-                  const e = endOfMonth(s);
-                  return fmtFn(s, 'yyyy-MM-dd') === startDate && fmtFn(e, 'yyyy-MM-dd') === endDate;
-                })()}
-              />
-            </div>
-            <div>
-              <Label className="text-xs text-muted-foreground">Data Início</Label>
-              <Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-[160px]" />
-            </div>
-            <div>
-              <Label className="text-xs text-muted-foreground">Data Fim</Label>
-              <Input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="w-[160px]" />
-            </div>
+          <div className="flex items-center gap-3 flex-wrap">
+            <MonthYearPicker
+              value={startDate && endDate && fmtFn(startDate, 'yyyy-MM') === fmtFn(endDate, 'yyyy-MM') ? startDate : undefined}
+              onChange={(from, to) => { setStartDate(from); setEndDate(to); }}
+              active={!!(startDate && endDate && fmtFn(startDate, 'yyyy-MM') === fmtFn(new Date(), 'yyyy-MM') && fmtFn(endDate, 'yyyy-MM') === fmtFn(new Date(), 'yyyy-MM'))}
+            />
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className={cn("justify-start text-left font-normal", !startDate && "text-muted-foreground")}>
+                  <CalendarIcon className="h-4 w-4 mr-2" />
+                  {startDate ? fmtFn(startDate, "dd/MM/yyyy") : "Data inicial"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar mode="single" selected={startDate} onSelect={setStartDate} initialFocus className="p-3 pointer-events-auto" locale={ptBR} />
+              </PopoverContent>
+            </Popover>
+            <span className="text-muted-foreground text-sm">até</span>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className={cn("justify-start text-left font-normal", !endDate && "text-muted-foreground")}>
+                  <CalendarIcon className="h-4 w-4 mr-2" />
+                  {endDate ? fmtFn(endDate, "dd/MM/yyyy") : "Data final"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar mode="single" selected={endDate} onSelect={setEndDate} initialFocus className="p-3 pointer-events-auto" locale={ptBR} />
+              </PopoverContent>
+            </Popover>
+            {(startDate || endDate) && (
+              <Button variant="ghost" size="sm" onClick={clearDateFilter}>
+                <X className="h-4 w-4 mr-1" />Limpar
+              </Button>
+            )}
           </div>
 
           {/* Contas a Pagar */}
@@ -429,31 +507,40 @@ export default function ReportsPage() {
 
         {/* === ABA PREVISÃO === */}
         <TabsContent value="forecast" className="space-y-6 mt-4">
-          <div className="flex items-end gap-4 flex-wrap">
-            <div className="flex flex-col gap-1">
-              <Label className="text-xs text-muted-foreground">Até o fim do mês</Label>
-              <MonthYearPicker
-                value={(() => {
-                  const d = new Date(forecastDate + 'T00:00:00');
-                  const s = startOfMonth(d);
-                  const e = endOfMonth(d);
-                  return fmtFn(e, 'yyyy-MM-dd') === forecastDate ? s : undefined;
-                })()}
-                onChange={(_from, to) => {
-                  setForecastDate(fmtFn(to, 'yyyy-MM-dd'));
-                }}
-                active={(() => {
-                  const d = new Date(forecastDate + 'T00:00:00');
-                  const e = endOfMonth(d);
-                  return fmtFn(e, 'yyyy-MM-dd') === forecastDate;
-                })()}
-              />
-            </div>
-            <div>
-              <Label className="text-xs text-muted-foreground">Previsão até (data exata)</Label>
-              <Input type="date" value={forecastDate} onChange={e => setForecastDate(e.target.value)}
-                min={todayStr} className="w-[180px]" />
-            </div>
+          <div className="flex items-center gap-3 flex-wrap">
+            <MonthYearPicker
+              value={forecastDateFrom && forecastDateTo && fmtFn(forecastDateFrom, 'yyyy-MM') === fmtFn(forecastDateTo, 'yyyy-MM') ? forecastDateFrom : undefined}
+              onChange={(from, to) => { setForecastDateFrom(from); setForecastDateTo(to); }}
+              active={!!(forecastDateFrom && forecastDateTo && fmtFn(forecastDateFrom, 'yyyy-MM') === fmtFn(new Date(), 'yyyy-MM') && fmtFn(forecastDateTo, 'yyyy-MM') === fmtFn(new Date(), 'yyyy-MM'))}
+            />
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className={cn("justify-start text-left font-normal", !forecastDateFrom && "text-muted-foreground")}>
+                  <CalendarIcon className="h-4 w-4 mr-2" />
+                  {forecastDateFrom ? fmtFn(forecastDateFrom, "dd/MM/yyyy") : "Data inicial"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar mode="single" selected={forecastDateFrom} onSelect={setForecastDateFrom} initialFocus className="p-3 pointer-events-auto" locale={ptBR} />
+              </PopoverContent>
+            </Popover>
+            <span className="text-muted-foreground text-sm">até</span>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className={cn("justify-start text-left font-normal", !forecastDateTo && "text-muted-foreground")}>
+                  <CalendarIcon className="h-4 w-4 mr-2" />
+                  {forecastDateTo ? fmtFn(forecastDateTo, "dd/MM/yyyy") : "Data final"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar mode="single" selected={forecastDateTo} onSelect={setForecastDateTo} initialFocus className="p-3 pointer-events-auto" locale={ptBR} />
+              </PopoverContent>
+            </Popover>
+            {(forecastDateFrom || forecastDateTo) && (
+              <Button variant="ghost" size="sm" onClick={clearForecastDateFilter}>
+                <X className="h-4 w-4 mr-1" />Limpar
+              </Button>
+            )}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -462,11 +549,29 @@ export default function ReportsPage() {
               <p className="finance-stat mono">{fmt(forecast.currentBalance)}</p>
             </div>
             <div className="finance-card">
-              <p className="finance-label">{SAFE_LABELS.shortReceivable} até {fmtDate(forecastDate)}</p>
+              <p className="finance-label">
+                {SAFE_LABELS.shortReceivable}{' '}
+                {forecastDateFrom && forecastDateTo
+                  ? `de ${fmtFn(forecastDateFrom, 'dd/MM')} a ${fmtFn(forecastDateTo, 'dd/MM')}`
+                  : forecastDateTo
+                    ? `até ${fmtFn(forecastDateTo, 'dd/MM')}`
+                    : forecastDateFrom
+                      ? `desde ${fmtFn(forecastDateFrom, 'dd/MM')}`
+                      : 'total'}
+              </p>
               <p className="finance-stat mono text-success">{fmt(forecast.futureReceivables)}</p>
             </div>
             <div className="finance-card">
-              <p className="finance-label">{SAFE_LABELS.shortPayable} até {fmtDate(forecastDate)}</p>
+              <p className="finance-label">
+                {SAFE_LABELS.shortPayable}{' '}
+                {forecastDateFrom && forecastDateTo
+                  ? `de ${fmtFn(forecastDateFrom, 'dd/MM')} a ${fmtFn(forecastDateTo, 'dd/MM')}`
+                  : forecastDateTo
+                    ? `até ${fmtFn(forecastDateTo, 'dd/MM')}`
+                    : forecastDateFrom
+                      ? `desde ${fmtFn(forecastDateFrom, 'dd/MM')}`
+                      : 'total'}
+              </p>
               <p className="finance-stat mono text-destructive">{fmt(forecast.futurePayables)}</p>
             </div>
             <div className="finance-card border-primary/30">
@@ -480,26 +585,30 @@ export default function ReportsPage() {
           <div className="finance-card">
             <h3 className="font-semibold mb-3">Detalhamento da Previsão</h3>
             <p className="text-sm text-muted-foreground mb-4">
-              Contas pendentes com vencimento entre hoje ({fmtDate(todayStr)}) e {fmtDate(forecastDate)}
+              Contas pendentes com vencimento{' '}
+              {forecastDateFrom && forecastDateTo
+                ? `entre ${fmtDate(fmtFn(forecastDateFrom, 'yyyy-MM-dd'))} e ${fmtDate(fmtFn(forecastDateTo, 'yyyy-MM-dd'))}`
+                : forecastDateFrom
+                  ? `a partir de ${fmtDate(fmtFn(forecastDateFrom, 'yyyy-MM-dd'))}`
+                  : forecastDateTo
+                    ? `até ${fmtDate(fmtFn(forecastDateTo, 'yyyy-MM-dd'))}`
+                    : 'em qualquer período'}
             </p>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <div>
                 <h4 className="text-sm font-semibold text-destructive mb-2">Saídas Previstas</h4>
                 <div className="space-y-1">
-                  {data.payables
-                    .filter(p => p.status !== 'paid' && p.dueDate >= todayStr && p.dueDate <= forecastDate)
-                    .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
-                    .map(p => (
-                      <div key={p.id} className="flex items-center justify-between text-sm py-1.5 border-b border-border last:border-0">
-                        <div>
-                          <span className="font-medium">{p.description}</span>
-                          <span className="text-xs text-muted-foreground ml-2">{fmtDate(p.dueDate)}</span>
-                        </div>
-                        <span className="mono text-destructive font-semibold">{fmt(p.amount)}</span>
+                  {forecastPayables.map(p => (
+                    <div key={p.id} className="flex items-center justify-between text-sm py-1.5 border-b border-border last:border-0">
+                      <div>
+                        <span className="font-medium">{p.description}</span>
+                        <span className="text-xs text-muted-foreground ml-2">{fmtDate(p.dueDate)}</span>
                       </div>
-                    ))}
-                  {data.payables.filter(p => p.status !== 'paid' && p.dueDate >= todayStr && p.dueDate <= forecastDate).length === 0 && (
+                      <span className="mono text-destructive font-semibold">{fmt(p.amount)}</span>
+                    </div>
+                  ))}
+                  {forecastPayables.length === 0 && (
                     <p className="text-sm text-muted-foreground py-4 text-center">Nenhuma saída prevista</p>
                   )}
                 </div>
@@ -507,19 +616,16 @@ export default function ReportsPage() {
               <div>
                 <h4 className="text-sm font-semibold text-success mb-2">Entradas Previstas</h4>
                 <div className="space-y-1">
-                  {data.receivables
-                    .filter(r => r.status !== 'received' && r.dueDate >= todayStr && r.dueDate <= forecastDate)
-                    .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
-                    .map(r => (
-                      <div key={r.id} className="flex items-center justify-between text-sm py-1.5 border-b border-border last:border-0">
-                        <div>
-                          <span className="font-medium">{r.description}</span>
-                          <span className="text-xs text-muted-foreground ml-2">{fmtDate(r.dueDate)}</span>
-                        </div>
-                        <span className="mono text-success font-semibold">{fmt(r.amount)}</span>
+                  {forecastReceivables.map(r => (
+                    <div key={r.id} className="flex items-center justify-between text-sm py-1.5 border-b border-border last:border-0">
+                      <div>
+                        <span className="font-medium">{r.description}</span>
+                        <span className="text-xs text-muted-foreground ml-2">{fmtDate(r.dueDate)}</span>
                       </div>
-                    ))}
-                  {data.receivables.filter(r => r.status !== 'received' && r.dueDate >= todayStr && r.dueDate <= forecastDate).length === 0 && (
+                      <span className="mono text-success font-semibold">{fmt(r.amount)}</span>
+                    </div>
+                  ))}
+                  {forecastReceivables.length === 0 && (
                     <p className="text-sm text-muted-foreground py-4 text-center">Nenhuma entrada prevista</p>
                   )}
                 </div>

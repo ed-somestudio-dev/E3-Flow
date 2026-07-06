@@ -66,7 +66,7 @@ serve(async (req) => {
         body: JSON.stringify({
           value: price,
           cycle: cycle,
-          description: `Assinatura FluxoPro - ${planName} (${cycle})`,
+          description: `Assinatura E3 Flow - ${planName} (${cycle})`,
           updatePendingPayments: true
         }),
       });

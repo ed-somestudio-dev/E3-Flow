@@ -1,0 +1,76 @@
+{
+  "name": "FluxoPro - Controle Financeiro",
+  "short_name": "FluxoPro",
+  "description": "Controle suas finanças com facilidade: contas a pagar e receber, receitas, despesas, relatórios e fluxo de caixa.",
+  "lang": "pt-BR",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#0ea5e9",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Dashboard",
+      "short_name": "Dashboard",
+      "description": "Visão geral das finanças",
+      "url": "/",
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Contas a Pagar",
+      "short_name": "A Pagar",
+      "description": "Gerenciar contas a pagar",
+      "url": "/payables",
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Contas a Receber",
+      "short_name": "A Receber",
+      "description": "Gerenciar contas a receber",
+      "url": "/receivables",
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Lançamentos",
+      "short_name": "Lançar",
+      "description": "Registrar movimentações",
+      "url": "/transactions",
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ]
+}

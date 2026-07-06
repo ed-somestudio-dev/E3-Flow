@@ -41,7 +41,7 @@ export default function WelcomeSubscriptionPage() {
         <CardHeader>
           <CardTitle className="flex items-center justify-center gap-2">
             <Sparkles className="h-5 w-5 text-primary" />
-            Bem-vindo ao FluxoPro Premium
+            Bem-vindo ao E3 Flow Premium
           </CardTitle>
           <CardDescription>
             Sua conta agora tem acesso ilimitado a todos os recursos.

@@ -1,7 +1,7 @@
 import { openDB, IDBPDatabase } from 'idb';
 import { FinanceData } from './types';
 
-const DB_NAME = 'fluxopro-offline';
+const DB_NAME = 'e3flow-offline';
 const DB_VERSION = 4; 
 export const SNAPSHOT_STORE = 'snapshot';
 export const SALES_SNAPSHOT_STORE = 'sales_snapshot';

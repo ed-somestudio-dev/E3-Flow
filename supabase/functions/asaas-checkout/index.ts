@@ -85,7 +85,7 @@ serve(async (req) => {
           "access_token": ASAAS_API_KEY,
         },
         body: JSON.stringify({
-          name: userName || "Cliente FluxoPro",
+          name: userName || "Cliente E3 Flow",
           email: userEmail || user.email,
           cpfCnpj: userCpfCnpj || undefined,
         }),
@@ -132,7 +132,7 @@ serve(async (req) => {
         value: price,
         nextDueDate: resolvedTrialEndDate,
         cycle,
-        description: `Assinatura FluxoPro - ${planName} (trial de ${trialDays} dias)`,
+        description: `Assinatura E3 Flow - ${planName} (trial de ${trialDays} dias)`,
       }),
     });
 

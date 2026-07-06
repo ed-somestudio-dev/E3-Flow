@@ -118,7 +118,7 @@ export default function SubscriptionPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Crown className="h-5 w-5 text-primary" />
-              Assinatura {isLifetimeAdmin ? 'Vitalícia (FluxoPro)' : (PLANS[subscription?.subscription_plan as keyof typeof PLANS]?.name || subscription?.subscription_plan || 'FluxoPro')}
+              Assinatura {isLifetimeAdmin ? 'Vitalícia (E3 Flow)' : (PLANS[subscription?.subscription_plan as keyof typeof PLANS]?.name || subscription?.subscription_plan || 'E3 Flow')}
             </CardTitle>
             <CardDescription className="font-bold text-primary">
               Status: {
@@ -265,7 +265,7 @@ export default function SubscriptionPage() {
               Tempo Esgotado
             </Badge>
             <h1 className="text-3xl font-bold">
-              {isCancelled ? 'Reative sua assinatura' : 'Assine o FluxoPro'}
+              {isCancelled ? 'Reative sua assinatura' : 'Assine o E3 Flow'}
             </h1>
             <p className="text-muted-foreground">
               {isCancelled 
