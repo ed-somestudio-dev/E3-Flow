@@ -93,7 +93,7 @@ export default function AdminSubscriptionsPage() {
 
   const isLifetimeAdmin = (email: string) => {
     const e = (email || '').toLowerCase();
-    return e === 'ed-somestudio@live.com' || e === 'contato@fluxopro.app.br';
+    return e === 'ed-somestudio@live.com' || e === 'contato@e3flow.com.br';
   };
 
   return (

@@ -6,6 +6,8 @@ import { useSubscription } from '@/lib/subscription-context';
 import { AlertTriangle } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/lib/auth-context';
+import { useToast } from '@/hooks/use-toast';
+import { useEffect } from 'react';
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   // Recarrega a página quando volta de background há mais de 60s
@@ -15,8 +17,23 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const { user } = useAuth();
 
-  const isLifetimeAdmin = user?.email === 'ed-somestudio@live.com' || user?.email === 'contato@fluxopro.app.br';
+  const isLifetimeAdmin = user?.email === 'ed-somestudio@live.com' || user?.email === 'contato@e3flow.com.br';
   const showWarning = isActive && daysUntilDue !== null && daysUntilDue <= 5 && location.pathname !== '/subscription' && !isLifetimeAdmin;
+  const { toast } = useToast();
+
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('migrated') === 'true') {
+      toast({
+        title: "Mudamos de nome!",
+        description: "Mas a qualidade e os recursos só aumentaram. Bem-vindo ao E3 Flow!",
+        duration: 10000,
+      });
+      const newUrl = new URL(window.location.href);
+      newUrl.searchParams.delete('migrated');
+      window.history.replaceState({}, document.title, newUrl.toString());
+    }
+  }, [toast]);
 
   return (
     <SidebarProvider>

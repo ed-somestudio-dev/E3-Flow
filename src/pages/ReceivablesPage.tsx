@@ -43,6 +43,115 @@ function StatusBadge({ status }: { status: ReceivableStatus }) {
   return <span className={cls}>{statusLabels[status]}</span>;
 }
 
+function ClientGroupTable({ clientName, items, getCategoryName, getAccountName, selectedIds, toggleSelect, setSelectedIds, handleMarkReceived, handleGenerateCharge, handleWhatsAppReminder, handleShareReceipt, setEditingItem, setDialogOpen, setDeleteId, pixSettings }: any) {
+  const [open, setOpen] = useState(true);
+  const totalAmount = items.reduce((s: number, p: any) => s + p.amount, 0);
+  const allItemsSelected = items.length > 0 && items.filter((p: any) => p.status !== 'received').every((p: any) => selectedIds.has(p.id));
+
+  return (
+    <div className="finance-card p-0 overflow-hidden border border-border">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between px-4 py-3 bg-muted/20 hover:bg-muted/40 transition-colors border-b border-border cursor-pointer"
+      >
+        <div className="flex items-center gap-2">
+          {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+          <span className="font-semibold">{clientName}</span>
+          <span className="text-xs text-muted-foreground">({items.length} {items.length === 1 ? 'item' : 'itens'})</span>
+        </div>
+        <span className="text-sm mono font-semibold text-success">{fmt(totalAmount)}</span>
+      </button>
+      {open && (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[800px]">
+            <thead>
+              <tr className="border-b border-border bg-muted/50">
+                <th className="w-10 py-3 px-3">
+                  <Checkbox 
+                    checked={allItemsSelected && items.filter((p: any) => p.status !== 'received').length > 0} 
+                    onCheckedChange={() => {
+                      const pendingItems = items.filter((p: any) => p.status !== 'received');
+                      if (pendingItems.length === 0) return;
+                      if (allItemsSelected) {
+                        setSelectedIds((prev: any) => {
+                          const next = new Set(prev);
+                          pendingItems.forEach((p: any) => next.delete(p.id));
+                          return next;
+                        });
+                      } else {
+                        setSelectedIds((prev: any) => {
+                          const next = new Set(prev);
+                          pendingItems.forEach((p: any) => next.add(p.id));
+                          return next;
+                        });
+                      }
+                    }} 
+                    aria-label="Selecionar todos" 
+                    disabled={items.filter((p: any) => p.status !== 'received').length === 0} 
+                  />
+                </th>
+                <th className="text-left py-3 px-4 font-medium text-muted-foreground">Vencimento</th>
+                <th className="text-left py-3 px-4 font-medium text-muted-foreground">Descrição</th>
+                <th className="text-left py-3 px-4 font-medium text-muted-foreground">Categoria</th>
+                <th className="text-left py-3 px-4 font-medium text-muted-foreground">Conta</th>
+                <th className="text-left py-3 px-4 font-medium text-muted-foreground">Status</th>
+                <th className="text-right py-3 px-4 font-medium text-muted-foreground">Valor</th>
+                <th className="text-right py-3 px-4 font-medium text-muted-foreground">Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((r: any) => (
+                <motion.tr key={r.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
+                  <td className="py-3 px-3">
+                    {r.status !== 'received' && (
+                      <Checkbox checked={selectedIds.has(r.id)} onCheckedChange={() => toggleSelect(r.id)} aria-label="Selecionar" />
+                    )}
+                  </td>
+                  <td className="py-3 px-4 mono text-muted-foreground">{fmtDate(r.dueDate)}</td>
+                  <td className={r.status === 'overdue' ? 'py-3 px-4 text-destructive' : r.status === 'received' ? 'py-3 px-4 text-success' : 'py-3 px-4 text-warning'}>
+                    <div className="flex items-center gap-1.5">
+                      {r.description}
+                      {r.recurring && <RefreshCw className="h-3 w-3 text-primary" />}
+                    </div>
+                  </td>
+                  <td className="py-3 px-4 text-muted-foreground">{getCategoryName(r.categoryId)}</td>
+                  <td className="py-3 px-4 text-muted-foreground">{r.accountId ? getAccountName(r.accountId) : '—'}</td>
+                  <td className="py-3 px-4"><StatusBadge status={r.status} /></td>
+                  <td className="py-3 px-4 text-right mono font-semibold text-success">{fmt(r.amount)}</td>
+                  <td className="py-3 px-4 text-right">
+                    <div className="flex items-center justify-end gap-1">
+                      {r.status !== 'received' && (
+                        <>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-primary hover:text-primary" onClick={(e) => { e.stopPropagation(); handleGenerateCharge(r); }} title="Gerar boleto PIX">
+                            <QrCode className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-green-500 hover:text-green-600" onClick={(e) => { e.stopPropagation(); handleWhatsAppReminder(r); }} title="Enviar cobrança via WhatsApp">
+                            <MessageCircle className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-success hover:text-success" onClick={(e) => { e.stopPropagation(); handleMarkReceived(r.id); }} title="Marcar como recebido">
+                            <CheckCircle className="h-3.5 w-3.5" />
+                          </Button>
+                        </>
+                      )}
+                      {r.status === 'received' && (
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-primary hover:text-primary" onClick={(e) => { e.stopPropagation(); handleShareReceipt(r); }} title="Compartilhar recibo">
+                          <Receipt className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); setEditingItem(r); setDialogOpen(true); }}><Edit2 className="h-3.5 w-3.5" /></Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); setDeleteId(r.id); }}><Trash2 className="h-3.5 w-3.5" /></Button>
+                    </div>
+                  </td>
+                </motion.tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ReceivablesPage() {
   const { data, addReceivable, updateReceivable, updateReceivableWithFuture, deleteReceivable, deleteReceivableWithFuture, markReceivableReceived, markReceivableReceivedPartial, getCategoryName, getAccountName } = useFinance();
   const { settings: pixSettings, isConfigured } = usePixSettings();
@@ -786,75 +895,49 @@ export default function ReceivablesPage() {
         )}
       </div>
 
-      <div className="finance-card p-0 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-muted/50">
-                <th className="w-10 py-3 px-3">
-                  <Checkbox checked={allVisibleSelected} onCheckedChange={toggleSelectAll} aria-label="Selecionar todos" disabled={selectableReceivables.length === 0} />
-                </th>
-                <th className="text-left py-3 px-4 font-medium text-muted-foreground">Vencimento</th>
-                <th className="text-left py-3 px-4 font-medium text-muted-foreground">Cliente</th>
-                <th className="text-left py-3 px-4 font-medium text-muted-foreground">Descrição</th>
-                <th className="text-left py-3 px-4 font-medium text-muted-foreground">Categoria</th>
-                <th className="text-left py-3 px-4 font-medium text-muted-foreground">Conta</th>
-                <th className="text-left py-3 px-4 font-medium text-muted-foreground">Status</th>
-                <th className="text-right py-3 px-4 font-medium text-muted-foreground">Valor</th>
-                <th className="text-right py-3 px-4 font-medium text-muted-foreground">Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map(r => (
-                <motion.tr key={r.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
-                  <td className="py-3 px-3">
-                    {r.status !== 'received' && (
-                      <Checkbox checked={selectedIds.has(r.id)} onCheckedChange={() => toggleSelect(r.id)} aria-label="Selecionar" />
-                    )}
-                  </td>
-                  <td className="py-3 px-4 mono text-muted-foreground">{fmtDate(r.dueDate)}</td>
-                  <td className={`py-3 px-4 font-medium ${r.status === 'overdue' ? 'text-destructive' : r.status === 'received' ? 'text-success' : 'text-warning'}`}>{r.clientName}</td>
-                  <td className={r.status === 'overdue' ? 'py-3 px-4 text-destructive' : r.status === 'received' ? 'py-3 px-4 text-success' : 'py-3 px-4 text-warning'}>
-                    <div className="flex items-center gap-1.5">
-                      {r.description}
-                      {r.recurring && <RefreshCw className="h-3 w-3 text-primary" />}
-                    </div>
-                  </td>
-                  <td className="py-3 px-4 text-muted-foreground">{getCategoryName(r.categoryId)}</td>
-                  <td className="py-3 px-4 text-muted-foreground">{r.accountId ? getAccountName(r.accountId) : '—'}</td>
-                  <td className="py-3 px-4"><StatusBadge status={r.status} /></td>
-                  <td className="py-3 px-4 text-right mono font-semibold text-success">{fmt(r.amount)}</td>
-                  <td className="py-3 px-4 text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      {r.status !== 'received' && (
-                        <>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-primary hover:text-primary" onClick={() => handleGenerateCharge(r)} title="Gerar boleto PIX">
-                            <QrCode className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-green-500 hover:text-green-600" onClick={() => handleWhatsAppReminder(r)} title="Enviar cobrança via WhatsApp">
-                            <MessageCircle className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-success hover:text-success" onClick={() => handleMarkReceived(r.id)} title="Marcar como recebido">
-                            <CheckCircle className="h-3.5 w-3.5" />
-                          </Button>
-                        </>
-                      )}
-                      {r.status === 'received' && (
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-primary hover:text-primary" onClick={() => handleShareReceipt(r)} title="Compartilhar recibo">
-                          <Receipt className="h-3.5 w-3.5" />
-                        </Button>
-                      )}
-                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setEditingItem(r); setDialogOpen(true); }}><Edit2 className="h-3.5 w-3.5" /></Button>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => setDeleteId(r.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
-                    </div>
-                  </td>
-                </motion.tr>
-              ))}
-              {filtered.length === 0 && <tr><td colSpan={9} className="text-center py-12 text-muted-foreground">Nenhum recebível encontrado</td></tr>}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      {(() => {
+        const groupedByClient = filtered.reduce<Record<string, Receivable[]>>((acc, r) => {
+          const client = r.clientName || 'Diversos';
+          if (!acc[client]) acc[client] = [];
+          acc[client].push(r);
+          return acc;
+        }, {});
+        
+        const sortedClients = Object.keys(groupedByClient).sort((a, b) => a.localeCompare(b));
+
+        if (sortedClients.length === 0) {
+          return (
+            <div className="finance-card p-12 text-center text-muted-foreground">
+              Nenhum recebível encontrado
+            </div>
+          );
+        }
+
+        return (
+          <div className="space-y-4">
+            {sortedClients.map(clientName => (
+              <ClientGroupTable
+                key={clientName}
+                clientName={clientName}
+                items={groupedByClient[clientName]}
+                getCategoryName={getCategoryName}
+                getAccountName={getAccountName}
+                selectedIds={selectedIds}
+                toggleSelect={toggleSelect}
+                setSelectedIds={setSelectedIds}
+                handleMarkReceived={(id: string) => { setReceivingIds([id]); setReceiveAccountId(data.receivables.find(x => x.id === id)?.accountId || data.accounts[0]?.id || ''); setReceiveDialogOpen(true); }}
+                handleGenerateCharge={handleGenerateCharge}
+                handleWhatsAppReminder={handleWhatsAppReminder}
+                handleShareReceipt={handleShareReceipt}
+                setEditingItem={setEditingItem}
+                setDialogOpen={setDialogOpen}
+                setDeleteId={setDeleteId}
+                pixSettings={pixSettings}
+              />
+            ))}
+          </div>
+        );
+      })()}
 
       {/* Receive dialog */}
       <Dialog open={receiveDialogOpen} onOpenChange={setReceiveDialogOpen}>

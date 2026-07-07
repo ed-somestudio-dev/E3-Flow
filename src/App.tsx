@@ -130,7 +130,18 @@ function AuthRoute() {
   return <AuthPage />;
 }
 
-const App = () => (
+const App = () => {
+  useEffect(() => {
+    const hostname = window.location.hostname;
+    if (hostname === 'fluxopro.app.br' || hostname === 'www.fluxopro.app.br') {
+      const newUrl = new URL(window.location.href);
+      newUrl.hostname = 'e3flow.com.br';
+      newUrl.searchParams.set('migrated', 'true');
+      window.location.replace(newUrl.toString());
+    }
+  }, []);
+
+  return (
   <ThemeProvider>
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
@@ -150,7 +161,8 @@ const App = () => (
       </TooltipProvider>
     </QueryClientProvider>
   </ThemeProvider>
-);
+  );
+};
 
 export default App;
 

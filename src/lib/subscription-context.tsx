@@ -28,6 +28,7 @@ interface SubscriptionContextType {
   trialDaysRemaining: number | null;
   daysUntilDue: number | null;
   isAdmin: boolean;
+  isTimeTampered: boolean;
   createSubscription: (plan: 'monthly' | 'yearly', customerData: {
     name: string;
     cpfCnpj: string;
@@ -62,12 +63,13 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [loading, setLoading] = useState(true);
   const [isAdminState, setIsAdmin] = useState(false);
+  const [isTimeTampered, setIsTimeTampered] = useState(false);
 
   // Edson dos Santos Oliveira bypass (owner/developer)
   const isDeveloperBypass = Boolean(
     user && user.email && (
       user.email.toLowerCase() === 'ed-somestudio@live.com' ||
-      user.email.toLowerCase() === 'contato@fluxopro.app.br'
+      user.email.toLowerCase() === 'contato@e3flow.com.br'
     )
   );
 
@@ -80,6 +82,29 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
       });
     }
   }, [user, isDeveloperBypass]);
+
+  // Time Travel Detection (Clock Fraud)
+  useEffect(() => {
+    const checkTime = () => {
+      const now = new Date().getTime();
+      const lastTimeStr = localStorage.getItem('e3flow_last_time');
+      if (lastTimeStr) {
+        const lastTime = parseInt(lastTimeStr, 10);
+        if (now < lastTime - 60000) { // 1 min tolerance for minor syncs
+          setIsTimeTampered(true);
+        } else {
+          setIsTimeTampered(false);
+          localStorage.setItem('e3flow_last_time', now.toString());
+        }
+      } else {
+        localStorage.setItem('e3flow_last_time', now.toString());
+      }
+    };
+    
+    checkTime();
+    const interval = setInterval(checkTime, 30000); // Check every 30s
+    return () => clearInterval(interval);
+  }, []);
 
   const isAdmin = isDeveloperBypass || isAdminState;
 
@@ -321,22 +346,32 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
   const daysUntilDue = effectiveSubscription?.subscription_due_date
     ? Math.ceil((new Date(effectiveSubscription.subscription_due_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
     : null;
-
-  const trialDaysRemaining = effectiveSubscription?.trial_end_date
+      const trialDaysRemaining = effectiveSubscription?.trial_end_date
     ? Math.max(0, Math.ceil((new Date(effectiveSubscription.trial_end_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)))
     : (isDefaultTrialActive && defaultTrialEndDate ? Math.max(0, Math.ceil((defaultTrialEndDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))) : null);
 
-  const isPaidStatus = effectiveSubscription?.subscription_status === 'RECEIVED' || effectiveSubscription?.subscription_status === 'CONFIRMED';
+  const isPaidStatusBase = effectiveSubscription?.subscription_status === 'RECEIVED' || effectiveSubscription?.subscription_status === 'CONFIRMED';
+  
+  let isPaidStatus = isPaidStatusBase;
+  if (isPaidStatusBase && effectiveSubscription?.subscription_due_date) {
+    const dueDate = new Date(effectiveSubscription.subscription_due_date + 'T23:59:59').getTime();
+    const gracePeriodEnd = dueDate + (14 * 24 * 60 * 60 * 1000); // 14 days
+    if (new Date().getTime() > gracePeriodEnd) {
+      isPaidStatus = false;
+    }
+  }
 
   const isInTrial = Boolean(
-    !isPaidStatus &&
+    !isPaidStatusBase &&
     ((effectiveSubscription?.trial_end_date && new Date(effectiveSubscription.trial_end_date).getTime() > new Date().getTime())
     || isDefaultTrialActive)
   );
 
-  const isActive = isDeveloperBypass
+  const isActive = !isTimeTampered && (
+    isDeveloperBypass
     || isPaidStatus
-    || isInTrial;
+    || isInTrial
+  );
 
 
   return (
@@ -348,6 +383,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
       trialDaysRemaining,
       daysUntilDue,
       isAdmin,
+      isTimeTampered,
       createSubscription,
       updateSubscription,
       cancelSubscription,

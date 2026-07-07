@@ -31,7 +31,7 @@ import {
 
 export default function SubscriptionPage() {
   const { user } = useAuth();
-  const { createSubscription, updateSubscription, cancelSubscription, loading, subscription, isInTrial, trialDaysRemaining } = useSubscription();
+  const { createSubscription, updateSubscription, cancelSubscription, loading, subscription, isInTrial, trialDaysRemaining, isTimeTampered } = useSubscription();
   const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'yearly'>('monthly');
   const [creating, setCreating] = useState(false);
   const [updating, setUpdating] = useState(false);
@@ -102,9 +102,32 @@ export default function SubscriptionPage() {
     }
   };
 
-  const isLifetimeAdmin = user?.email?.toLowerCase() === 'ed-somestudio@live.com' || user?.email?.toLowerCase() === 'contato@fluxopro.app.br';
+  const isLifetimeAdmin = user?.email?.toLowerCase() === 'ed-somestudio@live.com' || user?.email?.toLowerCase() === 'contato@e3flow.com.br';
   const hasAsaasSubscription = Boolean(subscription?.asaas_subscription_id);
   const isCancelled = subscription?.subscription_status === 'CANCELLED';
+
+  if (isTimeTampered) {
+    return (
+      <div className="max-w-2xl mx-auto space-y-6 text-center">
+        <Badge variant="destructive" className="gap-1.5 text-base py-2 px-4 mb-4">
+          Acesso Bloqueado
+        </Badge>
+        <h1 className="text-3xl font-bold text-destructive">Data do dispositivo incorreta detectada</h1>
+        <p className="text-muted-foreground text-lg">
+          O relógio do seu dispositivo parece estar atrasado ou foi alterado. Por motivos de segurança, o acesso ao aplicativo foi suspenso preventivamente.
+        </p>
+        <div className="bg-primary/5 border border-primary/20 rounded-lg p-6 mt-6">
+          <p className="font-medium text-foreground">Como resolver:</p>
+          <ol className="text-left text-sm text-muted-foreground mt-4 space-y-2 list-decimal list-inside">
+            <li>Acesse as configurações do seu dispositivo.</li>
+            <li>Ajuste a Data e Hora para <strong>Automático (fornecido pela rede)</strong>.</li>
+            <li>Conecte-se à internet.</li>
+            <li>Feche o aplicativo e abra novamente.</li>
+          </ol>
+        </div>
+      </div>
+    );
+  }
 
   if (isLifetimeAdmin || (subscription && !isCancelled && (subscription.subscription_status === 'RECEIVED' || subscription.subscription_status === 'CONFIRMED' || (isInTrial && hasAsaasSubscription)))) {
     return (

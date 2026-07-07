@@ -16,7 +16,7 @@ Deno.serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     const authHeader = req.headers.get("Authorization");
-    let userEmail = "visitante@fluxopro.app.br"; // TODO: Atualizar quando novo domínio estiver configurado
+    let userEmail = "visitante@e3flow.com.br"; // TODO: Atualizar quando novo domínio estiver configurado
     let userId = "Visitante (Não logado)";
 
     if (authHeader) {
@@ -62,8 +62,8 @@ Deno.serve(async (req) => {
         Authorization: `Bearer ${resendApiKey}`,
       },
       body: JSON.stringify({
-        from: "E3 Flow Suporte <contato@fluxopro.app.br>", // TODO: Atualizar domínio do remetente
-        to: ["suporte@fluxopro.app.br"], // TODO: Atualizar para novo domínio
+        from: "E3 Flow Suporte <contato@e3flow.com.br>", // TODO: Atualizar domínio do remetente
+        to: ["suporte@e3flow.com.br"], // TODO: Atualizar para novo domínio
         reply_to: userEmail,
         subject: `[Suporte] ${subject}`,
         html: htmlBody,

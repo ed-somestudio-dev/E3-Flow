@@ -177,6 +177,102 @@ function InvoiceMonthGroup({ monthKey, items, invoiceDueDate, invoiceStatus, mon
   );
 }
 
+function SupplierGroupTable({ supplierName, items, getCategoryName, getAccountName, selectedIds, toggleSelect, setSelectedIds, handleMarkPaid, setEditingItem, setDialogOpen, setDeleteId }: any) {
+  const [open, setOpen] = useState(true);
+  const totalAmount = items.reduce((s: number, p: any) => s + p.amount, 0);
+  const allItemsSelected = items.length > 0 && items.filter((p: any) => p.status !== 'paid').every((p: any) => selectedIds.has(p.id));
+
+  return (
+    <div className="finance-card p-0 overflow-hidden border border-border">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between px-4 py-3 bg-muted/20 hover:bg-muted/40 transition-colors border-b border-border cursor-pointer"
+      >
+        <div className="flex items-center gap-2">
+          {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+          <span className="font-semibold">{supplierName}</span>
+          <span className="text-xs text-muted-foreground">({items.length} {items.length === 1 ? 'item' : 'itens'})</span>
+        </div>
+        <span className="text-sm mono font-semibold text-destructive">{fmt(totalAmount)}</span>
+      </button>
+      {open && (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[800px]">
+            <thead>
+              <tr className="border-b border-border bg-muted/50">
+                <th className="w-10 py-3 px-3">
+                  <Checkbox 
+                    checked={allItemsSelected && items.filter((p: any) => p.status !== 'paid').length > 0} 
+                    onCheckedChange={() => {
+                      const pendingItems = items.filter((p: any) => p.status !== 'paid');
+                      if (pendingItems.length === 0) return;
+                      if (allItemsSelected) {
+                        setSelectedIds((prev: any) => {
+                          const next = new Set(prev);
+                          pendingItems.forEach((p: any) => next.delete(p.id));
+                          return next;
+                        });
+                      } else {
+                        setSelectedIds((prev: any) => {
+                          const next = new Set(prev);
+                          pendingItems.forEach((p: any) => next.add(p.id));
+                          return next;
+                        });
+                      }
+                    }} 
+                    aria-label="Selecionar todos" 
+                    disabled={items.filter((p: any) => p.status !== 'paid').length === 0} 
+                  />
+                </th>
+                <th className="text-left py-3 px-4 font-medium text-muted-foreground">Vencimento</th>
+                <th className="text-left py-3 px-4 font-medium text-muted-foreground">Descrição</th>
+                <th className="text-left py-3 px-4 font-medium text-muted-foreground">Categoria</th>
+                <th className="text-left py-3 px-4 font-medium text-muted-foreground">Conta</th>
+                <th className="text-left py-3 px-4 font-medium text-muted-foreground">Status</th>
+                <th className="text-right py-3 px-4 font-medium text-muted-foreground">Valor</th>
+                <th className="text-right py-3 px-4 font-medium text-muted-foreground">Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((p: any) => (
+                <motion.tr key={p.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
+                  <td className="py-3 px-3">
+                    {p.status !== 'paid' && (
+                      <Checkbox checked={selectedIds.has(p.id)} onCheckedChange={() => toggleSelect(p.id)} aria-label="Selecionar" />
+                    )}
+                  </td>
+                  <td className="py-3 px-4 mono text-muted-foreground">{fmtDate(p.dueDate)}</td>
+                  <td className={`py-3 px-4 font-medium ${p.status === 'overdue' ? 'text-destructive' : p.status === 'paid' ? 'text-success' : 'text-warning'}`}>
+                    <div className="flex items-center gap-1.5">
+                      {p.description}
+                      {p.recurring && <RefreshCw className="h-3 w-3 text-primary" />}
+                    </div>
+                  </td>
+                  <td className="py-3 px-4 text-muted-foreground">{getCategoryName(p.categoryId)}</td>
+                  <td className="py-3 px-4 text-muted-foreground">{p.accountId ? getAccountName(p.accountId) : '—'}</td>
+                  <td className="py-3 px-4"><StatusBadge status={p.status} /></td>
+                  <td className="py-3 px-4 text-right mono font-semibold text-destructive">{fmt(p.amount)}</td>
+                  <td className="py-3 px-4 text-right">
+                    <div className="flex items-center justify-end gap-1">
+                      {p.status !== 'paid' && (
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-success hover:text-success" onClick={(e) => { e.stopPropagation(); handleMarkPaid(p.id); }}>
+                          <CheckCircle className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); setEditingItem(p); setDialogOpen(true); }}><Edit2 className="h-3.5 w-3.5" /></Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); setDeleteId(p.id); }}><Trash2 className="h-3.5 w-3.5" /></Button>
+                    </div>
+                  </td>
+                </motion.tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function PayablesPage() {
   const { data, addPayable, updatePayable, updatePayableWithFuture, deletePayable, deletePayableWithFuture, markPayablePaid, markPayablePaidPartial, getCategoryName, getAccountName, insertGroupedTransaction } = useFinance();
   const [search, setSearch] = useState('');
@@ -522,62 +618,45 @@ export default function PayablesPage() {
           </div>
         )}
       </div>
-      <div className="finance-card p-0 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-muted/50">
-                <th className="w-10 py-3 px-3">
-                  <Checkbox checked={allVisibleSelected} onCheckedChange={toggleSelectAll} aria-label="Selecionar todos" disabled={selectablePayables.length === 0} />
-                </th>
-                <th className="text-left py-3 px-4 font-medium text-muted-foreground">Vencimento</th>
-                <th className="text-left py-3 px-4 font-medium text-muted-foreground">Descrição</th>
-                <th className="text-left py-3 px-4 font-medium text-muted-foreground">Fornecedor</th>
-                <th className="text-left py-3 px-4 font-medium text-muted-foreground">Categoria</th>
-                <th className="text-left py-3 px-4 font-medium text-muted-foreground">Conta</th>
-                <th className="text-left py-3 px-4 font-medium text-muted-foreground">Status</th>
-                <th className="text-right py-3 px-4 font-medium text-muted-foreground">Valor</th>
-                <th className="text-right py-3 px-4 font-medium text-muted-foreground">Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {regularPayables.map(p => (
-                <motion.tr key={p.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
-                  <td className="py-3 px-3">
-                    {p.status !== 'paid' && (
-                      <Checkbox checked={selectedIds.has(p.id)} onCheckedChange={() => toggleSelect(p.id)} aria-label="Selecionar" />
-                    )}
-                  </td>
-                  <td className="py-3 px-4 mono text-muted-foreground">{fmtDate(p.dueDate)}</td>
-                  <td className={`py-3 px-4 font-medium ${p.status === 'overdue' ? 'text-destructive' : p.status === 'paid' ? 'text-success' : 'text-warning'}`}>
-                    <div className="flex items-center gap-1.5">
-                      {p.description}
-                      {p.recurring && <RefreshCw className="h-3 w-3 text-primary" />}
-                    </div>
-                  </td>
-                  <td className={`py-3 px-4 ${p.status === 'overdue' ? 'text-destructive' : p.status === 'paid' ? 'text-success' : 'text-warning'}`}>{p.supplier}</td>
-                  <td className="py-3 px-4 text-muted-foreground">{getCategoryName(p.categoryId)}</td>
-                  <td className="py-3 px-4 text-muted-foreground">{p.accountId ? getAccountName(p.accountId) : '—'}</td>
-                  <td className="py-3 px-4"><StatusBadge status={p.status} /></td>
-                  <td className="py-3 px-4 text-right mono font-semibold text-destructive">{fmt(p.amount)}</td>
-                  <td className="py-3 px-4 text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      {p.status !== 'paid' && (
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-success hover:text-success" onClick={() => handleMarkPaid(p.id)}>
-                          <CheckCircle className="h-3.5 w-3.5" />
-                        </Button>
-                      )}
-                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setEditingItem(p); setDialogOpen(true); }}><Edit2 className="h-3.5 w-3.5" /></Button>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => setDeleteId(p.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
-                    </div>
-                  </td>
-                </motion.tr>
-              ))}
-              {regularPayables.length === 0 && <tr><td colSpan={9} className="text-center py-12 text-muted-foreground">Nenhuma conta encontrada</td></tr>}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      {(() => {
+        const groupedBySupplier = regularPayables.reduce<Record<string, Payable[]>>((acc, p) => {
+          const supplier = p.supplier?.startsWith('meta:') ? 'Meta/Sonhos' : (p.supplier || 'Outros');
+          if (!acc[supplier]) acc[supplier] = [];
+          acc[supplier].push(p);
+          return acc;
+        }, {});
+        
+        const sortedSuppliers = Object.keys(groupedBySupplier).sort((a, b) => a.localeCompare(b));
+
+        if (sortedSuppliers.length === 0) {
+          return (
+            <div className="finance-card p-12 text-center text-muted-foreground">
+              Nenhuma conta encontrada
+            </div>
+          );
+        }
+
+        return (
+          <div className="space-y-4">
+            {sortedSuppliers.map(supplierName => (
+              <SupplierGroupTable
+                key={supplierName}
+                supplierName={supplierName}
+                items={groupedBySupplier[supplierName]}
+                getCategoryName={getCategoryName}
+                getAccountName={getAccountName}
+                selectedIds={selectedIds}
+                toggleSelect={toggleSelect}
+                setSelectedIds={setSelectedIds}
+                handleMarkPaid={handleMarkPaid}
+                setEditingItem={setEditingItem}
+                setDialogOpen={setDialogOpen}
+                setDeleteId={setDeleteId}
+              />
+            ))}
+          </div>
+        );
+      })()}
 
       {/* Credit Card Invoices Section */}
       {Object.keys(creditByAccount).length > 0 && (
@@ -887,7 +966,12 @@ function PayableForm({ item, categories, accounts, onSave }: {
   const [useInstallments, setUseInstallments] = useState(false);
   const [inputMode, setInputMode] = useState<'total' | 'installment'>('total');
   const [installmentValue, setInstallmentValue] = useState('');
-  const [paymentMode, setPaymentMode] = useState<'credit' | 'debit'>('credit');
+  const [paymentMode, setPaymentMode] = useState<'credit' | 'debit'>(() => {
+    const initialAcc = accounts.find(a => a.id === (item?.accountId || ''));
+    const isCC = initialAcc?.type?.includes('credit_card');
+    const canDebit = initialAcc?.type?.includes('checking') || initialAcc?.type?.includes('cash');
+    return isCC && canDebit ? 'debit' : 'credit';
+  });
 
   const selectedAccount = accounts.find(a => a.id === accountId);
   const isCreditCard = selectedAccount?.type?.includes('credit_card') ?? false;
@@ -928,7 +1012,8 @@ function PayableForm({ item, categories, accounts, onSave }: {
       setInstallments(1);
       setPaymentMode('debit');
     } else {
-      setPaymentMode('credit');
+      const canDebit = acc?.type?.includes('checking') || acc?.type?.includes('cash');
+      setPaymentMode(canDebit ? 'debit' : 'credit');
       // Auto-calc due date from purchase date
       const calculated = calcDueDate(purchaseDate, acc);
       if (calculated) setDueDate(calculated);
