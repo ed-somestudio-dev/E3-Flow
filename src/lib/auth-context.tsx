@@ -57,13 +57,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // Standard auth state change listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (_event === 'SIGNED_OUT') {
+      if (!session || _event === 'SIGNED_OUT') {
         const isOffline = !assertOnline();
         const hasOfflineFallback = !!localStorage.getItem('e3flow_offline_user');
         const isIntentional = localStorage.getItem('e3flow_intentional_logout') === 'true';
 
         if ((isOffline || hasOfflineFallback) && !isIntentional) {
-          console.warn('[AuthContext] SIGNED_OUT detectado sem intenção (possível falha de refresh offline). Mantendo sessão atual ou fallback.');
+          console.warn(`[AuthContext] Sessão nula ou ${_event} detectado sem intenção (possível falha offline). Mantendo sessão atual ou fallback.`);
           return;
         }
       }

@@ -2,7 +2,7 @@ import { useState, useCallback, useMemo } from 'react';
 import { useFinance } from '@/lib/finance-context';
 import { supabase } from '@/integrations/supabase/client';
 import { Payable, PayableStatus, RecurrenceFrequency } from '@/lib/types';
-import { Plus, Trash2, Edit2, CheckCircle, RefreshCw, CreditCard, Wallet, ChevronDown, ChevronRight, CalendarIcon, X } from 'lucide-react';
+import { Plus, Trash2, Edit2, CheckCircle, RefreshCw, CreditCard, Wallet, ChevronDown, ChevronRight, CalendarIcon, X, Users } from 'lucide-react';
 import { CalculatorInput } from '@/components/CalculatorInput';
 import { ContactAutocomplete } from '@/components/ContactAutocomplete';
 import { SearchAutocomplete } from '@/components/SearchAutocomplete';
@@ -280,6 +280,7 @@ export default function PayablesPage() {
   const [editingItem, setEditingItem] = useState<Payable | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [groupBy, setGroupBy] = useState<'contact' | 'date'>('contact');
   const [updateFuturePayload, setUpdateFuturePayload] = useState<Payable | null>(null);
   const [updateFutureTarget, setUpdateFutureTarget] = useState<Payable | null>(null);
   const [updateFutureCount, setUpdateFutureCount] = useState<number>(0);
@@ -509,7 +510,11 @@ export default function PayablesPage() {
           <DialogTrigger asChild>
             <Button onClick={() => setEditingItem(null)}><Plus className="h-4 w-4 mr-2" />Nova Conta</Button>
           </DialogTrigger>
-          <DialogContent className="max-h-[90vh] overflow-y-auto">
+          <DialogContent 
+            className="max-h-[90vh] overflow-y-auto"
+            onPointerDownOutside={(e) => e.preventDefault()}
+            onInteractOutside={(e) => e.preventDefault()}
+          >
             <DialogHeader><DialogTitle>{editingItem ? 'Editar' : 'Nova'} {SAFE_LABELS.payable}</DialogTitle></DialogHeader>
             <PayableForm item={editingItem} categories={data.categories.filter(c => c.type === 'expense')} accounts={data.accounts}
               onSave={(p) => {
@@ -567,6 +572,22 @@ export default function PayablesPage() {
             <SelectItem value="overdue">Atrasado</SelectItem>
           </SelectContent>
         </Select>
+        <div className="flex items-center bg-muted/50 p-1 rounded-md border border-border ml-auto sm:ml-0">
+          <button
+            onClick={() => setGroupBy('contact')}
+            className={cn("p-1.5 rounded-sm transition-colors", groupBy === 'contact' ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground")}
+            title="Agrupar por Contato"
+          >
+            <Users className="h-4 w-4" />
+          </button>
+          <button
+            onClick={() => setGroupBy('date')}
+            className={cn("p-1.5 rounded-sm transition-colors", groupBy === 'date' ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground")}
+            title="Agrupar por Data"
+          >
+            <CalendarIcon className="h-4 w-4" />
+          </button>
+        </div>
       </div>
       <div className="flex items-center gap-3 flex-wrap">
         <MonthYearPicker
@@ -619,16 +640,27 @@ export default function PayablesPage() {
         )}
       </div>
       {(() => {
-        const groupedBySupplier = regularPayables.reduce<Record<string, Payable[]>>((acc, p) => {
-          const supplier = p.supplier?.startsWith('meta:') ? 'Meta/Sonhos' : (p.supplier || 'Outros');
-          if (!acc[supplier]) acc[supplier] = [];
-          acc[supplier].push(p);
-          return acc;
-        }, {});
+        let groups: Record<string, Payable[]> = {};
         
-        const sortedSuppliers = Object.keys(groupedBySupplier).sort((a, b) => a.localeCompare(b));
+        if (groupBy === 'contact') {
+          groups = regularPayables.reduce<Record<string, Payable[]>>((acc, p) => {
+            const supplier = p.supplier?.startsWith('meta:') ? 'Meta/Sonhos' : (p.supplier || 'Outros');
+            if (!acc[supplier]) acc[supplier] = [];
+            acc[supplier].push(p);
+            return acc;
+          }, {});
+        } else {
+          groups = regularPayables.reduce<Record<string, Payable[]>>((acc, p) => {
+            const dateKey = p.dueDate || 'Sem Data';
+            if (!acc[dateKey]) acc[dateKey] = [];
+            acc[dateKey].push(p);
+            return acc;
+          }, {});
+        }
+        
+        const sortedKeys = Object.keys(groups).sort((a, b) => a.localeCompare(b));
 
-        if (sortedSuppliers.length === 0) {
+        if (sortedKeys.length === 0) {
           return (
             <div className="finance-card p-12 text-center text-muted-foreground">
               Nenhuma conta encontrada
@@ -638,11 +670,13 @@ export default function PayablesPage() {
 
         return (
           <div className="space-y-4">
-            {sortedSuppliers.map(supplierName => (
-              <SupplierGroupTable
-                key={supplierName}
-                supplierName={supplierName}
-                items={groupedBySupplier[supplierName]}
+            {sortedKeys.map(key => {
+              const displayName = groupBy === 'date' ? (key === 'Sem Data' ? key : fmtDate(key)) : key;
+              return (
+                <SupplierGroupTable
+                  key={key}
+                  supplierName={displayName}
+                  items={groups[key]}
                 getCategoryName={getCategoryName}
                 getAccountName={getAccountName}
                 selectedIds={selectedIds}
@@ -653,7 +687,8 @@ export default function PayablesPage() {
                 setDialogOpen={setDialogOpen}
                 setDeleteId={setDeleteId}
               />
-            ))}
+              );
+            })}
           </div>
         );
       })()}

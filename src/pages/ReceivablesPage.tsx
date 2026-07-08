@@ -3,7 +3,7 @@ import { useFinance } from '@/lib/finance-context';
 import { supabase } from '@/integrations/supabase/client';
 import { usePixSettings } from '@/lib/pix-settings-context';
 import { Receivable, ReceivableStatus, RecurrenceFrequency } from '@/lib/types';
-import { Plus, Trash2, Edit2, CheckCircle, CreditCard, CalendarIcon, X, RefreshCw, QrCode, Receipt, AlertTriangle, ChevronDown, ChevronRight, Upload, MessageCircle, FileText } from 'lucide-react';
+import { Plus, Trash2, Edit2, CheckCircle, CreditCard, CalendarIcon, X, RefreshCw, QrCode, Receipt, AlertTriangle, ChevronDown, ChevronRight, Upload, MessageCircle, FileText, Users } from 'lucide-react';
 import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog';
 import { CalculatorInput } from '@/components/CalculatorInput';
 import { ContactAutocomplete } from '@/components/ContactAutocomplete';
@@ -161,6 +161,7 @@ export default function ReceivablesPage() {
   const [editingItem, setEditingItem] = useState<Receivable | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [groupBy, setGroupBy] = useState<'contact' | 'date'>('contact');
   const [receiveDialogOpen, setReceiveDialogOpen] = useState(false);
   const [receivingIds, setReceivingIds] = useState<string[]>([]);
   const [receiveAccountId, setReceiveAccountId] = useState('');
@@ -682,8 +683,12 @@ export default function ReceivablesPage() {
             <DialogTrigger asChild>
               <Button onClick={() => setEditingItem(null)}><Plus className="h-4 w-4 mr-2" />Novo Recebível</Button>
             </DialogTrigger>
-            <DialogContent className="max-h-[90vh] overflow-y-auto">
-              <DialogHeader><DialogTitle>{editingItem ? 'Editar' : 'Novo'} Recebível</DialogTitle></DialogHeader>
+          <DialogContent 
+            className="max-h-[90vh] overflow-y-auto"
+            onPointerDownOutside={(e) => e.preventDefault()}
+            onInteractOutside={(e) => e.preventDefault()}
+          >
+            <DialogHeader><DialogTitle>{editingItem ? 'Editar' : 'Novo'} Recebível</DialogTitle></DialogHeader>
               <ReceivableForm item={editingItem} categories={data.categories.filter(c => c.type === 'income')} accounts={data.accounts}
                 onSave={(r) => {
                   const { installments, recurrence, ...receivable } = r;
@@ -750,6 +755,22 @@ export default function ReceivablesPage() {
             <SelectItem value="overdue">Atrasado</SelectItem>
           </SelectContent>
         </Select>
+        <div className="flex items-center bg-muted/50 p-1 rounded-md border border-border ml-auto sm:ml-0">
+          <button
+            onClick={() => setGroupBy('contact')}
+            className={cn("p-1.5 rounded-sm transition-colors", groupBy === 'contact' ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground")}
+            title="Agrupar por Contato"
+          >
+            <Users className="h-4 w-4" />
+          </button>
+          <button
+            onClick={() => setGroupBy('date')}
+            className={cn("p-1.5 rounded-sm transition-colors", groupBy === 'date' ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground")}
+            title="Agrupar por Data"
+          >
+            <CalendarIcon className="h-4 w-4" />
+          </button>
+        </div>
       </div>
       <div className="flex items-center gap-3 flex-wrap">
         <MonthYearPicker
@@ -896,16 +917,27 @@ export default function ReceivablesPage() {
       </div>
 
       {(() => {
-        const groupedByClient = filtered.reduce<Record<string, Receivable[]>>((acc, r) => {
-          const client = r.clientName || 'Diversos';
-          if (!acc[client]) acc[client] = [];
-          acc[client].push(r);
-          return acc;
-        }, {});
+        let groups: Record<string, Receivable[]> = {};
         
-        const sortedClients = Object.keys(groupedByClient).sort((a, b) => a.localeCompare(b));
+        if (groupBy === 'contact') {
+          groups = filtered.reduce<Record<string, Receivable[]>>((acc, r) => {
+            const client = r.clientName || 'Diversos';
+            if (!acc[client]) acc[client] = [];
+            acc[client].push(r);
+            return acc;
+          }, {});
+        } else {
+          groups = filtered.reduce<Record<string, Receivable[]>>((acc, r) => {
+            const dateKey = r.dueDate || 'Sem Data';
+            if (!acc[dateKey]) acc[dateKey] = [];
+            acc[dateKey].push(r);
+            return acc;
+          }, {});
+        }
+        
+        const sortedKeys = Object.keys(groups).sort((a, b) => a.localeCompare(b));
 
-        if (sortedClients.length === 0) {
+        if (sortedKeys.length === 0) {
           return (
             <div className="finance-card p-12 text-center text-muted-foreground">
               Nenhum recebível encontrado
@@ -915,11 +947,13 @@ export default function ReceivablesPage() {
 
         return (
           <div className="space-y-4">
-            {sortedClients.map(clientName => (
-              <ClientGroupTable
-                key={clientName}
-                clientName={clientName}
-                items={groupedByClient[clientName]}
+            {sortedKeys.map(key => {
+              const displayName = groupBy === 'date' ? (key === 'Sem Data' ? key : fmtDate(key)) : key;
+              return (
+                <ClientGroupTable
+                  key={key}
+                  clientName={displayName}
+                  items={groups[key]}
                 getCategoryName={getCategoryName}
                 getAccountName={getAccountName}
                 selectedIds={selectedIds}
@@ -934,7 +968,8 @@ export default function ReceivablesPage() {
                 setDeleteId={setDeleteId}
                 pixSettings={pixSettings}
               />
-            ))}
+              );
+            })}
           </div>
         );
       })()}
