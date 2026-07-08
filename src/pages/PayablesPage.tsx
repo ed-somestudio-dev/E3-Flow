@@ -1024,25 +1024,34 @@ function PayableForm({ item, categories, accounts, onSave }: {
         .sort((a, b) => b.dueDate.localeCompare(a.dueDate))[0];
 
       if (existing && existing.dueDate) {
-        const existingDay = parseInt(existing.dueDate.split('-')[2], 10);
+        const existingDate = new Date(existing.dueDate + 'T12:00:00');
         const now = new Date();
-        const currentDay = now.getDate();
-        let targetMonth = now.getMonth() + 1;
-        let targetYear = now.getFullYear();
-        
-        if (existingDay < currentDay) {
-          targetMonth += 1;
-          if (targetMonth > 12) {
-            targetMonth = 1;
-            targetYear += 1;
+        now.setHours(0, 0, 0, 0);
+
+        if (existingDate >= now) {
+          // Se a última data de vencimento for hoje ou no futuro, usa ela exatamente (mesmo ciclo).
+          setDueDate(existing.dueDate);
+        } else {
+          // Se já passou, calcula a próxima ocorrência do mesmo dia do mês.
+          const existingDay = existingDate.getDate();
+          const currentDay = now.getDate();
+          let targetMonth = now.getMonth() + 1;
+          let targetYear = now.getFullYear();
+          
+          if (existingDay < currentDay) {
+            targetMonth += 1;
+            if (targetMonth > 12) {
+              targetMonth = 1;
+              targetYear += 1;
+            }
           }
+          
+          const lastDayOfTargetMonth = new Date(targetYear, targetMonth, 0).getDate();
+          const finalDay = Math.min(existingDay, lastDayOfTargetMonth);
+          
+          const newDueDate = `${targetYear}-${String(targetMonth).padStart(2, '0')}-${String(finalDay).padStart(2, '0')}`;
+          setDueDate(newDueDate);
         }
-        
-        const lastDayOfTargetMonth = new Date(targetYear, targetMonth, 0).getDate();
-        const finalDay = Math.min(existingDay, lastDayOfTargetMonth);
-        
-        const newDueDate = `${targetYear}-${String(targetMonth).padStart(2, '0')}-${String(finalDay).padStart(2, '0')}`;
-        setDueDate(newDueDate);
       }
     }
   };
