@@ -35,7 +35,14 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import NotFound from "@/pages/NotFound";
 import logoE3Flow from '@/assets/Logo_E3Flow_Final.png';
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: () => !(document.querySelector('[role="dialog"]') || document.querySelector('[role="alertdialog"]')),
+      refetchOnReconnect: () => !(document.querySelector('[role="dialog"]') || document.querySelector('[role="alertdialog"]')),
+    },
+  },
+});
 
 function ProtectedRoutes() {
   const { user, loading: authLoading } = useAuth();
@@ -60,7 +67,10 @@ function ProtectedRoutes() {
     // Checa ao voltar para a aba (caso o navegador restaure a página do cache - bfcache)
     window.addEventListener('pageshow', checkWelcome);
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') checkWelcome();
+      if (document.visibilityState === 'visible') {
+        if (document.querySelector('[role="dialog"]') || document.querySelector('[role="alertdialog"]')) return;
+        checkWelcome();
+      }
     });
 
     return () => {

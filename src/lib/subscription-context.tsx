@@ -232,6 +232,9 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
       
       const handleVisibilityChange = () => {
         if (document.visibilityState === 'visible') {
+          if (document.querySelector('[role="dialog"]') || document.querySelector('[role="alertdialog"]')) {
+            return;
+          }
           fetchSubscription();
         }
       };

@@ -21,6 +21,12 @@ export function useAutoRefresh(opts: { staleAfterMs?: number; onRevalidate?: () 
       } else if (document.visibilityState === 'visible') {
         const elapsed = hiddenAt.current ? Date.now() - hiddenAt.current : 0;
         hiddenAt.current = null;
+        
+        // Se houver algum modal aberto, NÃO dê reload nem revalide para blindar a janela de criação contra perda de dados
+        if (document.querySelector('[role="dialog"]') || document.querySelector('[role="alertdialog"]')) {
+          return;
+        }
+
         if (elapsed > staleAfterMs) {
           window.location.reload();
         } else if (onRevalidate) {
@@ -30,8 +36,13 @@ export function useAutoRefresh(opts: { staleAfterMs?: number; onRevalidate?: () 
     };
 
     const onPageShow = (e: PageTransitionEvent) => {
-      // bfcache restore — sempre recarrega para garantir dados atualizados
-      if (e.persisted) window.location.reload();
+      // bfcache restore — sempre recarrega para garantir dados atualizados, exceto se um modal estiver aberto
+      if (e.persisted) {
+        if (document.querySelector('[role="dialog"]') || document.querySelector('[role="alertdialog"]')) {
+          return;
+        }
+        window.location.reload();
+      }
     };
 
     document.addEventListener('visibilitychange', onVisibility);
