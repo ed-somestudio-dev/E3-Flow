@@ -173,6 +173,7 @@ export default function ReceivablesPage() {
   const [showReceiveItems, setShowReceiveItems] = useState(false);
   const [dateFrom, setDateFrom] = useState<Date | undefined>(startOfMonth(new Date()));
   const [dateTo, setDateTo] = useState<Date | undefined>(endOfMonth(new Date()));
+  const [showPastOverdue, setShowPastOverdue] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [pixWarningOpen, setPixWarningOpen] = useState(false);
   const [bulkPartialMode, setBulkPartialMode] = useState(false);
@@ -295,6 +296,9 @@ export default function ReceivablesPage() {
     })
     .filter(r => removeAccents(r.description.toLowerCase()).includes(normalizedSearch) || removeAccents(r.clientName.toLowerCase()).includes(normalizedSearch))
     .filter(r => {
+      const isPastOverdue = r.status === 'overdue' && dateFrom && r.dueDate < format(dateFrom, 'yyyy-MM-dd');
+      if (isPastOverdue && showPastOverdue) return true;
+
       if (dateFrom && r.dueDate < format(dateFrom, 'yyyy-MM-dd')) return false;
       if (dateTo && r.dueDate > format(dateTo, 'yyyy-MM-dd')) return false;
       return true;
@@ -806,6 +810,10 @@ export default function ReceivablesPage() {
             <X className="h-4 w-4 mr-1" />Limpar
           </Button>
         )}
+        <div className="flex items-center gap-2 ml-auto">
+          <Checkbox id="past-overdue" checked={showPastOverdue} onCheckedChange={(c) => setShowPastOverdue(!!c)} />
+          <Label htmlFor="past-overdue" className="text-sm cursor-pointer whitespace-nowrap text-muted-foreground">Incluir atrasados anteriores</Label>
+        </div>
       </div>
 
       {/* Totals + bulk actions */}

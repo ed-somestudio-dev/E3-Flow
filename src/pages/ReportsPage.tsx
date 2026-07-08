@@ -4,6 +4,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { fmt, fmtDate } from '@/lib/format';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { SAFE_LABELS } from '@/lib/safe-labels';
 import { consolidatePayables } from '@/lib/consolidate-payables';
@@ -37,6 +38,8 @@ export default function ReportsPage() {
     setForecastDateFrom(undefined);
     setForecastDateTo(undefined);
   };
+  const [showPastOverdueBills, setShowPastOverdueBills] = useState(false);
+  const [showPastOverdueForecast, setShowPastOverdueForecast] = useState(false);
 
   // Monthly summary for year
   const monthlySummary = useMemo(() => {
@@ -100,12 +103,15 @@ export default function ReportsPage() {
     const toStr = endDate ? fmtFn(endDate, 'yyyy-MM-dd') : undefined;
     return consolidated
       .filter(p => {
+        const isPastOverdue = p.status === 'overdue' && fromStr && p.dueDate < fromStr;
+        if (isPastOverdue && showPastOverdueBills) return true;
+
         if (fromStr && p.dueDate < fromStr) return false;
         if (toStr && p.dueDate > toStr) return false;
         return true;
       })
       .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
-  }, [consolidated, startDate, endDate]);
+  }, [consolidated, startDate, endDate, showPastOverdueBills]);
 
   const payablesTotals = useMemo(() => {
     const pending = payablesByPeriod.filter(p => p.status !== 'paid').reduce((s, p) => s + p.amount, 0);
@@ -121,12 +127,15 @@ export default function ReportsPage() {
     const toStr = endDate ? fmtFn(endDate, 'yyyy-MM-dd') : undefined;
     return data.receivables
       .filter(r => {
+        const isPastOverdue = r.status === 'overdue' && fromStr && r.dueDate < fromStr;
+        if (isPastOverdue && showPastOverdueBills) return true;
+
         if (fromStr && r.dueDate < fromStr) return false;
         if (toStr && r.dueDate > toStr) return false;
         return true;
       })
       .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
-  }, [data.receivables, startDate, endDate]);
+  }, [data.receivables, startDate, endDate, showPastOverdueBills]);
 
   const receivablesTotals = useMemo(() => {
     const pending = receivablesByPeriod.filter(r => r.status !== 'received').reduce((s, r) => s + r.amount, 0);
@@ -145,6 +154,9 @@ export default function ReportsPage() {
     const futurePayables = consolidated
       .filter(p => {
         if (p.status === 'paid') return false;
+        const isPastOverdue = p.status === 'overdue' && fromStr && p.dueDate < fromStr;
+        if (isPastOverdue && showPastOverdueForecast) return true;
+
         if (fromStr && p.dueDate < fromStr) return false;
         if (toStr && p.dueDate > toStr) return false;
         return true;
@@ -154,6 +166,9 @@ export default function ReportsPage() {
     const futureReceivables = data.receivables
       .filter(r => {
         if (r.status === 'received') return false;
+        const isPastOverdue = r.status === 'overdue' && fromStr && r.dueDate < fromStr;
+        if (isPastOverdue && showPastOverdueForecast) return true;
+
         if (fromStr && r.dueDate < fromStr) return false;
         if (toStr && r.dueDate > toStr) return false;
         return true;
@@ -162,7 +177,7 @@ export default function ReportsPage() {
 
     const projected = currentBalance + futureReceivables - futurePayables;
     return { currentBalance, futurePayables, futureReceivables, projected };
-  }, [data, consolidated, forecastDateFrom, forecastDateTo]);
+  }, [data, consolidated, forecastDateFrom, forecastDateTo, showPastOverdueForecast]);
 
   // Filtered payables for forecast list
   const forecastPayables = useMemo(() => {
@@ -171,12 +186,15 @@ export default function ReportsPage() {
     return data.payables
       .filter(p => {
         if (p.status === 'paid') return false;
+        const isPastOverdue = p.status === 'overdue' && fromStr && p.dueDate < fromStr;
+        if (isPastOverdue && showPastOverdueForecast) return true;
+
         if (fromStr && p.dueDate < fromStr) return false;
         if (toStr && p.dueDate > toStr) return false;
         return true;
       })
       .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
-  }, [data.payables, forecastDateFrom, forecastDateTo]);
+  }, [data.payables, forecastDateFrom, forecastDateTo, showPastOverdueForecast]);
 
   // Filtered receivables for forecast list
   const forecastReceivables = useMemo(() => {
@@ -185,12 +203,15 @@ export default function ReportsPage() {
     return data.receivables
       .filter(r => {
         if (r.status === 'received') return false;
+        const isPastOverdue = r.status === 'overdue' && fromStr && r.dueDate < fromStr;
+        if (isPastOverdue && showPastOverdueForecast) return true;
+
         if (fromStr && r.dueDate < fromStr) return false;
         if (toStr && r.dueDate > toStr) return false;
         return true;
       })
       .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
-  }, [data.receivables, forecastDateFrom, forecastDateTo]);
+  }, [data.receivables, forecastDateFrom, forecastDateTo, showPastOverdueForecast]);
 
   const tooltipStyle = {
     backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))',
@@ -387,6 +408,10 @@ export default function ReportsPage() {
                 <X className="h-4 w-4 mr-1" />Limpar
               </Button>
             )}
+            <div className="flex items-center gap-2 ml-auto">
+              <Checkbox id="past-overdue-bills" checked={showPastOverdueBills} onCheckedChange={(c) => setShowPastOverdueBills(!!c)} />
+              <Label htmlFor="past-overdue-bills" className="text-sm cursor-pointer whitespace-nowrap text-muted-foreground">Incluir atrasados anteriores</Label>
+            </div>
           </div>
 
           {/* Contas a Pagar */}
@@ -541,6 +566,10 @@ export default function ReportsPage() {
                 <X className="h-4 w-4 mr-1" />Limpar
               </Button>
             )}
+            <div className="flex items-center gap-2 ml-auto">
+              <Checkbox id="past-overdue-forecast" checked={showPastOverdueForecast} onCheckedChange={(c) => setShowPastOverdueForecast(!!c)} />
+              <Label htmlFor="past-overdue-forecast" className="text-sm cursor-pointer whitespace-nowrap text-muted-foreground">Incluir atrasados anteriores</Label>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

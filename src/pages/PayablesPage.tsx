@@ -295,6 +295,7 @@ export default function PayablesPage() {
   const [showMorePayOptions, setShowMorePayOptions] = useState(false);
   const [dateFrom, setDateFrom] = useState<Date | undefined>(startOfMonth(new Date()));
   const [dateTo, setDateTo] = useState<Date | undefined>(endOfMonth(new Date()));
+  const [showPastOverdue, setShowPastOverdue] = useState(false);
 
   const setCurrentMonth = () => {
     setDateFrom(startOfMonth(new Date()));
@@ -315,6 +316,9 @@ export default function PayablesPage() {
     })
     .filter(p => removeAccents(p.description.toLowerCase()).includes(normalizedSearch) || removeAccents(p.supplier.toLowerCase()).includes(normalizedSearch))
     .filter(p => {
+      const isPastOverdue = p.status === 'overdue' && dateFrom && p.dueDate < format(dateFrom, 'yyyy-MM-dd');
+      if (isPastOverdue && showPastOverdue) return true;
+
       if (dateFrom && p.dueDate < format(dateFrom, 'yyyy-MM-dd')) return false;
       if (dateTo && p.dueDate > format(dateTo, 'yyyy-MM-dd')) return false;
       return true;
@@ -623,6 +627,10 @@ export default function PayablesPage() {
             <X className="h-4 w-4 mr-1" />Limpar
           </Button>
         )}
+        <div className="flex items-center gap-2 ml-auto">
+          <Checkbox id="past-overdue" checked={showPastOverdue} onCheckedChange={(c) => setShowPastOverdue(!!c)} />
+          <Label htmlFor="past-overdue" className="text-sm cursor-pointer whitespace-nowrap text-muted-foreground">Incluir atrasados anteriores</Label>
+        </div>
       </div>
       {/* Totals + bulk action */}
       <div className="flex items-center gap-4 p-3 rounded-lg bg-muted/50 border border-border flex-wrap">
