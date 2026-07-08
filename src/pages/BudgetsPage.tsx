@@ -49,7 +49,7 @@ export default function BudgetsPage() {
                 <Plus className="h-4 w-4 mr-2" />Novo Orçamento
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent onPointerDownOutside={(e) => e.preventDefault()} onInteractOutside={(e) => e.preventDefault()}>
               <DialogHeader><DialogTitle>{editingItem ? 'Editar' : 'Novo'} Orçamento</DialogTitle></DialogHeader>
               <BudgetForm item={editingItem} categories={editingItem ? expenseCategories : availableCategories} month={month}
                 onSave={(b) => { if (editingItem) updateBudget({ ...b, id: editingItem.id } as Budget); else addBudget(b); setDialogOpen(false); setEditingItem(null); }} />

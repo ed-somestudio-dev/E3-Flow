@@ -92,7 +92,7 @@ export default function GoalsPage() {
               <Plus className="h-4 w-4 mr-2" />Nova Meta / Sonho
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto" onPointerDownOutside={(e) => e.preventDefault()} onInteractOutside={(e) => e.preventDefault()}>
             <DialogHeader>
               <DialogTitle>{selectedGoal ? 'Editar' : 'Nova'} Meta / Sonho</DialogTitle>
               <DialogDescription>Defina o objetivo, prazo e modalidade de destinação do dinheiro.</DialogDescription>
@@ -312,7 +312,7 @@ export default function GoalsPage() {
 
       {/* Deposit/Aporte Dialog */}
       <Dialog open={depositOpen} onOpenChange={setDepositOpen}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="max-w-sm" onPointerDownOutside={(e) => e.preventDefault()} onInteractOutside={(e) => e.preventDefault()}>
           <DialogHeader>
             <DialogTitle>Depositar na Meta</DialogTitle>
             <DialogDescription>Movimentação interna. O dinheiro sai do saldo da conta e vai para a meta.</DialogDescription>
@@ -343,7 +343,7 @@ export default function GoalsPage() {
 
       {/* Withdraw/Resgate Dialog */}
       <Dialog open={withdrawOpen} onOpenChange={setWithdrawOpen}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="max-w-sm" onPointerDownOutside={(e) => e.preventDefault()} onInteractOutside={(e) => e.preventDefault()}>
           <DialogHeader>
             <DialogTitle>Resgatar da Meta</DialogTitle>
             <DialogDescription>Retirar dinheiro da meta e devolvê-lo para o saldo disponível da conta.</DialogDescription>

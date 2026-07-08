@@ -56,7 +56,7 @@ export default function TransactionsPage() {
           <DialogTrigger asChild>
             <Button onClick={() => setEditingTx(null)}><Plus className="h-4 w-4 mr-2" />Nova Transação</Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent onPointerDownOutside={(e) => e.preventDefault()} onInteractOutside={(e) => e.preventDefault()}>
             <DialogHeader><DialogTitle>{editingTx ? 'Editar' : 'Nova'} Transação</DialogTitle></DialogHeader>
             <TransactionForm tx={editingTx} categories={data.categories} accounts={data.accounts}
               onSave={(tx) => { if (editingTx) updateTransaction({ ...tx, id: editingTx.id }); else addTransaction(tx); setDialogOpen(false); setEditingTx(null); }} />
@@ -77,12 +77,7 @@ export default function TransactionsPage() {
           </SelectContent>
         </Select>
       </div>
-      <div className="flex items-center gap-3 flex-wrap">
-        <MonthYearPicker
-          value={dateFrom && dateTo && format(dateFrom, 'yyyy-MM') === format(dateTo, 'yyyy-MM') ? dateFrom : undefined}
-          onChange={(from, to) => { setDateFrom(from); setDateTo(to); }}
-          active={!!(dateFrom && dateTo && format(dateFrom, 'yyyy-MM') === format(new Date(), 'yyyy-MM') && format(dateTo, 'yyyy-MM') === format(new Date(), 'yyyy-MM'))}
-        />
+      <div className="flex items-center gap-3 flex-wrap w-full">
         <Popover>
           <PopoverTrigger asChild>
             <Button variant="outline" size="sm" className={cn("justify-start text-left font-normal", !dateFrom && "text-muted-foreground")}>
@@ -106,6 +101,14 @@ export default function TransactionsPage() {
             <Calendar mode="single" selected={dateTo} onSelect={setDateTo} initialFocus className="p-3 pointer-events-auto" locale={ptBR} />
           </PopoverContent>
         </Popover>
+      </div>
+
+      <div className="flex items-center justify-between w-full">
+        <MonthYearPicker
+          value={dateFrom && dateTo && format(dateFrom, 'yyyy-MM') === format(dateTo, 'yyyy-MM') ? dateFrom : undefined}
+          onChange={(from, to) => { setDateFrom(from); setDateTo(to); }}
+          active={!!(dateFrom && dateTo && format(dateFrom, 'yyyy-MM') === format(new Date(), 'yyyy-MM') && format(dateTo, 'yyyy-MM') === format(new Date(), 'yyyy-MM'))}
+        />
         {(dateFrom || dateTo) && (
           <Button variant="ghost" size="sm" onClick={clearDateFilter}>
             <X className="h-4 w-4 mr-1" />Limpar

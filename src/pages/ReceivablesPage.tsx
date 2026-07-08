@@ -759,29 +759,9 @@ export default function ReceivablesPage() {
             <SelectItem value="overdue">Atrasado</SelectItem>
           </SelectContent>
         </Select>
-        <div className="flex items-center bg-muted/50 p-1 rounded-md border border-border ml-auto sm:ml-0">
-          <button
-            onClick={() => setGroupBy('contact')}
-            className={cn("p-1.5 rounded-sm transition-colors", groupBy === 'contact' ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground")}
-            title="Agrupar por Contato"
-          >
-            <Users className="h-4 w-4" />
-          </button>
-          <button
-            onClick={() => setGroupBy('date')}
-            className={cn("p-1.5 rounded-sm transition-colors", groupBy === 'date' ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground")}
-            title="Agrupar por Data"
-          >
-            <CalendarIcon className="h-4 w-4" />
-          </button>
-        </div>
       </div>
-      <div className="flex items-center gap-3 flex-wrap">
-        <MonthYearPicker
-          value={dateFrom && dateTo && format(dateFrom, 'yyyy-MM') === format(dateTo, 'yyyy-MM') ? dateFrom : undefined}
-          onChange={(from, to) => { setDateFrom(from); setDateTo(to); }}
-          active={!!(dateFrom && dateTo && format(dateFrom, 'yyyy-MM') === format(new Date(), 'yyyy-MM') && format(dateTo, 'yyyy-MM') === format(new Date(), 'yyyy-MM'))}
-        />
+
+      <div className="flex items-center gap-3 flex-wrap w-full">
         <Popover>
           <PopoverTrigger asChild>
             <Button variant="outline" size="sm" className={cn("justify-start text-left font-normal", !dateFrom && "text-muted-foreground")}>
@@ -805,15 +785,41 @@ export default function ReceivablesPage() {
             <Calendar mode="single" selected={dateTo} onSelect={setDateTo} initialFocus className="p-3 pointer-events-auto" locale={ptBR} />
           </PopoverContent>
         </Popover>
+        <div className="flex items-center gap-2 ml-auto mt-2 sm:mt-0">
+          <Checkbox id="past-overdue" checked={showPastOverdue} onCheckedChange={(c) => setShowPastOverdue(!!c)} />
+          <Label htmlFor="past-overdue" className="text-sm cursor-pointer whitespace-nowrap text-muted-foreground">Incluir atrasados anteriores</Label>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between w-full">
+        <div className="flex items-center gap-3">
+          <MonthYearPicker
+            value={dateFrom && dateTo && format(dateFrom, 'yyyy-MM') === format(dateTo, 'yyyy-MM') ? dateFrom : undefined}
+            onChange={(from, to) => { setDateFrom(from); setDateTo(to); }}
+            active={!!(dateFrom && dateTo && format(dateFrom, 'yyyy-MM') === format(new Date(), 'yyyy-MM') && format(dateTo, 'yyyy-MM') === format(new Date(), 'yyyy-MM'))}
+          />
+          <div className="flex items-center bg-muted/50 p-1 rounded-md border border-border">
+            <button
+              onClick={() => setGroupBy('contact')}
+              className={cn("p-1.5 rounded-sm transition-colors", groupBy === 'contact' ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground")}
+              title="Agrupar por Contato"
+            >
+              <Users className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => setGroupBy('date')}
+              className={cn("p-1.5 rounded-sm transition-colors", groupBy === 'date' ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground")}
+              title="Agrupar por Data"
+            >
+              <CalendarIcon className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
         {(dateFrom || dateTo) && (
           <Button variant="ghost" size="sm" onClick={clearDateFilter}>
             <X className="h-4 w-4 mr-1" />Limpar
           </Button>
         )}
-        <div className="flex items-center gap-2 ml-auto">
-          <Checkbox id="past-overdue" checked={showPastOverdue} onCheckedChange={(c) => setShowPastOverdue(!!c)} />
-          <Label htmlFor="past-overdue" className="text-sm cursor-pointer whitespace-nowrap text-muted-foreground">Incluir atrasados anteriores</Label>
-        </div>
       </div>
 
       {/* Totals + bulk actions */}
@@ -1515,7 +1521,39 @@ function ReceivableForm({ item, categories, accounts, onSave }: {
   accounts: { id: string; name: string }[];
   onSave: (r: Omit<Receivable, 'id'> & { installments?: number; recurrence?: { frequency: RecurrenceFrequency; occurrences: number } }) => void;
 }) {
+  const { data } = useFinance();
   const [clientName, setClientName] = useState(item?.clientName || '');
+
+  const handleClientChange = (val: string) => {
+    setClientName(val);
+    if (!item && val) {
+      const existing = data.receivables
+        .filter(r => r.clientName.toLowerCase() === val.toLowerCase())
+        .sort((a, b) => b.dueDate.localeCompare(a.dueDate))[0];
+
+      if (existing && existing.dueDate) {
+        const existingDay = parseInt(existing.dueDate.split('-')[2], 10);
+        const now = new Date();
+        const currentDay = now.getDate();
+        let targetMonth = now.getMonth() + 1;
+        let targetYear = now.getFullYear();
+        
+        if (existingDay < currentDay) {
+          targetMonth += 1;
+          if (targetMonth > 12) {
+            targetMonth = 1;
+            targetYear += 1;
+          }
+        }
+        
+        const lastDayOfTargetMonth = new Date(targetYear, targetMonth, 0).getDate();
+        const finalDay = Math.min(existingDay, lastDayOfTargetMonth);
+        
+        const newDueDate = `${targetYear}-${String(targetMonth).padStart(2, '0')}-${String(finalDay).padStart(2, '0')}`;
+        setDueDate(newDueDate);
+      }
+    }
+  };
   const [description, setDescription] = useState(item?.description || '');
   const [categoryId, setCategoryId] = useState(item?.categoryId || '');
   const [accountId, setAccountId] = useState(item?.accountId || '');
@@ -1534,7 +1572,7 @@ function ReceivableForm({ item, categories, accounts, onSave }: {
 
   return (
     <div className="space-y-4">
-      <div><Label>Nome do Cliente</Label><ContactAutocomplete value={clientName} onChange={setClientName} placeholder="Nome do cliente" /></div>
+      <div><Label>Nome do Cliente</Label><ContactAutocomplete value={clientName} onChange={handleClientChange} placeholder="Nome do cliente" /></div>
       <div><Label>Descrição</Label><Input value={description} onChange={e => setDescription(e.target.value)} placeholder="Descrição" /></div>
       <div className="grid grid-cols-2 gap-3">
         <div><Label>Categoria</Label>

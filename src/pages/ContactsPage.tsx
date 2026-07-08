@@ -179,7 +179,7 @@ export default function ContactsPage() {
                 <Plus className="h-4 w-4 mr-2" />Novo Contato
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent onPointerDownOutside={(e) => e.preventDefault()} onInteractOutside={(e) => e.preventDefault()}>
               <DialogHeader><DialogTitle>{editing ? 'Editar' : 'Novo'} Contato</DialogTitle></DialogHeader>
               <ContactForm
                 item={editing}
@@ -298,7 +298,7 @@ export default function ContactsPage() {
       />
 
       <Dialog open={nativePickerOpen} onOpenChange={setNativePickerOpen}>
-        <DialogContent className="max-h-[90vh] flex flex-col gap-0 p-0">
+        <DialogContent className="max-h-[90vh] flex flex-col gap-0 p-0" onPointerDownOutside={(e) => e.preventDefault()} onInteractOutside={(e) => e.preventDefault()}>
           <DialogHeader className="px-4 py-3 border-b border-border">
             <DialogTitle>Selecionar Contatos</DialogTitle>
           </DialogHeader>

@@ -186,7 +186,7 @@ function SaleCard({ sale, onStatusChange, onUpdateShipping, onDelete, onEdit, se
     </motion.div>
 
     <Dialog open={shippingModal} onOpenChange={setShippingModal}>
-      <DialogContent>
+      <DialogContent onPointerDownOutside={(e) => e.preventDefault()} onInteractOutside={(e) => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle>Despachar Produto</DialogTitle>
         </DialogHeader>
@@ -921,9 +921,9 @@ export default function SalesPage() {
       )}
 
       {/* New Sale Sheet */}
-      <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-        <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
-          <SheetHeader>
+      <Sheet open={sheetOpen} onOpenChange={(o) => { setSheetOpen(o); if (!o) resetForm(); }}>
+        <SheetContent className="w-full sm:max-w-2xl overflow-y-auto" onPointerDownOutside={(e) => e.preventDefault()} onInteractOutside={(e) => e.preventDefault()}>
+          <SheetHeader className="mb-4">
             <SheetTitle>{editingSaleId ? 'Editar Venda' : 'Nova Venda'}</SheetTitle>
           </SheetHeader>
 
@@ -1208,8 +1208,8 @@ export default function SalesPage() {
       />
 
       {/* Bulk Receive Modal */}
-      <Dialog open={bulkReceiveModal} onOpenChange={setBulkReceiveModal}>
-        <DialogContent>
+      <Dialog open={bulkReceiveModal} onOpenChange={(o) => { setBulkReceiveModal(o); if (!o) { setBulkReceiveAmount(''); setBulkReceiveAccount(''); } }}>
+        <DialogContent onPointerDownOutside={(e) => e.preventDefault()} onInteractOutside={(e) => e.preventDefault()}>
           <DialogHeader>
             <DialogTitle>Confirmar Recebimento</DialogTitle>
           </DialogHeader>

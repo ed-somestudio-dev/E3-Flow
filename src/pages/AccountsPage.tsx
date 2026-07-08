@@ -69,7 +69,7 @@ export default function AccountsPage() {
             <DialogTrigger asChild>
               <Button onClick={() => setEditingItem(null)}><Plus className="h-4 w-4 mr-2" />Nova Conta</Button>
             </DialogTrigger>
-            <DialogContent className="max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-h-[90vh] overflow-y-auto" onPointerDownOutside={(e) => e.preventDefault()} onInteractOutside={(e) => e.preventDefault()}>
               <DialogHeader><DialogTitle>{editingItem ? 'Editar' : 'Nova'} Conta</DialogTitle></DialogHeader>
               <AccountForm item={editingItem}
                 onSave={(a) => {
@@ -196,7 +196,7 @@ export default function AccountsPage() {
 
       {/* Transfer Dialog */}
       <Dialog open={transferOpen} onOpenChange={setTransferOpen}>
-        <DialogContent>
+        <DialogContent onPointerDownOutside={(e) => e.preventDefault()} onInteractOutside={(e) => e.preventDefault()}>
           <DialogHeader><DialogTitle>Transferência entre Contas</DialogTitle></DialogHeader>
           <TransferForm accounts={data.accounts} onTransfer={(from, to, amount) => {
             transferBetweenAccounts(from, to, amount);

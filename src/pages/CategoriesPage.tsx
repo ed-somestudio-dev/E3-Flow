@@ -38,7 +38,7 @@ export default function CategoriesPage() {
           <DialogTrigger asChild>
             <Button onClick={() => setEditingItem(null)}><Plus className="h-4 w-4 mr-2" />Nova Categoria</Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent onPointerDownOutside={(e) => e.preventDefault()} onInteractOutside={(e) => e.preventDefault()}>
             <DialogHeader><DialogTitle>{editingItem ? 'Editar' : 'Nova'} Categoria</DialogTitle></DialogHeader>
             <CategoryForm item={editingItem}
               onSave={(c) => {

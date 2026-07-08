@@ -374,12 +374,7 @@ export default function ReportsPage() {
 
         {/* === ABA CONTAS A PAGAR/RECEBER === */}
         <TabsContent value="bills" className="space-y-6 mt-4">
-          <div className="flex items-center gap-3 flex-wrap">
-            <MonthYearPicker
-              value={startDate && endDate && fmtFn(startDate, 'yyyy-MM') === fmtFn(endDate, 'yyyy-MM') ? startDate : undefined}
-              onChange={(from, to) => { setStartDate(from); setEndDate(to); }}
-              active={!!(startDate && endDate && fmtFn(startDate, 'yyyy-MM') === fmtFn(new Date(), 'yyyy-MM') && fmtFn(endDate, 'yyyy-MM') === fmtFn(new Date(), 'yyyy-MM'))}
-            />
+          <div className="flex items-center gap-3 flex-wrap w-full">
             <Popover>
               <PopoverTrigger asChild>
                 <Button variant="outline" size="sm" className={cn("justify-start text-left font-normal", !startDate && "text-muted-foreground")}>
@@ -403,15 +398,23 @@ export default function ReportsPage() {
                 <Calendar mode="single" selected={endDate} onSelect={setEndDate} initialFocus className="p-3 pointer-events-auto" locale={ptBR} />
               </PopoverContent>
             </Popover>
+            <div className="flex items-center gap-2 ml-auto mt-2 sm:mt-0">
+              <Checkbox id="past-overdue-bills" checked={showPastOverdueBills} onCheckedChange={(c) => setShowPastOverdueBills(!!c)} />
+              <Label htmlFor="past-overdue-bills" className="text-sm cursor-pointer whitespace-nowrap text-muted-foreground">Incluir atrasados anteriores</Label>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between w-full mb-4">
+            <MonthYearPicker
+              value={startDate && endDate && fmtFn(startDate, 'yyyy-MM') === fmtFn(endDate, 'yyyy-MM') ? startDate : undefined}
+              onChange={(from, to) => { setStartDate(from); setEndDate(to); }}
+              active={!!(startDate && endDate && fmtFn(startDate, 'yyyy-MM') === fmtFn(new Date(), 'yyyy-MM') && fmtFn(endDate, 'yyyy-MM') === fmtFn(new Date(), 'yyyy-MM'))}
+            />
             {(startDate || endDate) && (
               <Button variant="ghost" size="sm" onClick={clearDateFilter}>
                 <X className="h-4 w-4 mr-1" />Limpar
               </Button>
             )}
-            <div className="flex items-center gap-2 ml-auto">
-              <Checkbox id="past-overdue-bills" checked={showPastOverdueBills} onCheckedChange={(c) => setShowPastOverdueBills(!!c)} />
-              <Label htmlFor="past-overdue-bills" className="text-sm cursor-pointer whitespace-nowrap text-muted-foreground">Incluir atrasados anteriores</Label>
-            </div>
           </div>
 
           {/* Contas a Pagar */}
@@ -532,12 +535,7 @@ export default function ReportsPage() {
 
         {/* === ABA PREVISÃO === */}
         <TabsContent value="forecast" className="space-y-6 mt-4">
-          <div className="flex items-center gap-3 flex-wrap">
-            <MonthYearPicker
-              value={forecastDateFrom && forecastDateTo && fmtFn(forecastDateFrom, 'yyyy-MM') === fmtFn(forecastDateTo, 'yyyy-MM') ? forecastDateFrom : undefined}
-              onChange={(from, to) => { setForecastDateFrom(from); setForecastDateTo(to); }}
-              active={!!(forecastDateFrom && forecastDateTo && fmtFn(forecastDateFrom, 'yyyy-MM') === fmtFn(new Date(), 'yyyy-MM') && fmtFn(forecastDateTo, 'yyyy-MM') === fmtFn(new Date(), 'yyyy-MM'))}
-            />
+          <div className="flex items-center gap-3 flex-wrap w-full">
             <Popover>
               <PopoverTrigger asChild>
                 <Button variant="outline" size="sm" className={cn("justify-start text-left font-normal", !forecastDateFrom && "text-muted-foreground")}>
@@ -561,15 +559,23 @@ export default function ReportsPage() {
                 <Calendar mode="single" selected={forecastDateTo} onSelect={setForecastDateTo} initialFocus className="p-3 pointer-events-auto" locale={ptBR} />
               </PopoverContent>
             </Popover>
+            <div className="flex items-center gap-2 ml-auto mt-2 sm:mt-0">
+              <Checkbox id="past-overdue-forecast" checked={showPastOverdueForecast} onCheckedChange={(c) => setShowPastOverdueForecast(!!c)} />
+              <Label htmlFor="past-overdue-forecast" className="text-sm cursor-pointer whitespace-nowrap text-muted-foreground">Incluir atrasados anteriores</Label>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between w-full mb-4">
+            <MonthYearPicker
+              value={forecastDateFrom && forecastDateTo && fmtFn(forecastDateFrom, 'yyyy-MM') === fmtFn(forecastDateTo, 'yyyy-MM') ? forecastDateFrom : undefined}
+              onChange={(from, to) => { setForecastDateFrom(from); setForecastDateTo(to); }}
+              active={!!(forecastDateFrom && forecastDateTo && fmtFn(forecastDateFrom, 'yyyy-MM') === fmtFn(new Date(), 'yyyy-MM') && fmtFn(forecastDateTo, 'yyyy-MM') === fmtFn(new Date(), 'yyyy-MM'))}
+            />
             {(forecastDateFrom || forecastDateTo) && (
               <Button variant="ghost" size="sm" onClick={clearForecastDateFilter}>
                 <X className="h-4 w-4 mr-1" />Limpar
               </Button>
             )}
-            <div className="flex items-center gap-2 ml-auto">
-              <Checkbox id="past-overdue-forecast" checked={showPastOverdueForecast} onCheckedChange={(c) => setShowPastOverdueForecast(!!c)} />
-              <Label htmlFor="past-overdue-forecast" className="text-sm cursor-pointer whitespace-nowrap text-muted-foreground">Incluir atrasados anteriores</Label>
-            </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
