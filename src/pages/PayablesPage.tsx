@@ -578,65 +578,77 @@ export default function PayablesPage() {
         </Select>
       </div>
 
-      <div className="flex items-center gap-3 flex-wrap w-full">
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button variant="outline" size="sm" className={cn("justify-start text-left font-normal", !dateFrom && "text-muted-foreground")}>
-              <CalendarIcon className="h-4 w-4 mr-2" />
-              {dateFrom ? format(dateFrom, "dd/MM/yyyy") : "Data inicial"}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="start">
-            <Calendar mode="single" selected={dateFrom} onSelect={setDateFrom} initialFocus className="p-3 pointer-events-auto" locale={ptBR} />
-          </PopoverContent>
-        </Popover>
-        <span className="text-muted-foreground text-sm">até</span>
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button variant="outline" size="sm" className={cn("justify-start text-left font-normal", !dateTo && "text-muted-foreground")}>
-              <CalendarIcon className="h-4 w-4 mr-2" />
-              {dateTo ? format(dateTo, "dd/MM/yyyy") : "Data final"}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="start">
-            <Calendar mode="single" selected={dateTo} onSelect={setDateTo} initialFocus className="p-3 pointer-events-auto" locale={ptBR} />
-          </PopoverContent>
-        </Popover>
-        <div className="flex items-center gap-2 ml-auto mt-2 sm:mt-0">
+      <div className="flex flex-col gap-3 w-full">
+        <div className="flex items-center w-full">
+          <div className="flex-1">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className={cn("w-full justify-start text-left font-normal", !dateFrom && "text-muted-foreground")}>
+                  <CalendarIcon className="h-4 w-4 mr-2 shrink-0" />
+                  <span className="truncate">{dateFrom ? format(dateFrom, "dd/MM/yyyy") : "Data inicial"}</span>
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar mode="single" selected={dateFrom} onSelect={setDateFrom} initialFocus className="p-3 pointer-events-auto" locale={ptBR} />
+              </PopoverContent>
+            </Popover>
+          </div>
+          <span className="text-muted-foreground text-sm mx-3">até</span>
+          <div className="flex-1">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className={cn("w-full justify-start text-left font-normal", !dateTo && "text-muted-foreground")}>
+                  <CalendarIcon className="h-4 w-4 mr-2 shrink-0" />
+                  <span className="truncate">{dateTo ? format(dateTo, "dd/MM/yyyy") : "Data final"}</span>
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar mode="single" selected={dateTo} onSelect={setDateTo} initialFocus className="p-3 pointer-events-auto" locale={ptBR} />
+              </PopoverContent>
+            </Popover>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
           <Checkbox id="past-overdue" checked={showPastOverdue} onCheckedChange={(c) => setShowPastOverdue(!!c)} />
           <Label htmlFor="past-overdue" className="text-sm cursor-pointer whitespace-nowrap text-muted-foreground">Incluir atrasados anteriores</Label>
         </div>
-      </div>
 
-      <div className="flex items-center justify-between w-full">
-        <div className="flex items-center gap-3">
-          <MonthYearPicker
-            value={dateFrom && dateTo && format(dateFrom, 'yyyy-MM') === format(dateTo, 'yyyy-MM') ? dateFrom : undefined}
-            onChange={(from, to) => { setDateFrom(from); setDateTo(to); }}
-            active={!!(dateFrom && dateTo && format(dateFrom, 'yyyy-MM') === format(new Date(), 'yyyy-MM') && format(dateTo, 'yyyy-MM') === format(new Date(), 'yyyy-MM'))}
-          />
-          <div className="flex items-center bg-muted/50 p-1 rounded-md border border-border">
-            <button
-              onClick={() => setGroupBy('contact')}
-              className={cn("p-1.5 rounded-sm transition-colors", groupBy === 'contact' ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground")}
-              title="Agrupar por Contato"
-            >
-              <Users className="h-4 w-4" />
-            </button>
-            <button
-              onClick={() => setGroupBy('date')}
-              className={cn("p-1.5 rounded-sm transition-colors", groupBy === 'date' ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground")}
-              title="Agrupar por Data"
-            >
-              <CalendarIcon className="h-4 w-4" />
-            </button>
+        <div className="flex items-center justify-between w-full">
+          <div className="flex-1">
+            <MonthYearPicker
+              value={dateFrom && dateTo && format(dateFrom, 'yyyy-MM') === format(dateTo, 'yyyy-MM') ? dateFrom : undefined}
+              onChange={(from, to) => { setDateFrom(from); setDateTo(to); }}
+              active={!!(dateFrom && dateTo && format(dateFrom, 'yyyy-MM') === format(new Date(), 'yyyy-MM') && format(dateTo, 'yyyy-MM') === format(new Date(), 'yyyy-MM'))}
+              className="w-full"
+            />
+          </div>
+          <div className="flex justify-center flex-none mx-2">
+            <div className="flex items-center bg-muted/50 p-1 rounded-md border border-border">
+              <button
+                onClick={() => setGroupBy('contact')}
+                className={cn("p-1.5 rounded-sm transition-colors", groupBy === 'contact' ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground")}
+                title="Agrupar por Contato"
+              >
+                <Users className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => setGroupBy('date')}
+                className={cn("p-1.5 rounded-sm transition-colors", groupBy === 'date' ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground")}
+                title="Agrupar por Data"
+              >
+                <CalendarIcon className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+          <div className="flex-1">
+            {(dateFrom || dateTo) ? (
+              <Button variant="outline" size="sm" onClick={clearDateFilter} className="w-full">
+                <X className="h-4 w-4 mr-1 shrink-0" />Limpar
+              </Button>
+            ) : <div />}
           </div>
         </div>
-        {(dateFrom || dateTo) && (
-          <Button variant="ghost" size="sm" onClick={clearDateFilter}>
-            <X className="h-4 w-4 mr-1" />Limpar
-          </Button>
-        )}
       </div>
       {/* Totals + bulk action */}
       <div className="flex items-center gap-4 p-3 rounded-lg bg-muted/50 border border-border flex-wrap">

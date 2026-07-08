@@ -374,47 +374,59 @@ export default function ReportsPage() {
 
         {/* === ABA CONTAS A PAGAR/RECEBER === */}
         <TabsContent value="bills" className="space-y-6 mt-4">
-          <div className="flex items-center gap-3 flex-wrap w-full">
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" className={cn("justify-start text-left font-normal", !startDate && "text-muted-foreground")}>
-                  <CalendarIcon className="h-4 w-4 mr-2" />
-                  {startDate ? fmtFn(startDate, "dd/MM/yyyy") : "Data inicial"}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar mode="single" selected={startDate} onSelect={setStartDate} initialFocus className="p-3 pointer-events-auto" locale={ptBR} />
-              </PopoverContent>
-            </Popover>
-            <span className="text-muted-foreground text-sm">até</span>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" className={cn("justify-start text-left font-normal", !endDate && "text-muted-foreground")}>
-                  <CalendarIcon className="h-4 w-4 mr-2" />
-                  {endDate ? fmtFn(endDate, "dd/MM/yyyy") : "Data final"}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar mode="single" selected={endDate} onSelect={setEndDate} initialFocus className="p-3 pointer-events-auto" locale={ptBR} />
-              </PopoverContent>
-            </Popover>
-            <div className="flex items-center gap-2 ml-auto mt-2 sm:mt-0">
+          <div className="flex flex-col gap-3 w-full mb-4">
+            <div className="flex items-center w-full">
+              <div className="flex-1">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className={cn("w-full justify-start text-left font-normal", !startDate && "text-muted-foreground")}>
+                      <CalendarIcon className="h-4 w-4 mr-2 shrink-0" />
+                      <span className="truncate">{startDate ? fmtFn(startDate, "dd/MM/yyyy") : "Data inicial"}</span>
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar mode="single" selected={startDate} onSelect={setStartDate} initialFocus className="p-3 pointer-events-auto" locale={ptBR} />
+                  </PopoverContent>
+                </Popover>
+              </div>
+              <span className="text-muted-foreground text-sm mx-3">até</span>
+              <div className="flex-1">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className={cn("w-full justify-start text-left font-normal", !endDate && "text-muted-foreground")}>
+                      <CalendarIcon className="h-4 w-4 mr-2 shrink-0" />
+                      <span className="truncate">{endDate ? fmtFn(endDate, "dd/MM/yyyy") : "Data final"}</span>
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar mode="single" selected={endDate} onSelect={setEndDate} initialFocus className="p-3 pointer-events-auto" locale={ptBR} />
+                  </PopoverContent>
+                </Popover>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
               <Checkbox id="past-overdue-bills" checked={showPastOverdueBills} onCheckedChange={(c) => setShowPastOverdueBills(!!c)} />
               <Label htmlFor="past-overdue-bills" className="text-sm cursor-pointer whitespace-nowrap text-muted-foreground">Incluir atrasados anteriores</Label>
             </div>
-          </div>
 
-          <div className="flex items-center justify-between w-full mb-4">
-            <MonthYearPicker
-              value={startDate && endDate && fmtFn(startDate, 'yyyy-MM') === fmtFn(endDate, 'yyyy-MM') ? startDate : undefined}
-              onChange={(from, to) => { setStartDate(from); setEndDate(to); }}
-              active={!!(startDate && endDate && fmtFn(startDate, 'yyyy-MM') === fmtFn(new Date(), 'yyyy-MM') && fmtFn(endDate, 'yyyy-MM') === fmtFn(new Date(), 'yyyy-MM'))}
-            />
-            {(startDate || endDate) && (
-              <Button variant="ghost" size="sm" onClick={clearDateFilter}>
-                <X className="h-4 w-4 mr-1" />Limpar
-              </Button>
-            )}
+            <div className="flex items-center gap-2 w-full">
+              <div className="flex-1">
+                <MonthYearPicker
+                  value={startDate && endDate && fmtFn(startDate, 'yyyy-MM') === fmtFn(endDate, 'yyyy-MM') ? startDate : undefined}
+                  onChange={(from, to) => { setStartDate(from); setEndDate(to); }}
+                  active={!!(startDate && endDate && fmtFn(startDate, 'yyyy-MM') === fmtFn(new Date(), 'yyyy-MM') && fmtFn(endDate, 'yyyy-MM') === fmtFn(new Date(), 'yyyy-MM'))}
+                  className="w-full"
+                />
+              </div>
+              <div className="flex-1">
+                {(startDate || endDate) ? (
+                  <Button variant="outline" size="sm" onClick={clearDateFilter} className="w-full">
+                    <X className="h-4 w-4 mr-1 shrink-0" />Limpar
+                  </Button>
+                ) : <div />}
+              </div>
+            </div>
           </div>
 
           {/* Contas a Pagar */}
@@ -535,47 +547,59 @@ export default function ReportsPage() {
 
         {/* === ABA PREVISÃO === */}
         <TabsContent value="forecast" className="space-y-6 mt-4">
-          <div className="flex items-center gap-3 flex-wrap w-full">
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" className={cn("justify-start text-left font-normal", !forecastDateFrom && "text-muted-foreground")}>
-                  <CalendarIcon className="h-4 w-4 mr-2" />
-                  {forecastDateFrom ? fmtFn(forecastDateFrom, "dd/MM/yyyy") : "Data inicial"}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar mode="single" selected={forecastDateFrom} onSelect={setForecastDateFrom} initialFocus className="p-3 pointer-events-auto" locale={ptBR} />
-              </PopoverContent>
-            </Popover>
-            <span className="text-muted-foreground text-sm">até</span>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" className={cn("justify-start text-left font-normal", !forecastDateTo && "text-muted-foreground")}>
-                  <CalendarIcon className="h-4 w-4 mr-2" />
-                  {forecastDateTo ? fmtFn(forecastDateTo, "dd/MM/yyyy") : "Data final"}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar mode="single" selected={forecastDateTo} onSelect={setForecastDateTo} initialFocus className="p-3 pointer-events-auto" locale={ptBR} />
-              </PopoverContent>
-            </Popover>
-            <div className="flex items-center gap-2 ml-auto mt-2 sm:mt-0">
+          <div className="flex flex-col gap-3 w-full mb-4">
+            <div className="flex items-center w-full">
+              <div className="flex-1">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className={cn("w-full justify-start text-left font-normal", !forecastDateFrom && "text-muted-foreground")}>
+                      <CalendarIcon className="h-4 w-4 mr-2 shrink-0" />
+                      <span className="truncate">{forecastDateFrom ? fmtFn(forecastDateFrom, "dd/MM/yyyy") : "Data inicial"}</span>
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar mode="single" selected={forecastDateFrom} onSelect={setForecastDateFrom} initialFocus className="p-3 pointer-events-auto" locale={ptBR} />
+                  </PopoverContent>
+                </Popover>
+              </div>
+              <span className="text-muted-foreground text-sm mx-3">até</span>
+              <div className="flex-1">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className={cn("w-full justify-start text-left font-normal", !forecastDateTo && "text-muted-foreground")}>
+                      <CalendarIcon className="h-4 w-4 mr-2 shrink-0" />
+                      <span className="truncate">{forecastDateTo ? fmtFn(forecastDateTo, "dd/MM/yyyy") : "Data final"}</span>
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar mode="single" selected={forecastDateTo} onSelect={setForecastDateTo} initialFocus className="p-3 pointer-events-auto" locale={ptBR} />
+                  </PopoverContent>
+                </Popover>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
               <Checkbox id="past-overdue-forecast" checked={showPastOverdueForecast} onCheckedChange={(c) => setShowPastOverdueForecast(!!c)} />
               <Label htmlFor="past-overdue-forecast" className="text-sm cursor-pointer whitespace-nowrap text-muted-foreground">Incluir atrasados anteriores</Label>
             </div>
-          </div>
 
-          <div className="flex items-center justify-between w-full mb-4">
-            <MonthYearPicker
-              value={forecastDateFrom && forecastDateTo && fmtFn(forecastDateFrom, 'yyyy-MM') === fmtFn(forecastDateTo, 'yyyy-MM') ? forecastDateFrom : undefined}
-              onChange={(from, to) => { setForecastDateFrom(from); setForecastDateTo(to); }}
-              active={!!(forecastDateFrom && forecastDateTo && fmtFn(forecastDateFrom, 'yyyy-MM') === fmtFn(new Date(), 'yyyy-MM') && fmtFn(forecastDateTo, 'yyyy-MM') === fmtFn(new Date(), 'yyyy-MM'))}
-            />
-            {(forecastDateFrom || forecastDateTo) && (
-              <Button variant="ghost" size="sm" onClick={clearForecastDateFilter}>
-                <X className="h-4 w-4 mr-1" />Limpar
-              </Button>
-            )}
+            <div className="flex items-center gap-2 w-full">
+              <div className="flex-1">
+                <MonthYearPicker
+                  value={forecastDateFrom && forecastDateTo && fmtFn(forecastDateFrom, 'yyyy-MM') === fmtFn(forecastDateTo, 'yyyy-MM') ? forecastDateFrom : undefined}
+                  onChange={(from, to) => { setForecastDateFrom(from); setForecastDateTo(to); }}
+                  active={!!(forecastDateFrom && forecastDateTo && fmtFn(forecastDateFrom, 'yyyy-MM') === fmtFn(new Date(), 'yyyy-MM') && fmtFn(forecastDateTo, 'yyyy-MM') === fmtFn(new Date(), 'yyyy-MM'))}
+                  className="w-full"
+                />
+              </div>
+              <div className="flex-1">
+                {(forecastDateFrom || forecastDateTo) ? (
+                  <Button variant="outline" size="sm" onClick={clearForecastDateFilter} className="w-full">
+                    <X className="h-4 w-4 mr-1 shrink-0" />Limpar
+                  </Button>
+                ) : <div />}
+              </div>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

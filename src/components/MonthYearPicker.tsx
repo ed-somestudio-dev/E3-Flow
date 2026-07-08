@@ -13,6 +13,8 @@ interface MonthYearPickerProps {
   onChange: (from: Date, to: Date) => void;
   /** Whether the trigger should appear in the active (default) variant. */
   active?: boolean;
+  /** Optional class name for the trigger button */
+  className?: string;
 }
 
 const MONTHS_PT = [
@@ -20,7 +22,7 @@ const MONTHS_PT = [
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
 ];
 
-export function MonthYearPicker({ value, onChange, active }: MonthYearPickerProps) {
+export function MonthYearPicker({ value, onChange, active, className }: MonthYearPickerProps) {
   const today = new Date();
   const initial = value ?? today;
   const [open, setOpen] = useState(false);
@@ -46,7 +48,7 @@ export function MonthYearPicker({ value, onChange, active }: MonthYearPickerProp
       if (o) setViewYear((value ?? today).getFullYear());
     }}>
       <PopoverTrigger asChild>
-        <Button variant={active ? 'default' : 'outline'} size="sm">
+        <Button variant={active ? 'default' : 'outline'} size="sm" className={className}>
           <CalendarIcon className="h-4 w-4 mr-2" />
           {label}
         </Button>
