@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { usePersistedDialog } from '@/hooks/usePersistedDialog';
 import { useSales } from '@/lib/sales-context';
 import { Product } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -33,7 +34,7 @@ const emptyForm = (): Omit<Product, 'id'> => ({
 export default function ProductsPage() {
   const { products, loadingProducts, addProduct, updateProduct, deleteProduct } = useSales();
   const [search, setSearch] = useState('');
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogOpen, setDialogOpen] = usePersistedDialog('products-dialog');
   const [editTarget, setEditTarget] = useState<Product | null>(null);
   const [form, setForm] = useState<Omit<Product, 'id'>>(emptyForm());
   const [saving, setSaving] = useState(false);

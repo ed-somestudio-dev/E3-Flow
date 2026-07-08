@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef } from 'react';
+import { usePersistedDialog } from '@/hooks/usePersistedDialog';
 import { ContactInputWithPicker } from '@/components/ContactInputWithPicker';
 import { useContacts } from '@/lib/contacts-context';
 import { useSales, NewSaleItem, NewSalePayload } from '@/lib/sales-context';
@@ -265,7 +266,7 @@ export default function SalesPage() {
   const [search, setSearch] = useState('');
   const [showSearchSuggestions, setShowSearchSuggestions] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
-  const [sheetOpen, setSheetOpen] = useState(false);
+  const [sheetOpen, setSheetOpen] = usePersistedDialog('sales-sheet');
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [editingSaleId, setEditingSaleId] = useState<string | null>(null);

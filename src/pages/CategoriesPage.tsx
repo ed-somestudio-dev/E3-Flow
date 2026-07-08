@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { usePersistedDialog, usePersistedFormDraft } from '@/hooks/usePersistedDialog';
 import { useFinance } from '@/lib/finance-context';
 import { Category, TransactionType } from '@/lib/types';
 import { Plus, Trash2, Edit2, Search } from 'lucide-react';
@@ -18,7 +19,7 @@ export default function CategoriesPage() {
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [editingItem, setEditingItem] = useState<Category | null>(null);
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogOpen, setDialogOpen] = usePersistedDialog('categories-dialog');
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const normalizedSearch = removeAccents(search.toLowerCase());
@@ -110,10 +111,17 @@ function CategoryForm({ item, onSave }: {
   item: Category | null;
   onSave: (c: Omit<Category, 'id'>) => void;
 }) {
-  const [name, setName] = useState(item?.name || '');
-  const [type, setType] = useState<TransactionType>(item?.type as TransactionType || 'expense');
-  const [color, setColor] = useState(item?.color || '#0ea5e9');
-  const [icon, setIcon] = useState(item?.icon || 'Circle');
+  const initialDraft = {
+    name: item?.name || '',
+    type: (item?.type as TransactionType || 'expense') as TransactionType,
+    color: item?.color || '#0ea5e9',
+    icon: item?.icon || 'Circle',
+  };
+  const [draft, setDraft] = usePersistedFormDraft('categories-form', true, initialDraft);
+  const { name, type, color, icon } = draft;
+  const setName = (v: string) => setDraft(d => ({ ...d, name: v }));
+  const setType = (v: TransactionType) => setDraft(d => ({ ...d, type: v }));
+  const setColor = (v: string) => setDraft(d => ({ ...d, color: v }));
 
   return (
     <div className="space-y-4">

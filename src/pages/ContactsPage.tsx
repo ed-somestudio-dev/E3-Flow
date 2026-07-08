@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { usePersistedDialog, usePersistedFormDraft } from '@/hooks/usePersistedDialog';
 import { Contact, parseVCard, useContacts, whatsappLink } from '@/lib/contacts-context';
 import { Plus, Trash2, Edit2, Search, Upload, Smartphone, MessageCircle, Mail, User, Phone, IdCard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -30,7 +31,7 @@ export default function ContactsPage() {
   const { contacts, addContact, updateContact, deleteContact, importContacts } = useContacts();
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState<Contact | null>(null);
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogOpen, setDialogOpen] = usePersistedDialog('contacts-dialog');
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
@@ -345,13 +346,25 @@ function ContactForm({ item, onSave }: {
   item: Contact | null;
   onSave: (c: Omit<Contact, 'id'>) => void;
 }) {
-  const [name, setName] = useState(item?.name || '');
-  const [phone, setPhone] = useState(item?.phone || '');
-  const [email, setEmail] = useState(item?.email || '');
-  const [document, setDocument] = useState(item?.document || '');
-  const [cep, setCep] = useState(item?.cep || '');
-  const [address, setAddress] = useState(item?.address || '');
-  const [notes, setNotes] = useState(item?.notes || '');
+  const initialDraft = {
+    name: item?.name || '',
+    phone: item?.phone || '',
+    email: item?.email || '',
+    document: item?.document || '',
+    cep: item?.cep || '',
+    address: item?.address || '',
+    notes: item?.notes || '',
+  };
+  // dialogOpen is not available here, so we always persist (form only mounts when dialog is open)
+  const [draft, setDraft] = usePersistedFormDraft('contacts-form', true, initialDraft);
+  const { name, phone, email, document, cep, address, notes } = draft;
+  const setName = (v: string) => setDraft(d => ({ ...d, name: v }));
+  const setPhone = (v: string) => setDraft(d => ({ ...d, phone: v }));
+  const setEmail = (v: string) => setDraft(d => ({ ...d, email: v }));
+  const setDocument = (v: string) => setDraft(d => ({ ...d, document: v }));
+  const setCep = (v: string) => setDraft(d => ({ ...d, cep: v }));
+  const setAddress = (v: string) => setDraft(d => ({ ...d, address: v }));
+  const setNotes = (v: string) => setDraft(d => ({ ...d, notes: v }));
 
   return (
     <div className="space-y-4">

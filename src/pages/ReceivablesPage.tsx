@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
+import { usePersistedDialog, usePersistedFormDraft } from '@/hooks/usePersistedDialog';
 import { useFinance } from '@/lib/finance-context';
 import { supabase } from '@/integrations/supabase/client';
 import { usePixSettings } from '@/lib/pix-settings-context';
@@ -159,7 +160,7 @@ export default function ReceivablesPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('pending_overdue');
   const [editingItem, setEditingItem] = useState<Receivable | null>(null);
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogOpen, setDialogOpen] = usePersistedDialog('receivables-dialog');
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [groupBy, setGroupBy] = useState<'contact' | 'date'>('contact');
   const [receiveDialogOpen, setReceiveDialogOpen] = useState(false);
@@ -1534,7 +1535,38 @@ function ReceivableForm({ item, categories, accounts, onSave }: {
   onSave: (r: Omit<Receivable, 'id'> & { installments?: number; recurrence?: { frequency: RecurrenceFrequency; occurrences: number } }) => void;
 }) {
   const { data } = useFinance();
-  const [clientName, setClientName] = useState(item?.clientName || '');
+  const initialDraft = {
+    clientName: item?.clientName || '',
+    description: item?.description || '',
+    categoryId: item?.categoryId || '',
+    accountId: item?.accountId || '',
+    amount: item?.amount?.toString() || '',
+    dueDate: item?.dueDate || '',
+    notes: item?.notes || '',
+    useInstallments: false,
+    installments: 2,
+    inputMode: 'total' as 'total' | 'installment',
+    installmentValue: '',
+    recurring: item?.recurring || false,
+    recurrenceFrequency: (item?.recurrenceFrequency || 'monthly') as RecurrenceFrequency,
+    occurrences: '',
+  };
+  const [draft, setDraft] = usePersistedFormDraft('receivables-form', true, initialDraft);
+  const { clientName, description, categoryId, accountId, amount, dueDate, notes, useInstallments, installments, inputMode, installmentValue, recurring, recurrenceFrequency, occurrences } = draft;
+  const setClientName = (v: string) => setDraft(d => ({ ...d, clientName: v }));
+  const setDescription = (v: string) => setDraft(d => ({ ...d, description: v }));
+  const setCategoryId = (v: string) => setDraft(d => ({ ...d, categoryId: v }));
+  const setAccountId = (v: string) => setDraft(d => ({ ...d, accountId: v }));
+  const setAmount = (v: string) => setDraft(d => ({ ...d, amount: v }));
+  const setDueDate = (v: string) => setDraft(d => ({ ...d, dueDate: v }));
+  const setNotes = (v: string) => setDraft(d => ({ ...d, notes: v }));
+  const setUseInstallments = (v: boolean) => setDraft(d => ({ ...d, useInstallments: v }));
+  const setInstallments = (v: number) => setDraft(d => ({ ...d, installments: v }));
+  const setInputMode = (v: 'total' | 'installment') => setDraft(d => ({ ...d, inputMode: v }));
+  const setInstallmentValue = (v: string) => setDraft(d => ({ ...d, installmentValue: v }));
+  const setRecurring = (v: boolean) => setDraft(d => ({ ...d, recurring: v }));
+  const setRecurrenceFrequency = (v: RecurrenceFrequency) => setDraft(d => ({ ...d, recurrenceFrequency: v }));
+  const setOccurrences = (v: string) => setDraft(d => ({ ...d, occurrences: v }));
 
   const handleClientChange = (val: string) => {
     setClientName(val);
@@ -1575,19 +1607,7 @@ function ReceivableForm({ item, categories, accounts, onSave }: {
       }
     }
   };
-  const [description, setDescription] = useState(item?.description || '');
-  const [categoryId, setCategoryId] = useState(item?.categoryId || '');
-  const [accountId, setAccountId] = useState(item?.accountId || '');
-  const [amount, setAmount] = useState(item?.amount?.toString() || '');
-  const [dueDate, setDueDate] = useState(item?.dueDate || '');
-  const [notes, setNotes] = useState(item?.notes || '');
-  const [useInstallments, setUseInstallments] = useState(false);
-  const [installments, setInstallments] = useState(2);
-  const [inputMode, setInputMode] = useState<'total' | 'installment'>('total');
-  const [installmentValue, setInstallmentValue] = useState('');
-  const [recurring, setRecurring] = useState(item?.recurring || false);
-  const [recurrenceFrequency, setRecurrenceFrequency] = useState<RecurrenceFrequency>(item?.recurrenceFrequency || 'monthly');
-  const [occurrences, setOccurrences] = useState<string>('');
+
 
   const installmentAmount = amount ? (parseFloat(amount) / installments) : 0;
 

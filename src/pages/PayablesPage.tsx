@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo } from 'react';
+import { usePersistedDialog, usePersistedFormDraft } from '@/hooks/usePersistedDialog';
 import { useFinance } from '@/lib/finance-context';
 import { supabase } from '@/integrations/supabase/client';
 import { Payable, PayableStatus, RecurrenceFrequency } from '@/lib/types';
@@ -278,7 +279,7 @@ export default function PayablesPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('pending_overdue');
   const [editingItem, setEditingItem] = useState<Payable | null>(null);
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogOpen, setDialogOpen] = usePersistedDialog('payables-dialog');
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [groupBy, setGroupBy] = useState<'contact' | 'date'>('contact');
   const [updateFuturePayload, setUpdateFuturePayload] = useState<Payable | null>(null);
@@ -1013,8 +1014,40 @@ function PayableForm({ item, categories, accounts, onSave }: {
   onSave: (p: Omit<Payable, 'id'> & { installments?: number; isCredit?: boolean; recurrence?: { frequency: RecurrenceFrequency; occurrences: number } }) => void;
 }) {
   const { data } = useFinance();
-  const [description, setDescription] = useState(item?.description || '');
-  const [supplier, setSupplier] = useState(item?.supplier || '');
+  const initialDraft = {
+    supplier: item?.supplier || '',
+    description: item?.description || '',
+    categoryId: item?.categoryId || '',
+    accountId: item?.accountId || '',
+    amount: item?.amount?.toString() || '',
+    dueDate: item?.dueDate || '',
+    purchaseDate: item?.purchaseDate || new Date().toISOString().split('T')[0],
+    notes: item?.notes || '',
+    useInstallments: false,
+    installments: 2,
+    inputMode: 'total' as 'total' | 'installment',
+    installmentValue: '',
+    recurring: item?.recurring || false,
+    recurrenceFrequency: (item?.recurrenceFrequency || 'monthly') as RecurrenceFrequency,
+    occurrences: '',
+  };
+  const [draft, setDraft] = usePersistedFormDraft('payables-form', true, initialDraft);
+  const { supplier, description, categoryId, accountId, amount, dueDate, purchaseDate, notes, useInstallments, installments, inputMode, installmentValue, recurring, recurrenceFrequency, occurrences } = draft;
+  const setSupplier = (v: string) => setDraft(d => ({ ...d, supplier: v }));
+  const setDescription = (v: string) => setDraft(d => ({ ...d, description: v }));
+  const setCategoryId = (v: string) => setDraft(d => ({ ...d, categoryId: v }));
+  const setAccountId = (v: string) => setDraft(d => ({ ...d, accountId: v }));
+  const setAmount = (v: string) => setDraft(d => ({ ...d, amount: v }));
+  const setDueDate = (v: string) => setDraft(d => ({ ...d, dueDate: v }));
+  const setPurchaseDate = (v: string) => setDraft(d => ({ ...d, purchaseDate: v }));
+  const setNotes = (v: string) => setDraft(d => ({ ...d, notes: v }));
+  const setUseInstallments = (v: boolean) => setDraft(d => ({ ...d, useInstallments: v }));
+  const setInstallments = (v: number) => setDraft(d => ({ ...d, installments: v }));
+  const setInputMode = (v: 'total' | 'installment') => setDraft(d => ({ ...d, inputMode: v }));
+  const setInstallmentValue = (v: string) => setDraft(d => ({ ...d, installmentValue: v }));
+  const setRecurring = (v: boolean) => setDraft(d => ({ ...d, recurring: v }));
+  const setRecurrenceFrequency = (v: RecurrenceFrequency) => setDraft(d => ({ ...d, recurrenceFrequency: v }));
+  const setOccurrences = (v: string) => setDraft(d => ({ ...d, occurrences: v }));
 
   const handleSupplierChange = (val: string) => {
     setSupplier(val);
@@ -1055,19 +1088,6 @@ function PayableForm({ item, categories, accounts, onSave }: {
       }
     }
   };
-  const [categoryId, setCategoryId] = useState(item?.categoryId || '');
-  const [accountId, setAccountId] = useState(item?.accountId || '');
-  const [amount, setAmount] = useState(item?.amount?.toString() || '');
-  const [dueDate, setDueDate] = useState(item?.dueDate || '');
-  const [purchaseDate, setPurchaseDate] = useState(item?.purchaseDate || new Date().toISOString().split('T')[0]);
-  const [notes, setNotes] = useState(item?.notes || '');
-  const [recurring, setRecurring] = useState(item?.recurring || false);
-  const [recurrenceFrequency, setRecurrenceFrequency] = useState<RecurrenceFrequency>(item?.recurrenceFrequency || 'monthly');
-  const [occurrences, setOccurrences] = useState<string>(''); // empty = indeterminado (1 ano)
-  const [installments, setInstallments] = useState(1);
-  const [useInstallments, setUseInstallments] = useState(false);
-  const [inputMode, setInputMode] = useState<'total' | 'installment'>('total');
-  const [installmentValue, setInstallmentValue] = useState('');
   const [paymentMode, setPaymentMode] = useState<'credit' | 'debit'>(() => {
     const initialAcc = accounts.find(a => a.id === (item?.accountId || ''));
     const isCC = initialAcc?.type?.includes('credit_card');

@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { usePersistedDialog, usePersistedFormDraft } from '@/hooks/usePersistedDialog';
 import { useFinance } from '@/lib/finance-context';
 import { FinancialAccount, AccountType, getAccountTypes, hasAccountType } from '@/lib/types';
 import { Plus, Trash2, Edit2, Wallet, PiggyBank, Banknote, CreditCard, ArrowRightLeft, Receipt } from 'lucide-react';
@@ -23,9 +24,9 @@ const typeLabels: Record<AccountType, string> = {
 export default function AccountsPage() {
   const { data, addAccount, updateAccount, deleteAccount, transferBetweenAccounts } = useFinance();
   const [editingItem, setEditingItem] = useState<FinancialAccount | null>(null);
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogOpen, setDialogOpen] = usePersistedDialog('accounts-dialog');
   const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [transferOpen, setTransferOpen] = useState(false);
+  const [transferOpen, setTransferOpen] = usePersistedDialog('accounts-transfer-dialog');
 
   const totalBalance = data.accounts.reduce((s, a) => s + a.balance + a.savingsBalance, 0);
   const totalCreditLimit = data.accounts.reduce((s, a) => s + (hasAccountType(a, 'credit_card') ? (a.creditLimit || 0) : 0), 0);
@@ -215,9 +216,16 @@ function TransferForm({ accounts, onTransfer }: {
   accounts: FinancialAccount[];
   onTransfer: (fromId: string, toId: string, amount: number) => void;
 }) {
-  const [fromId, setFromId] = useState('');
-  const [toId, setToId] = useState('');
-  const [amount, setAmount] = useState('');
+  const initialDraft = {
+    fromId: '',
+    toId: '',
+    amount: '',
+  };
+  const [draft, setDraft] = usePersistedFormDraft('accounts-transfer-form', true, initialDraft);
+  const { fromId, toId, amount } = draft;
+  const setFromId = (v: string) => setDraft(d => ({ ...d, fromId: v }));
+  const setToId = (v: string) => setDraft(d => ({ ...d, toId: v }));
+  const setAmount = (v: string) => setDraft(d => ({ ...d, amount: v }));
 
   const fromAccount = accounts.find(a => a.id === fromId);
   const isValid = fromId && toId && fromId !== toId && parseFloat(amount) > 0;
@@ -259,19 +267,32 @@ function AccountForm({ item, onSave }: {
   item: FinancialAccount | null; onSave: (a: Omit<FinancialAccount, 'id'>) => void;
 }) {
   const existingTypes = item ? getAccountTypes(item) : ['checking' as AccountType];
-  const [name, setName] = useState(item?.name || '');
-  const [selectedTypes, setSelectedTypes] = useState<AccountType[]>(existingTypes);
-  const [balance, setBalance] = useState(item?.balance?.toString() || '0');
-  const [savingsBalance, setSavingsBalance] = useState(item?.savingsBalance?.toString() || '0');
-  const [creditLimit, setCreditLimit] = useState(item?.creditLimit?.toString() || '');
-  const [creditUsed, setCreditUsed] = useState(item?.creditUsed?.toString() || '0');
-  const [billingCloseDay, setBillingCloseDay] = useState(item?.billingCloseDay?.toString() || '');
-  const [dueDay, setDueDay] = useState(item?.dueDay?.toString() || '');
   const colors = [
     '#0ea5e9', '#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#ec4899', '#f43f5e',
     '#ef4444', '#f97316', '#f59e0b', '#eab308', '#84cc16', '#10b981', '#14b8a6', '#06b6d4', '#64748b'
   ];
-  const [color, setColor] = useState(item?.color || colors[0]);
+  const initialDraft = {
+    name: item?.name || '',
+    selectedTypes: existingTypes as AccountType[],
+    balance: item?.balance?.toString() || '0',
+    savingsBalance: item?.savingsBalance?.toString() || '0',
+    creditLimit: item?.creditLimit?.toString() || '',
+    creditUsed: item?.creditUsed?.toString() || '0',
+    billingCloseDay: item?.billingCloseDay?.toString() || '',
+    dueDay: item?.dueDay?.toString() || '',
+    color: item?.color || colors[0],
+  };
+  const [draft, setDraft] = usePersistedFormDraft('accounts-form', true, initialDraft);
+  const { name, selectedTypes, balance, savingsBalance, creditLimit, creditUsed, billingCloseDay, dueDay, color } = draft;
+  const setName = (v: string) => setDraft(d => ({ ...d, name: v }));
+  const setSelectedTypes = (v: AccountType[] | ((prev: AccountType[]) => AccountType[])) => setDraft(d => ({ ...d, selectedTypes: typeof v === 'function' ? v(d.selectedTypes) : v }));
+  const setBalance = (v: string) => setDraft(d => ({ ...d, balance: v }));
+  const setSavingsBalance = (v: string) => setDraft(d => ({ ...d, savingsBalance: v }));
+  const setCreditLimit = (v: string) => setDraft(d => ({ ...d, creditLimit: v }));
+  const setCreditUsed = (v: string) => setDraft(d => ({ ...d, creditUsed: v }));
+  const setBillingCloseDay = (v: string) => setDraft(d => ({ ...d, billingCloseDay: v }));
+  const setDueDay = (v: string) => setDraft(d => ({ ...d, dueDay: v }));
+  const setColor = (v: string) => setDraft(d => ({ ...d, color: v }));
 
   const toggleType = (t: AccountType) => {
     setSelectedTypes(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]);

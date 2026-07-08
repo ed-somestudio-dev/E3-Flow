@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { usePersistedDialog, usePersistedFormDraft } from '@/hooks/usePersistedDialog';
 import { useFinance } from '@/lib/finance-context';
 import { Goal, GoalTransaction } from '@/lib/types';
 import { Plus, Trash2, Edit2, Calendar, Wallet, Trophy, Sparkles, TrendingUp, ArrowRightLeft, ArrowDownRight, ArrowUpRight, HelpCircle, Archive, AlertCircle } from 'lucide-react';
@@ -22,10 +23,10 @@ export default function GoalsPage() {
   const [selectedGoal, setSelectedGoal] = useState<Goal | null>(null);
   
   // Modals state
-  const [createOpen, setCreateOpen] = useState(false);
+  const [createOpen, setCreateOpen] = usePersistedDialog('goals-create-dialog');
   const [detailsOpen, setDetailsOpen] = useState(false);
-  const [depositOpen, setDepositOpen] = useState(false);
-  const [withdrawOpen, setWithdrawOpen] = useState(false);
+  const [depositOpen, setDepositOpen] = usePersistedDialog('goals-deposit-dialog');
+  const [withdrawOpen, setWithdrawOpen] = usePersistedDialog('goals-withdraw-dialog');
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [celebrationGoalName, setCelebrationGoalName] = useState<string | null>(null);
 

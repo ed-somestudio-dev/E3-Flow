@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { usePersistedDialog, usePersistedFormDraft } from '@/hooks/usePersistedDialog';
 import { useFinance } from '@/lib/finance-context';
 import { Transaction, TransactionType } from '@/lib/types';
 import { Plus, Trash2, Edit2, Search, CalendarIcon, X } from 'lucide-react';
@@ -23,7 +24,7 @@ export default function TransactionsPage() {
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogOpen, setDialogOpen] = usePersistedDialog('transactions-dialog');
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [dateFrom, setDateFrom] = useState<Date | undefined>(startOfMonth(new Date()));
   const [dateTo, setDateTo] = useState<Date | undefined>(endOfMonth(new Date()));
@@ -193,13 +194,24 @@ function TransactionForm({ tx, categories, accounts, onSave }: {
   tx: Transaction | null; categories: { id: string; name: string; type: TransactionType }[];
   accounts: { id: string; name: string; type?: string }[]; onSave: (t: Omit<Transaction, 'id'>) => void;
 }) {
-  const [type, setType] = useState<TransactionType>(tx?.type || 'expense');
-  const [description, setDescription] = useState(tx?.description || '');
-  const [categoryId, setCategoryId] = useState(tx?.categoryId || '');
-  const [amount, setAmount] = useState(tx?.amount?.toString() || '');
-  const [date, setDate] = useState(tx?.date || new Date().toISOString().split('T')[0]);
-  const [accountId, setAccountId] = useState(tx?.accountId || accounts[0]?.id || '');
-  const [notes, setNotes] = useState(tx?.notes || '');
+  const initialDraft = {
+    type: (tx?.type || 'expense') as TransactionType,
+    description: tx?.description || '',
+    categoryId: tx?.categoryId || '',
+    amount: tx?.amount?.toString() || '',
+    date: tx?.date || new Date().toISOString().split('T')[0],
+    accountId: tx?.accountId || accounts[0]?.id || '',
+    notes: tx?.notes || '',
+  };
+  const [draft, setDraft] = usePersistedFormDraft('transactions-form', true, initialDraft);
+  const { type, description, categoryId, amount, date, accountId, notes } = draft;
+  const setType = (v: TransactionType) => { setDraft(d => ({ ...d, type: v })); setCategoryId(''); };
+  const setDescription = (v: string) => setDraft(d => ({ ...d, description: v }));
+  const setCategoryId = (v: string) => setDraft(d => ({ ...d, categoryId: v }));
+  const setAmount = (v: string) => setDraft(d => ({ ...d, amount: v }));
+  const setDate = (v: string) => setDraft(d => ({ ...d, date: v }));
+  const setAccountId = (v: string) => setDraft(d => ({ ...d, accountId: v }));
+  const setNotes = (v: string) => setDraft(d => ({ ...d, notes: v }));
   const filteredCats = categories.filter(c => c.type === type);
 
   return (
