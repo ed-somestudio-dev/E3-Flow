@@ -72,7 +72,7 @@ export default function AccountsPage() {
             </DialogTrigger>
             <DialogContent className="max-h-[90vh] overflow-y-auto" onPointerDownOutside={(e) => e.preventDefault()} onInteractOutside={(e) => e.preventDefault()}>
               <DialogHeader><DialogTitle>{editingItem ? 'Editar' : 'Nova'} Conta</DialogTitle></DialogHeader>
-              <AccountForm item={editingItem}
+              <AccountForm key={editingItem?.id || 'new'} item={editingItem}
                 onSave={(a) => {
                   if (editingItem) updateAccount({ ...a, id: editingItem.id } as FinancialAccount);
                   else addAccount(a);
@@ -221,7 +221,7 @@ function TransferForm({ accounts, onTransfer }: {
     toId: '',
     amount: '',
   };
-  const [draft, setDraft] = usePersistedFormDraft('accounts-transfer-form', true, initialDraft);
+  const [draft, setDraft, clearDraft] = usePersistedFormDraft('accounts-transfer-form', true, initialDraft);
   const { fromId, toId, amount } = draft;
   const setFromId = (v: string) => setDraft(d => ({ ...d, fromId: v }));
   const setToId = (v: string) => setDraft(d => ({ ...d, toId: v }));
@@ -249,7 +249,7 @@ function TransferForm({ accounts, onTransfer }: {
         <CalculatorInput value={amount} onChange={setAmount} placeholder="0,00" />
         {fromAccount && <p className="text-xs text-muted-foreground mt-1">Saldo disponível: {fmt(fromAccount.balance)}</p>}
       </div>
-      <Button className="w-full" disabled={!isValid} onClick={() => onTransfer(fromId, toId, parseFloat(amount))}>
+      <Button className="w-full" disabled={!isValid} onClick={() => { clearDraft(); onTransfer(fromId, toId, parseFloat(amount)); }}>
         <ArrowRightLeft className="h-4 w-4 mr-2" />Transferir
       </Button>
     </div>
@@ -282,7 +282,7 @@ function AccountForm({ item, onSave }: {
     dueDay: item?.dueDay?.toString() || '',
     color: item?.color || colors[0],
   };
-  const [draft, setDraft] = usePersistedFormDraft('accounts-form', true, initialDraft);
+  const [draft, setDraft, clearDraft] = usePersistedFormDraft(`accounts-form-${item?.id || 'new'}`, true, initialDraft);
   const { name, selectedTypes, balance, savingsBalance, creditLimit, creditUsed, billingCloseDay, dueDay, color } = draft;
   const setName = (v: string) => setDraft(d => ({ ...d, name: v }));
   const setSelectedTypes = (v: AccountType[] | ((prev: AccountType[]) => AccountType[])) => setDraft(d => ({ ...d, selectedTypes: typeof v === 'function' ? v(d.selectedTypes) : v }));
@@ -345,17 +345,20 @@ function AccountForm({ item, onSave }: {
         </div>
       </div>
       <Button className="w-full" disabled={!name || selectedTypes.length === 0 || (hasCreditCard && !creditLimit)}
-        onClick={() => onSave({
-          name,
-          type: selectedTypes.join(','),
-          color,
-          balance: hasChecking ? parseFloat(balance || '0') : 0,
-          savingsBalance: hasSavings ? parseFloat(savingsBalance) : 0,
-          creditLimit: hasCreditCard ? parseFloat(creditLimit) : undefined,
-          creditUsed: hasCreditCard ? parseFloat(creditUsed || '0') : undefined,
-          billingCloseDay: hasCreditCard && billingCloseDay ? parseInt(billingCloseDay) : undefined,
-          dueDay: hasCreditCard && dueDay ? parseInt(dueDay) : undefined,
-        })}>
+        onClick={() => {
+          clearDraft();
+          onSave({
+            name,
+            type: selectedTypes.join(','),
+            color,
+            balance: hasChecking ? parseFloat(balance || '0') : 0,
+            savingsBalance: hasSavings ? parseFloat(savingsBalance) : 0,
+            creditLimit: hasCreditCard ? parseFloat(creditLimit) : undefined,
+            creditUsed: hasCreditCard ? parseFloat(creditUsed || '0') : undefined,
+            billingCloseDay: hasCreditCard && billingCloseDay ? parseInt(billingCloseDay) : undefined,
+            dueDay: hasCreditCard && dueDay ? parseInt(dueDay) : undefined,
+          });
+        }}>
         {item ? 'Atualizar' : 'Criar'} Conta
       </Button>
     </div>

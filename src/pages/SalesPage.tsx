@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef } from 'react';
-import { usePersistedDialog } from '@/hooks/usePersistedDialog';
+import { usePersistedDialog, usePersistedFormDraft } from '@/hooks/usePersistedDialog';
 import { ContactInputWithPicker } from '@/components/ContactInputWithPicker';
 import { useContacts } from '@/lib/contacts-context';
 import { useSales, NewSaleItem, NewSalePayload } from '@/lib/sales-context';
@@ -298,20 +298,41 @@ export default function SalesPage() {
   const [receivePartialMode, setReceivePartialMode] = useState(false);
 
   // New Sale form
-  const [clientName, setClientName] = useState('');
-  const [saleDate, setSaleDate] = useState(new Date().toISOString().split('T')[0]);
-  const [dueDate, setDueDate] = useState(new Date().toISOString().split('T')[0]);
-  const [paymentMethod, setPaymentMethod] = useState('');
-  const [notes, setNotes] = useState('');
-  const [saleDiscountAmount, setSaleDiscountAmount] = useState('');
-  const [saleDiscountType, setSaleDiscountType] = useState<'BRL' | 'PERCENT'>('BRL');
-  const [completeOnSave, setCompleteOnSave] = useState(true);
-  const [createReceivable, setCreateReceivable] = useState(true);
-  const [requiresShipping, setRequiresShipping] = useState(false);
-  const [selectedCategoryId, setSelectedCategoryId] = useState(localStorage.getItem('last_sale_category') || '');
-  const [selectedAccountId, setSelectedAccountId] = useState(localStorage.getItem('last_sale_account') || '');
-  const [cartItems, setCartItems] = useState<(NewSaleItem & { tmpId: string })[]>([]);
-  const [productSearch, setProductSearch] = useState('');
+  const initialDraft = {
+    clientName: '',
+    saleDate: new Date().toISOString().split('T')[0],
+    dueDate: new Date().toISOString().split('T')[0],
+    paymentMethod: '',
+    notes: '',
+    saleDiscountAmount: '',
+    saleDiscountType: 'BRL' as 'BRL' | 'PERCENT',
+    completeOnSave: true,
+    createReceivable: true,
+    requiresShipping: false,
+    selectedCategoryId: localStorage.getItem('last_sale_category') || '',
+    selectedAccountId: localStorage.getItem('last_sale_account') || '',
+    cartItems: [] as (NewSaleItem & { tmpId: string })[],
+    productSearch: ''
+  };
+
+  const [draft, setDraft, clearDraft] = usePersistedFormDraft(`sales-form-${editingSaleId || 'new'}`, true, initialDraft);
+
+  const { clientName, saleDate, dueDate, paymentMethod, notes, saleDiscountAmount, saleDiscountType, completeOnSave, createReceivable, requiresShipping, selectedCategoryId, selectedAccountId, cartItems, productSearch } = draft;
+
+  const setClientName = (v: any) => setDraft(d => ({ ...d, clientName: typeof v === 'function' ? v(d.clientName) : v }));
+  const setSaleDate = (v: any) => setDraft(d => ({ ...d, saleDate: typeof v === 'function' ? v(d.saleDate) : v }));
+  const setDueDate = (v: any) => setDraft(d => ({ ...d, dueDate: typeof v === 'function' ? v(d.dueDate) : v }));
+  const setPaymentMethod = (v: any) => setDraft(d => ({ ...d, paymentMethod: typeof v === 'function' ? v(d.paymentMethod) : v }));
+  const setNotes = (v: any) => setDraft(d => ({ ...d, notes: typeof v === 'function' ? v(d.notes) : v }));
+  const setSaleDiscountAmount = (v: any) => setDraft(d => ({ ...d, saleDiscountAmount: typeof v === 'function' ? v(d.saleDiscountAmount) : v }));
+  const setSaleDiscountType = (v: any) => setDraft(d => ({ ...d, saleDiscountType: typeof v === 'function' ? v(d.saleDiscountType) : v }));
+  const setCompleteOnSave = (v: any) => setDraft(d => ({ ...d, completeOnSave: typeof v === 'function' ? v(d.completeOnSave) : v }));
+  const setCreateReceivable = (v: any) => setDraft(d => ({ ...d, createReceivable: typeof v === 'function' ? v(d.createReceivable) : v }));
+  const setRequiresShipping = (v: any) => setDraft(d => ({ ...d, requiresShipping: typeof v === 'function' ? v(d.requiresShipping) : v }));
+  const setSelectedCategoryId = (v: any) => setDraft(d => ({ ...d, selectedCategoryId: typeof v === 'function' ? v(d.selectedCategoryId) : v }));
+  const setSelectedAccountId = (v: any) => setDraft(d => ({ ...d, selectedAccountId: typeof v === 'function' ? v(d.selectedAccountId) : v }));
+  const setCartItems = (v: any) => setDraft(d => ({ ...d, cartItems: typeof v === 'function' ? v(d.cartItems) : v }));
+  const setProductSearch = (v: any) => setDraft(d => ({ ...d, productSearch: typeof v === 'function' ? v(d.productSearch) : v }));
 
   const [bulkPartialMode, setBulkPartialMode] = useState(false);
   const [bulkPartialAmount, setBulkPartialAmount] = useState('');
@@ -408,22 +429,9 @@ export default function SalesPage() {
   };
 
   const resetForm = () => {
+    clearDraft();
     setEditingSaleId(null);
-    setClientName('');
-    setPaymentMethod('');
-    setNotes('');
-    setSaleDiscountAmount('');
-    setSaleDiscountType('BRL');
-    setCartItems([]);
-    setCompleteOnSave(true);
-    setCreateReceivable(true);
-    setRequiresShipping(false);
-    setProductSearch('');
-    setSaleDate(new Date().toISOString().split('T')[0]);
-    setDueDate(new Date().toISOString().split('T')[0]);
-    // Manter categoria e conta do localStorage
-    setSelectedCategoryId(localStorage.getItem('last_sale_category') || '');
-    setSelectedAccountId(localStorage.getItem('last_sale_account') || '');
+    setDraft(initialDraft); // Reset to initial after clearing
   };
 
   const handleCreateSale = async () => {
@@ -474,6 +482,7 @@ export default function SalesPage() {
         await createSale(payload, createReceivable, selectedCategoryId || undefined, selectedAccountId || undefined);
       }
       setSheetOpen(false);
+      clearDraft();
       resetForm();
     } finally { setSaving(false); }
   };

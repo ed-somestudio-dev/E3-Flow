@@ -694,7 +694,7 @@ export default function ReceivablesPage() {
             onInteractOutside={(e) => e.preventDefault()}
           >
             <DialogHeader><DialogTitle>{editingItem ? 'Editar' : 'Novo'} Recebível</DialogTitle></DialogHeader>
-              <ReceivableForm item={editingItem} categories={data.categories.filter(c => c.type === 'income')} accounts={data.accounts}
+              <ReceivableForm key={editingItem?.id || 'new'} item={editingItem} categories={data.categories.filter(c => c.type === 'income')} accounts={data.accounts}
                 onSave={(r) => {
                   const { installments, recurrence, ...receivable } = r;
                   if (editingItem) {
@@ -1551,7 +1551,7 @@ function ReceivableForm({ item, categories, accounts, onSave }: {
     recurrenceFrequency: (item?.recurrenceFrequency || 'monthly') as RecurrenceFrequency,
     occurrences: '',
   };
-  const [draft, setDraft] = usePersistedFormDraft('receivables-form', true, initialDraft);
+  const [draft, setDraft, clearDraft] = usePersistedFormDraft(`receivables-form-${item?.id || 'new'}`, true, initialDraft);
   const { clientName, description, categoryId, accountId, amount, dueDate, notes, useInstallments, installments, inputMode, installmentValue, recurring, recurrenceFrequency, occurrences } = draft;
   const setClientName = (v: string) => setDraft(d => ({ ...d, clientName: v }));
   const setDescription = (v: string) => setDraft(d => ({ ...d, description: v }));
@@ -1728,6 +1728,7 @@ function ReceivableForm({ item, categories, accounts, onSave }: {
       <div><Label>Notas (opcional)</Label><Input value={notes} onChange={e => setNotes(e.target.value)} /></div>
       <Button className="w-full" disabled={!clientName || !description || !categoryId || !amount || !dueDate}
         onClick={() => {
+          clearDraft();
           const isRecurring = !useInstallments && recurring;
           let recurrencePayload: { frequency: RecurrenceFrequency; occurrences: number } | undefined;
           if (isRecurring) {

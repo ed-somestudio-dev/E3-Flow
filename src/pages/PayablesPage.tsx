@@ -521,7 +521,7 @@ export default function PayablesPage() {
             onInteractOutside={(e) => e.preventDefault()}
           >
             <DialogHeader><DialogTitle>{editingItem ? 'Editar' : 'Nova'} {SAFE_LABELS.payable}</DialogTitle></DialogHeader>
-            <PayableForm item={editingItem} categories={data.categories.filter(c => c.type === 'expense')} accounts={data.accounts}
+            <PayableForm key={editingItem?.id || 'new'} item={editingItem} categories={data.categories.filter(c => c.type === 'expense')} accounts={data.accounts}
               onSave={(p) => {
                 const { installments, isCredit, recurrence, ...payable } = p;
                 if (editingItem) {
@@ -1031,7 +1031,7 @@ function PayableForm({ item, categories, accounts, onSave }: {
     recurrenceFrequency: (item?.recurrenceFrequency || 'monthly') as RecurrenceFrequency,
     occurrences: '',
   };
-  const [draft, setDraft] = usePersistedFormDraft('payables-form', true, initialDraft);
+  const [draft, setDraft, clearDraft] = usePersistedFormDraft(`payables-form-${item?.id || 'new'}`, true, initialDraft);
   const { supplier, description, categoryId, accountId, amount, dueDate, purchaseDate, notes, useInstallments, installments, inputMode, installmentValue, recurring, recurrenceFrequency, occurrences } = draft;
   const setSupplier = (v: string) => setDraft(d => ({ ...d, supplier: v }));
   const setDescription = (v: string) => setDraft(d => ({ ...d, description: v }));
@@ -1360,6 +1360,7 @@ function PayableForm({ item, categories, accounts, onSave }: {
       <div><Label>Notas (opcional)</Label><Input value={notes} onChange={e => setNotes(e.target.value)} /></div>
       <Button className="w-full" disabled={!description || !supplier || !categoryId || !amount || (isCreditCard && paymentMode === 'credit' ? !purchaseDate : !dueDate)}
         onClick={() => {
+          clearDraft();
           const isCredit = isCreditCard && paymentMode === 'credit';
           const finalDueDate = isCredit && !dueDate ? purchaseDate : dueDate;
           const isRecurring = !useInstallments && recurring;

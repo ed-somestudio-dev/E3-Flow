@@ -41,7 +41,7 @@ export default function CategoriesPage() {
           </DialogTrigger>
           <DialogContent onPointerDownOutside={(e) => e.preventDefault()} onInteractOutside={(e) => e.preventDefault()}>
             <DialogHeader><DialogTitle>{editingItem ? 'Editar' : 'Nova'} Categoria</DialogTitle></DialogHeader>
-            <CategoryForm item={editingItem}
+            <CategoryForm key={editingItem?.id || 'new'} item={editingItem}
               onSave={(c) => {
                 if (editingItem) updateCategory({ ...c, id: editingItem.id } as Category);
                 else addCategory(c);
@@ -117,7 +117,7 @@ function CategoryForm({ item, onSave }: {
     color: item?.color || '#0ea5e9',
     icon: item?.icon || 'Circle',
   };
-  const [draft, setDraft] = usePersistedFormDraft('categories-form', true, initialDraft);
+  const [draft, setDraft, clearDraft] = usePersistedFormDraft(`categories-form-${item?.id || 'new'}`, true, initialDraft);
   const { name, type, color, icon } = draft;
   const setName = (v: string) => setDraft(d => ({ ...d, name: v }));
   const setType = (v: TransactionType) => setDraft(d => ({ ...d, type: v }));
@@ -146,7 +146,7 @@ function CategoryForm({ item, onSave }: {
         </div>
       </div>
       <Button className="w-full" disabled={!name}
-        onClick={() => onSave({ name, type, color, icon })}>
+        onClick={() => { clearDraft(); onSave({ name, type, color, icon }); }}>
         {item ? 'Atualizar' : 'Criar'} Categoria
       </Button>
     </div>

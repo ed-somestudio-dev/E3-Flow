@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { usePersistedDialog, usePersistedFormDraft } from '@/hooks/usePersistedDialog';
 import { useFinance } from '@/lib/finance-context';
 import { Budget } from '@/lib/types';
 import { Plus, Trash2, Edit2, AlertTriangle } from 'lucide-react';
@@ -15,7 +16,7 @@ import { fmt } from '@/lib/format';
 export default function BudgetsPage() {
   const { data, addBudget, updateBudget, deleteBudget, getCategoryName, getCategoryColor } = useFinance();
   const [editingItem, setEditingItem] = useState<Budget | null>(null);
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogOpen, setDialogOpen] = usePersistedDialog('budgets-dialog');
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const now = new Date();
   const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -51,7 +52,7 @@ export default function BudgetsPage() {
             </DialogTrigger>
             <DialogContent onPointerDownOutside={(e) => e.preventDefault()} onInteractOutside={(e) => e.preventDefault()}>
               <DialogHeader><DialogTitle>{editingItem ? 'Editar' : 'Novo'} Orçamento</DialogTitle></DialogHeader>
-              <BudgetForm item={editingItem} categories={editingItem ? expenseCategories : availableCategories} month={month}
+              <BudgetForm key={editingItem?.id || 'new'} item={editingItem} categories={editingItem ? expenseCategories : availableCategories} month={month}
                 onSave={(b) => { if (editingItem) updateBudget({ ...b, id: editingItem.id } as Budget); else addBudget(b); setDialogOpen(false); setEditingItem(null); }} />
             </DialogContent>
           </Dialog>
@@ -103,8 +104,14 @@ function BudgetForm({ item, categories, month, onSave }: {
   item: Budget | null; categories: { id: string; name: string }[]; month: string;
   onSave: (b: Omit<Budget, 'id'>) => void;
 }) {
-  const [categoryId, setCategoryId] = useState(item?.categoryId || '');
-  const [amount, setAmount] = useState(item?.amount?.toString() || '');
+  const initialDraft = {
+    categoryId: item?.categoryId || '',
+    amount: item?.amount?.toString() || ''
+  };
+  const [draft, setDraft, clearDraft] = usePersistedFormDraft(`budgets-form-${item?.id || 'new'}`, true, initialDraft);
+  const { categoryId, amount } = draft;
+  const setCategoryId = (v: string) => setDraft(d => ({ ...d, categoryId: v }));
+  const setAmount = (v: string) => setDraft(d => ({ ...d, amount: v }));
   return (
     <div className="space-y-4">
       <div><Label>Categoria</Label>
@@ -115,7 +122,7 @@ function BudgetForm({ item, categories, month, onSave }: {
       </div>
       <div><Label>Valor do Orçamento</Label><Input type="number" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0,00" /></div>
       <Button className="w-full" disabled={!categoryId || !amount}
-        onClick={() => onSave({ categoryId, amount: parseFloat(amount), month })}>
+        onClick={() => { clearDraft(); onSave({ categoryId, amount: parseFloat(amount), month }); }}>
         {item ? 'Atualizar' : 'Criar'} Orçamento
       </Button>
     </div>

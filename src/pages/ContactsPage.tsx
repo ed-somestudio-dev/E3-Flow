@@ -182,7 +182,7 @@ export default function ContactsPage() {
             </DialogTrigger>
             <DialogContent onPointerDownOutside={(e) => e.preventDefault()} onInteractOutside={(e) => e.preventDefault()}>
               <DialogHeader><DialogTitle>{editing ? 'Editar' : 'Novo'} Contato</DialogTitle></DialogHeader>
-              <ContactForm
+              <ContactForm key={editing?.id || 'new'}
                 item={editing}
                 onSave={async (c) => {
                   if (editing) await updateContact({ ...c, id: editing.id });
@@ -356,7 +356,7 @@ function ContactForm({ item, onSave }: {
     notes: item?.notes || '',
   };
   // dialogOpen is not available here, so we always persist (form only mounts when dialog is open)
-  const [draft, setDraft] = usePersistedFormDraft('contacts-form', true, initialDraft);
+  const [draft, setDraft, clearDraft] = usePersistedFormDraft(`contacts-form-${item?.id || 'new'}`, true, initialDraft);
   const { name, phone, email, document, cep, address, notes } = draft;
   const setName = (v: string) => setDraft(d => ({ ...d, name: v }));
   const setPhone = (v: string) => setDraft(d => ({ ...d, phone: v }));
@@ -403,7 +403,7 @@ function ContactForm({ item, onSave }: {
       <Button
         className="w-full"
         disabled={!name.trim()}
-        onClick={() => onSave({
+        onClick={() => { clearDraft(); onSave({
           name: name.trim(),
           phone: phone.trim() || undefined,
           email: email.trim() || undefined,
@@ -411,7 +411,7 @@ function ContactForm({ item, onSave }: {
           cep: cep.trim() || undefined,
           address: address.trim() || undefined,
           notes: notes.trim() || undefined,
-        })}
+        }); }}
       >
         {item ? 'Atualizar' : 'Criar'} Contato
       </Button>

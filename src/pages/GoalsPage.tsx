@@ -98,7 +98,7 @@ export default function GoalsPage() {
               <DialogTitle>{selectedGoal ? 'Editar' : 'Nova'} Meta / Sonho</DialogTitle>
               <DialogDescription>Defina o objetivo, prazo e modalidade de destinação do dinheiro.</DialogDescription>
             </DialogHeader>
-            <GoalForm
+            <GoalForm key={selectedGoal?.id || 'new'}
               goal={selectedGoal}
               accounts={data.accounts}
               onSave={async (g) => {
@@ -520,14 +520,26 @@ function GoalForm({ goal, accounts, onSave }: {
   accounts: any[];
   onSave: (g: Omit<Goal, 'id' | 'createdAt' | 'updatedAt' | 'status'>) => void;
 }) {
-  const [title, setTitle] = useState(goal?.title || '');
-  const [targetAmount, setTargetAmount] = useState(goal?.targetAmount?.toString() || '');
-  const [deadlineMonths, setDeadlineMonths] = useState(goal?.deadlineMonths?.toString() || '12');
-  const [type, setType] = useState<'save' | 'invest'>(goal?.type || 'save');
-  const [estimatedYield, setEstimatedYield] = useState(goal?.estimatedYield?.toString() || '0.8');
-  const [autoDeposit, setAutoDeposit] = useState(goal?.autoDeposit || false);
-  const [autoDepositDay, setAutoDepositDay] = useState(goal?.autoDepositDay?.toString() || '10');
-  const [accountId, setAccountId] = useState(goal?.accountId || accounts[0]?.id || '');
+  const initialDraft = {
+    title: goal?.title || '',
+    targetAmount: goal?.targetAmount?.toString() || '',
+    deadlineMonths: goal?.deadlineMonths?.toString() || '12',
+    type: (goal?.type || 'save') as 'save' | 'invest',
+    estimatedYield: goal?.estimatedYield?.toString() || '0.8',
+    autoDeposit: goal?.autoDeposit || false,
+    autoDepositDay: goal?.autoDepositDay?.toString() || '10',
+    accountId: goal?.accountId || accounts[0]?.id || ''
+  };
+  const [draft, setDraft, clearDraft] = usePersistedFormDraft(`goals-form-${goal?.id || 'new'}`, true, initialDraft);
+  const { title, targetAmount, deadlineMonths, type, estimatedYield, autoDeposit, autoDepositDay, accountId } = draft;
+  const setTitle = (v: string) => setDraft(d => ({ ...d, title: v }));
+  const setTargetAmount = (v: string) => setDraft(d => ({ ...d, targetAmount: v }));
+  const setDeadlineMonths = (v: string) => setDraft(d => ({ ...d, deadlineMonths: v }));
+  const setType = (v: 'save' | 'invest') => setDraft(d => ({ ...d, type: v }));
+  const setEstimatedYield = (v: string) => setDraft(d => ({ ...d, estimatedYield: v }));
+  const setAutoDeposit = (v: boolean) => setDraft(d => ({ ...d, autoDeposit: v }));
+  const setAutoDepositDay = (v: string) => setDraft(d => ({ ...d, autoDepositDay: v }));
+  const setAccountId = (v: string) => setDraft(d => ({ ...d, accountId: v }));
 
   // Recommended Modality Calculation
   const monthsVal = parseInt(deadlineMonths) || 0;
@@ -718,7 +730,7 @@ function GoalForm({ goal, accounts, onSave }: {
       <Button
         className="w-full mt-4"
         disabled={!title || !targetAmount || !deadlineMonths}
-        onClick={() => onSave({
+        onClick={() => { clearDraft(); onSave({
           title,
           targetAmount: parseFloat(targetAmount),
           deadlineMonths: parseInt(deadlineMonths),
@@ -728,7 +740,7 @@ function GoalForm({ goal, accounts, onSave }: {
           autoDepositAmount: autoDepositAmount,
           autoDepositDay: autoDeposit ? parseInt(autoDepositDay) : undefined,
           accountId: autoDeposit ? accountId : undefined,
-        })}
+        }); }}
       >
         {goal ? 'Salvar Alterações' : 'Criar Sonho / Meta'}
       </Button>

@@ -59,7 +59,7 @@ export default function TransactionsPage() {
           </DialogTrigger>
           <DialogContent onPointerDownOutside={(e) => e.preventDefault()} onInteractOutside={(e) => e.preventDefault()}>
             <DialogHeader><DialogTitle>{editingTx ? 'Editar' : 'Nova'} Transação</DialogTitle></DialogHeader>
-            <TransactionForm tx={editingTx} categories={data.categories} accounts={data.accounts}
+            <TransactionForm key={editingTx?.id || 'new'} tx={editingTx} categories={data.categories} accounts={data.accounts}
               onSave={(tx) => { if (editingTx) updateTransaction({ ...tx, id: editingTx.id }); else addTransaction(tx); setDialogOpen(false); setEditingTx(null); }} />
           </DialogContent>
         </Dialog>
@@ -203,7 +203,7 @@ function TransactionForm({ tx, categories, accounts, onSave }: {
     accountId: tx?.accountId || accounts[0]?.id || '',
     notes: tx?.notes || '',
   };
-  const [draft, setDraft] = usePersistedFormDraft('transactions-form', true, initialDraft);
+  const [draft, setDraft, clearDraft] = usePersistedFormDraft(`transactions-form-${tx?.id || 'new'}`, true, initialDraft);
   const { type, description, categoryId, amount, date, accountId, notes } = draft;
   const setType = (v: TransactionType) => { setDraft(d => ({ ...d, type: v })); setCategoryId(''); };
   const setDescription = (v: string) => setDraft(d => ({ ...d, description: v }));
@@ -243,7 +243,7 @@ function TransactionForm({ tx, categories, accounts, onSave }: {
       <div><Label>Valor</Label><CalculatorInput value={amount} onChange={setAmount} placeholder="0,00" /></div>
       <div><Label>Notas (opcional)</Label><Input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Observações" /></div>
       <Button className="w-full" disabled={!description || !categoryId || !amount || !accountId}
-        onClick={() => onSave({ type, description, categoryId, amount: parseFloat(amount), date, accountId, notes: notes || undefined })}>
+        onClick={() => { clearDraft(); onSave({ type, description, categoryId, amount: parseFloat(amount), date, accountId, notes: notes || undefined }); }}>
         {tx ? 'Atualizar' : 'Criar'} Transação
       </Button>
     </div>
