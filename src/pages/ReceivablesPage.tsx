@@ -162,7 +162,8 @@ export default function ReceivablesPage() {
   const [editingItem, setEditingItem] = useState<Receivable | null>(null);
   const [dialogOpen, setDialogOpen] = usePersistedDialog('receivables-dialog');
   const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [groupBy, setGroupBy] = useState<'contact' | 'date'>('contact');
+  const [groupByContact, setGroupByContact] = useState(() => localStorage.getItem('receivables_groupByContact') !== 'false');
+  const [groupByDate, setGroupByDate] = useState(() => localStorage.getItem('receivables_groupByDate') === 'true');
   const [receiveDialogOpen, setReceiveDialogOpen] = useState(false);
   const [receivingIds, setReceivingIds] = useState<string[]>([]);
   const [receiveAccountId, setReceiveAccountId] = useState('');
@@ -174,7 +175,13 @@ export default function ReceivablesPage() {
   const [showReceiveItems, setShowReceiveItems] = useState(false);
   const [dateFrom, setDateFrom] = useState<Date | undefined>(startOfMonth(new Date()));
   const [dateTo, setDateTo] = useState<Date | undefined>(endOfMonth(new Date()));
-  const [showPastOverdue, setShowPastOverdue] = useState(false);
+  const [showPastOverdue, setShowPastOverdue] = useState(() => localStorage.getItem('receivables_showPastOverdue') === 'true');
+
+  useEffect(() => {
+    localStorage.setItem('receivables_groupByContact', String(groupByContact));
+    localStorage.setItem('receivables_groupByDate', String(groupByDate));
+    localStorage.setItem('receivables_showPastOverdue', String(showPastOverdue));
+  }, [groupByContact, groupByDate, showPastOverdue]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [pixWarningOpen, setPixWarningOpen] = useState(false);
   const [bulkPartialMode, setBulkPartialMode] = useState(false);
@@ -793,11 +800,6 @@ export default function ReceivablesPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Checkbox id="past-overdue" checked={showPastOverdue} onCheckedChange={(c) => setShowPastOverdue(!!c)} />
-          <Label htmlFor="past-overdue" className="text-sm cursor-pointer whitespace-nowrap text-muted-foreground">Incluir atrasados anteriores</Label>
-        </div>
-
         <div className="flex items-center justify-between w-full">
           <div className="flex-1">
             <MonthYearPicker
@@ -810,16 +812,22 @@ export default function ReceivablesPage() {
           <div className="flex justify-center flex-none mx-2">
             <div className="flex items-center bg-muted/50 p-1 rounded-md border border-border">
               <button
-                onClick={() => setGroupBy('contact')}
-                className={cn("p-1.5 rounded-sm transition-colors", groupBy === 'contact' ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground")}
+                onClick={() => {
+                  if (groupByContact && !groupByDate) return;
+                  setGroupByContact(!groupByContact);
+                }}
+                className={cn("p-1.5 rounded-sm transition-colors", groupByContact ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground")}
                 title="Agrupar por Contato"
               >
                 <Users className="h-4 w-4" />
               </button>
               <button
-                onClick={() => setGroupBy('date')}
-                className={cn("p-1.5 rounded-sm transition-colors", groupBy === 'date' ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground")}
-                title="Agrupar por Data"
+                onClick={() => {
+                  if (groupByDate && !groupByContact) return;
+                  setGroupByDate(!groupByDate);
+                }}
+                className={cn("p-1.5 rounded-sm transition-colors", groupByDate ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground")}
+                title={groupByContact ? "Ordenar contatos por data de vencimento" : "Agrupar por Data"}
               >
                 <CalendarIcon className="h-4 w-4" />
               </button>
@@ -832,6 +840,11 @@ export default function ReceivablesPage() {
               </Button>
             ) : <div />}
           </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Checkbox id="past-overdue" checked={showPastOverdue} onCheckedChange={(c) => setShowPastOverdue(!!c)} />
+          <Label htmlFor="past-overdue" className="text-sm cursor-pointer whitespace-nowrap text-muted-foreground">Incluir atrasados anteriores</Label>
         </div>
       </div>
 
@@ -946,7 +959,7 @@ export default function ReceivablesPage() {
       {(() => {
         let groups: Record<string, Receivable[]> = {};
         
-        if (groupBy === 'contact') {
+        if (groupByContact) {
           groups = filtered.reduce<Record<string, Receivable[]>>((acc, r) => {
             const client = r.clientName || 'Diversos';
             if (!acc[client]) acc[client] = [];
@@ -962,7 +975,24 @@ export default function ReceivablesPage() {
           }, {});
         }
         
-        const sortedKeys = Object.keys(groups).sort((a, b) => a.localeCompare(b));
+        let sortedKeys = Object.keys(groups);
+        
+        if (groupByContact && groupByDate) {
+          const getMinDate = (items: Receivable[]) => {
+            const dates = items.map(i => i.dueDate).filter(Boolean);
+            if (dates.length === 0) return '9999-12-31';
+            return dates.sort()[0];
+          };
+          sortedKeys.sort((a, b) => {
+            const minDateA = getMinDate(groups[a]);
+            const minDateB = getMinDate(groups[b]);
+            const dateCompare = minDateA.localeCompare(minDateB);
+            if (dateCompare !== 0) return dateCompare;
+            return a.localeCompare(b);
+          });
+        } else {
+          sortedKeys.sort((a, b) => a.localeCompare(b));
+        }
 
         if (sortedKeys.length === 0) {
           return (
@@ -975,7 +1005,7 @@ export default function ReceivablesPage() {
         return (
           <div className="space-y-4">
             {sortedKeys.map(key => {
-              const displayName = groupBy === 'date' ? (key === 'Sem Data' ? key : fmtDate(key)) : key;
+              const displayName = !groupByContact ? (key === 'Sem Data' ? key : fmtDate(key)) : key;
               return (
                 <ClientGroupTable
                   key={key}

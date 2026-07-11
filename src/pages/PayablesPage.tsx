@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { usePersistedDialog, usePersistedFormDraft } from '@/hooks/usePersistedDialog';
 import { useFinance } from '@/lib/finance-context';
 import { supabase } from '@/integrations/supabase/client';
@@ -281,7 +281,8 @@ export default function PayablesPage() {
   const [editingItem, setEditingItem] = useState<Payable | null>(null);
   const [dialogOpen, setDialogOpen] = usePersistedDialog('payables-dialog');
   const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [groupBy, setGroupBy] = useState<'contact' | 'date'>('contact');
+  const [groupByContact, setGroupByContact] = useState(() => localStorage.getItem('payables_groupByContact') !== 'false');
+  const [groupByDate, setGroupByDate] = useState(() => localStorage.getItem('payables_groupByDate') === 'true');
   const [updateFuturePayload, setUpdateFuturePayload] = useState<Payable | null>(null);
   const [updateFutureTarget, setUpdateFutureTarget] = useState<Payable | null>(null);
   const [updateFutureCount, setUpdateFutureCount] = useState<number>(0);
@@ -296,7 +297,13 @@ export default function PayablesPage() {
   const [showMorePayOptions, setShowMorePayOptions] = useState(false);
   const [dateFrom, setDateFrom] = useState<Date | undefined>(startOfMonth(new Date()));
   const [dateTo, setDateTo] = useState<Date | undefined>(endOfMonth(new Date()));
-  const [showPastOverdue, setShowPastOverdue] = useState(false);
+  const [showPastOverdue, setShowPastOverdue] = useState(() => localStorage.getItem('payables_showPastOverdue') === 'true');
+
+  useEffect(() => {
+    localStorage.setItem('payables_groupByContact', String(groupByContact));
+    localStorage.setItem('payables_groupByDate', String(groupByDate));
+    localStorage.setItem('payables_showPastOverdue', String(showPastOverdue));
+  }, [groupByContact, groupByDate, showPastOverdue]);
 
   const setCurrentMonth = () => {
     setDateFrom(startOfMonth(new Date()));
@@ -610,11 +617,6 @@ export default function PayablesPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Checkbox id="past-overdue" checked={showPastOverdue} onCheckedChange={(c) => setShowPastOverdue(!!c)} />
-          <Label htmlFor="past-overdue" className="text-sm cursor-pointer whitespace-nowrap text-muted-foreground">Incluir atrasados anteriores</Label>
-        </div>
-
         <div className="flex items-center justify-between w-full">
           <div className="flex-1">
             <MonthYearPicker
@@ -627,16 +629,22 @@ export default function PayablesPage() {
           <div className="flex justify-center flex-none mx-2">
             <div className="flex items-center bg-muted/50 p-1 rounded-md border border-border">
               <button
-                onClick={() => setGroupBy('contact')}
-                className={cn("p-1.5 rounded-sm transition-colors", groupBy === 'contact' ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground")}
+                onClick={() => {
+                  if (groupByContact && !groupByDate) return;
+                  setGroupByContact(!groupByContact);
+                }}
+                className={cn("p-1.5 rounded-sm transition-colors", groupByContact ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground")}
                 title="Agrupar por Contato"
               >
                 <Users className="h-4 w-4" />
               </button>
               <button
-                onClick={() => setGroupBy('date')}
-                className={cn("p-1.5 rounded-sm transition-colors", groupBy === 'date' ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground")}
-                title="Agrupar por Data"
+                onClick={() => {
+                  if (groupByDate && !groupByContact) return;
+                  setGroupByDate(!groupByDate);
+                }}
+                className={cn("p-1.5 rounded-sm transition-colors", groupByDate ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground")}
+                title={groupByContact ? "Ordenar contatos por data de vencimento" : "Agrupar por Data"}
               >
                 <CalendarIcon className="h-4 w-4" />
               </button>
@@ -649,6 +657,11 @@ export default function PayablesPage() {
               </Button>
             ) : <div />}
           </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Checkbox id="past-overdue" checked={showPastOverdue} onCheckedChange={(c) => setShowPastOverdue(!!c)} />
+          <Label htmlFor="past-overdue" className="text-sm cursor-pointer whitespace-nowrap text-muted-foreground">Incluir atrasados anteriores</Label>
         </div>
       </div>
       {/* Totals + bulk action */}
@@ -669,7 +682,7 @@ export default function PayablesPage() {
       {(() => {
         let groups: Record<string, Payable[]> = {};
         
-        if (groupBy === 'contact') {
+        if (groupByContact) {
           groups = regularPayables.reduce<Record<string, Payable[]>>((acc, p) => {
             const supplier = p.supplier?.startsWith('meta:') ? 'Meta/Sonhos' : (p.supplier || 'Outros');
             if (!acc[supplier]) acc[supplier] = [];
@@ -685,7 +698,24 @@ export default function PayablesPage() {
           }, {});
         }
         
-        const sortedKeys = Object.keys(groups).sort((a, b) => a.localeCompare(b));
+        let sortedKeys = Object.keys(groups);
+        
+        if (groupByContact && groupByDate) {
+          const getMinDate = (items: Payable[]) => {
+            const dates = items.map(i => i.dueDate).filter(Boolean);
+            if (dates.length === 0) return '9999-12-31';
+            return dates.sort()[0];
+          };
+          sortedKeys.sort((a, b) => {
+            const minDateA = getMinDate(groups[a]);
+            const minDateB = getMinDate(groups[b]);
+            const dateCompare = minDateA.localeCompare(minDateB);
+            if (dateCompare !== 0) return dateCompare;
+            return a.localeCompare(b);
+          });
+        } else {
+          sortedKeys.sort((a, b) => a.localeCompare(b));
+        }
 
         if (sortedKeys.length === 0) {
           return (
@@ -698,7 +728,7 @@ export default function PayablesPage() {
         return (
           <div className="space-y-4">
             {sortedKeys.map(key => {
-              const displayName = groupBy === 'date' ? (key === 'Sem Data' ? key : fmtDate(key)) : key;
+              const displayName = !groupByContact ? (key === 'Sem Data' ? key : fmtDate(key)) : key;
               return (
                 <SupplierGroupTable
                   key={key}
