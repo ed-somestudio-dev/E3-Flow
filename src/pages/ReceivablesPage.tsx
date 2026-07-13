@@ -810,13 +810,13 @@ export default function ReceivablesPage() {
             />
           </div>
           <div className="flex justify-center flex-none mx-2">
-            <div className="flex items-center bg-muted/50 p-1 rounded-md border border-border">
+            <div className="flex items-center gap-2 bg-muted/50 p-1.5 rounded-md border border-border">
               <button
                 onClick={() => {
                   if (groupByContact && !groupByDate) return;
                   setGroupByContact(!groupByContact);
                 }}
-                className={cn("p-1.5 rounded-sm transition-colors", groupByContact ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground")}
+                className={cn("p-2 rounded-sm transition-colors", groupByContact ? "bg-primary shadow-sm text-primary-foreground" : "text-muted-foreground hover:text-foreground")}
                 title="Agrupar por Contato"
               >
                 <Users className="h-4 w-4" />
@@ -826,7 +826,7 @@ export default function ReceivablesPage() {
                   if (groupByDate && !groupByContact) return;
                   setGroupByDate(!groupByDate);
                 }}
-                className={cn("p-1.5 rounded-sm transition-colors", groupByDate ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground")}
+                className={cn("p-2 rounded-sm transition-colors", groupByDate ? "bg-primary shadow-sm text-primary-foreground" : "text-muted-foreground hover:text-foreground")}
                 title={groupByContact ? "Ordenar contatos por data de vencimento" : "Agrupar por Data"}
               >
                 <CalendarIcon className="h-4 w-4" />

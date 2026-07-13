@@ -38,6 +38,16 @@ export default function ReportsPage() {
     setForecastDateFrom(undefined);
     setForecastDateTo(undefined);
   };
+
+  const [generalStartDate, setGeneralStartDate] = useState<Date | undefined>(startOfMonth(new Date()));
+  const [generalEndDate, setGeneralEndDate] = useState<Date | undefined>(endOfMonth(new Date()));
+  const [showPastOverdueGeneral, setShowPastOverdueGeneral] = useState(false);
+
+  const clearGeneralDateFilter = () => {
+    setGeneralStartDate(undefined);
+    setGeneralEndDate(undefined);
+  };
+
   const [showPastOverdueBills, setShowPastOverdueBills] = useState(false);
   const [showPastOverdueForecast, setShowPastOverdueForecast] = useState(false);
 
@@ -56,35 +66,47 @@ export default function ReportsPage() {
     return months;
   }, [data.transactions, year]);
 
-  // Annual totals
-  const annualTotals = useMemo(() => {
-    const txs = data.transactions.filter(t => t.date.startsWith(year));
-    const income = txs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-    const expense = txs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
-    return { income, expense, balance: income - expense };
-  }, [data.transactions, year]);
+  const periodTransactions = useMemo(() => {
+    const fromStr = generalStartDate ? fmtFn(generalStartDate, 'yyyy-MM-dd') : undefined;
+    const toStr = generalEndDate ? fmtFn(generalEndDate, 'yyyy-MM-dd') : undefined;
+    return data.transactions.filter(t => {
+      if (!fromStr && !toStr) {
+        return t.date.startsWith(year);
+      }
+      if (fromStr && t.date < fromStr) return false;
+      if (toStr && t.date > toStr) return false;
+      return true;
+    });
+  }, [data.transactions, year, generalStartDate, generalEndDate]);
 
-  // Expenses by category (annual)
+  // Period totals
+  const annualTotals = useMemo(() => {
+    const income = periodTransactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+    const expense = periodTransactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+    return { income, expense, balance: income - expense };
+  }, [periodTransactions]);
+
+  // Expenses by category
   const expenseByCategory = useMemo(() => {
     const map: Record<string, number> = {};
-    data.transactions.filter(t => t.type === 'expense' && t.date.startsWith(year)).forEach(t => {
+    periodTransactions.filter(t => t.type === 'expense').forEach(t => {
       map[t.categoryId] = (map[t.categoryId] || 0) + t.amount;
     });
     return Object.entries(map).map(([catId, value]) => ({
       name: getCategoryName(catId), value, color: getCategoryColor(catId),
     })).sort((a, b) => b.value - a.value);
-  }, [data.transactions, year, getCategoryName, getCategoryColor]);
+  }, [periodTransactions, getCategoryName, getCategoryColor]);
 
-  // Income by category (annual)
+  // Income by category
   const incomeByCategory = useMemo(() => {
     const map: Record<string, number> = {};
-    data.transactions.filter(t => t.type === 'income' && t.date.startsWith(year)).forEach(t => {
+    periodTransactions.filter(t => t.type === 'income').forEach(t => {
       map[t.categoryId] = (map[t.categoryId] || 0) + t.amount;
     });
     return Object.entries(map).map(([catId, value]) => ({
       name: getCategoryName(catId), value, color: getCategoryColor(catId),
     })).sort((a, b) => b.value - a.value);
-  }, [data.transactions, year, getCategoryName, getCategoryColor]);
+  }, [periodTransactions, getCategoryName, getCategoryColor]);
 
   // Cumulative cash flow
   const cumulativeCashFlow = useMemo(() => {
@@ -243,14 +265,68 @@ export default function ReportsPage() {
 
         {/* === ABA GERAL === */}
         <TabsContent value="general" className="space-y-6 mt-4">
-          <div className="flex justify-end">
-            <select value={year} onChange={e => setYear(e.target.value)}
-              className="rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground">
-              {[...Array(5)].map((_, i) => {
-                const y = now.getFullYear() - i;
-                return <option key={y} value={y}>{y}</option>;
-              })}
-            </select>
+          <div className="flex flex-col gap-3 w-full mb-4">
+            <div className="flex items-center w-full">
+              <div className="flex-1">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className={cn("w-full justify-start text-left font-normal", !generalStartDate && "text-muted-foreground")}>
+                      <CalendarIcon className="h-4 w-4 mr-2 shrink-0" />
+                      <span className="truncate">{generalStartDate ? fmtFn(generalStartDate, "dd/MM/yyyy") : "Data inicial"}</span>
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar mode="single" selected={generalStartDate} onSelect={setGeneralStartDate} initialFocus className="p-3 pointer-events-auto" locale={ptBR} />
+                  </PopoverContent>
+                </Popover>
+              </div>
+              <span className="text-muted-foreground text-sm mx-3">até</span>
+              <div className="flex-1">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className={cn("w-full justify-start text-left font-normal", !generalEndDate && "text-muted-foreground")}>
+                      <CalendarIcon className="h-4 w-4 mr-2 shrink-0" />
+                      <span className="truncate">{generalEndDate ? fmtFn(generalEndDate, "dd/MM/yyyy") : "Data final"}</span>
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar mode="single" selected={generalEndDate} onSelect={setGeneralEndDate} initialFocus className="p-3 pointer-events-auto" locale={ptBR} />
+                  </PopoverContent>
+                </Popover>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 w-full">
+              <div className="flex-1">
+                <MonthYearPicker
+                  value={generalStartDate && generalEndDate && fmtFn(generalStartDate, 'yyyy-MM') === fmtFn(generalEndDate, 'yyyy-MM') ? generalStartDate : undefined}
+                  onChange={(from, to) => { setGeneralStartDate(from); setGeneralEndDate(to); }}
+                  active={!!(generalStartDate && generalEndDate && fmtFn(generalStartDate, 'yyyy-MM') === fmtFn(new Date(), 'yyyy-MM') && fmtFn(generalEndDate, 'yyyy-MM') === fmtFn(new Date(), 'yyyy-MM'))}
+                  className="w-full"
+                />
+              </div>
+              <div className="flex-1">
+                {(generalStartDate || generalEndDate) ? (
+                  <Button variant="outline" size="sm" onClick={clearGeneralDateFilter} className="w-full">
+                    <X className="h-4 w-4 mr-1 shrink-0" />Limpar
+                  </Button>
+                ) : <div />}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Checkbox id="past-overdue-general" checked={showPastOverdueGeneral} onCheckedChange={(c) => setShowPastOverdueGeneral(!!c)} />
+                <Label htmlFor="past-overdue-general" className="text-sm cursor-pointer whitespace-nowrap text-muted-foreground">Incluir atrasados anteriores</Label>
+              </div>
+              <select value={year} onChange={e => setYear(e.target.value)}
+                className="rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground">
+                {[...Array(5)].map((_, i) => {
+                  const y = now.getFullYear() - i;
+                  return <option key={y} value={y}>{y}</option>;
+                })}
+              </select>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -405,11 +481,6 @@ export default function ReportsPage() {
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              <Checkbox id="past-overdue-bills" checked={showPastOverdueBills} onCheckedChange={(c) => setShowPastOverdueBills(!!c)} />
-              <Label htmlFor="past-overdue-bills" className="text-sm cursor-pointer whitespace-nowrap text-muted-foreground">Incluir atrasados anteriores</Label>
-            </div>
-
             <div className="flex items-center gap-2 w-full">
               <div className="flex-1">
                 <MonthYearPicker
@@ -426,6 +497,11 @@ export default function ReportsPage() {
                   </Button>
                 ) : <div />}
               </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Checkbox id="past-overdue-bills" checked={showPastOverdueBills} onCheckedChange={(c) => setShowPastOverdueBills(!!c)} />
+              <Label htmlFor="past-overdue-bills" className="text-sm cursor-pointer whitespace-nowrap text-muted-foreground">Incluir atrasados anteriores</Label>
             </div>
           </div>
 
@@ -578,11 +654,6 @@ export default function ReportsPage() {
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              <Checkbox id="past-overdue-forecast" checked={showPastOverdueForecast} onCheckedChange={(c) => setShowPastOverdueForecast(!!c)} />
-              <Label htmlFor="past-overdue-forecast" className="text-sm cursor-pointer whitespace-nowrap text-muted-foreground">Incluir atrasados anteriores</Label>
-            </div>
-
             <div className="flex items-center gap-2 w-full">
               <div className="flex-1">
                 <MonthYearPicker
@@ -599,6 +670,11 @@ export default function ReportsPage() {
                   </Button>
                 ) : <div />}
               </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Checkbox id="past-overdue-forecast" checked={showPastOverdueForecast} onCheckedChange={(c) => setShowPastOverdueForecast(!!c)} />
+              <Label htmlFor="past-overdue-forecast" className="text-sm cursor-pointer whitespace-nowrap text-muted-foreground">Incluir atrasados anteriores</Label>
             </div>
           </div>
 
