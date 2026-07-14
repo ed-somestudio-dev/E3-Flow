@@ -17,9 +17,14 @@ export default function ResetPasswordPage() {
   useEffect(() => {
     // Check if this is a recovery session
     const hash = window.location.hash.substring(1);
-    const params = new URLSearchParams(hash);
-    const type = params.get('type');
-    if (type === 'recovery') {
+    const hashParams = new URLSearchParams(hash);
+    const searchParams = new URLSearchParams(window.location.search);
+    
+    if (
+      hashParams.get('type') === 'recovery' || 
+      searchParams.get('recovery') === 'true' || 
+      searchParams.get('code') !== null
+    ) {
       setIsRecovery(true);
     }
   }, []);

@@ -73,6 +73,25 @@ export default function AccountsPage() {
             <DialogContent className="max-h-[90vh] overflow-y-auto" onPointerDownOutside={(e) => e.preventDefault()} onInteractOutside={(e) => e.preventDefault()}>
               <DialogHeader><DialogTitle>{editingItem ? 'Editar' : 'Nova'} Conta</DialogTitle></DialogHeader>
               <AccountForm key={editingItem?.id || 'new'} item={editingItem}
+                usedFromPayables={editingItem ? (() => {
+                  if (!hasAccountType(editingItem, 'credit_card')) return 0;
+                  const invoices = cardInvoices[editingItem.id] || { pending: [], paid: [] };
+                  let nextCloseDate: Date | null = null;
+                  if (editingItem.billingCloseDay) {
+                    const today = new Date();
+                    nextCloseDate = new Date(today.getFullYear(), today.getMonth(), editingItem.billingCloseDay);
+                    if (nextCloseDate < today) {
+                      nextCloseDate = new Date(today.getFullYear(), today.getMonth() + 1, editingItem.billingCloseDay);
+                    }
+                  }
+                  return invoices.pending.reduce((s, p) => {
+                    if (nextCloseDate) {
+                      const ref = p.purchaseDate || p.dueDate;
+                      if (ref && new Date(ref) > nextCloseDate) return s;
+                    }
+                    return s + p.amount;
+                  }, 0);
+                })() : 0}
                 onSave={(a) => {
                   if (editingItem) updateAccount({ ...a, id: editingItem.id } as FinancialAccount);
                   else addAccount(a);
@@ -263,21 +282,26 @@ const allTypes: { key: AccountType; label: string }[] = [
   { key: 'cash', label: 'Dinheiro' },
 ];
 
-function AccountForm({ item, onSave }: {
-  item: FinancialAccount | null; onSave: (a: Omit<FinancialAccount, 'id'>) => void;
+function AccountForm({ item, usedFromPayables = 0, onSave }: {
+  item: FinancialAccount | null; 
+  usedFromPayables?: number;
+  onSave: (a: Omit<FinancialAccount, 'id'>) => void;
 }) {
   const existingTypes = item ? getAccountTypes(item) : ['checking' as AccountType];
   const colors = [
     '#0ea5e9', '#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#ec4899', '#f43f5e',
     '#ef4444', '#f97316', '#f59e0b', '#eab308', '#84cc16', '#10b981', '#14b8a6', '#06b6d4', '#64748b'
   ];
+  
+  const initialTotalUsed = item ? (item.creditUsed || 0) + usedFromPayables : 0;
+  
   const initialDraft = {
     name: item?.name || '',
     selectedTypes: existingTypes as AccountType[],
     balance: item?.balance?.toString() || '0',
     savingsBalance: item?.savingsBalance?.toString() || '0',
     creditLimit: item?.creditLimit?.toString() || '',
-    creditUsed: item?.creditUsed?.toString() || '0',
+    creditUsed: initialTotalUsed.toString() || '0',
     billingCloseDay: item?.billingCloseDay?.toString() || '',
     dueDay: item?.dueDay?.toString() || '',
     color: item?.color || colors[0],
@@ -354,7 +378,7 @@ function AccountForm({ item, onSave }: {
             balance: hasChecking ? parseFloat(balance || '0') : 0,
             savingsBalance: hasSavings ? parseFloat(savingsBalance) : 0,
             creditLimit: hasCreditCard ? parseFloat(creditLimit) : undefined,
-            creditUsed: hasCreditCard ? parseFloat(creditUsed || '0') : undefined,
+            creditUsed: hasCreditCard ? (parseFloat(creditUsed || '0') - usedFromPayables) : undefined,
             billingCloseDay: hasCreditCard && billingCloseDay ? parseInt(billingCloseDay) : undefined,
             dueDay: hasCreditCard && dueDay ? parseInt(dueDay) : undefined,
           });

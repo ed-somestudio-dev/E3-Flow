@@ -1119,8 +1119,10 @@ function PayableForm({ item, categories, accounts, onSave }: {
     }
   };
   const [paymentMode, setPaymentMode] = useState<'credit' | 'debit'>(() => {
+    if (item?.supplier?.startsWith('cartao:')) return 'credit';
     const initialAcc = accounts.find(a => a.id === (item?.accountId || ''));
     const isCC = initialAcc?.type?.includes('credit_card');
+    if (item && isCC) return 'debit';
     const canDebit = initialAcc?.type?.includes('checking') || initialAcc?.type?.includes('cash');
     return isCC && canDebit ? 'debit' : 'credit';
   });

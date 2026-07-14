@@ -57,6 +57,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // Standard auth state change listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (_event === 'PASSWORD_RECOVERY') {
+        window.location.href = '/reset-password?recovery=true';
+        return;
+      }
+
       if (!session || _event === 'SIGNED_OUT') {
         const isOffline = !assertOnline();
         const hasOfflineFallback = !!localStorage.getItem('e3flow_offline_user');
