@@ -12,7 +12,7 @@ import { Link } from 'react-router-dom';
 
 export default function SettingsPage() {
   const { settings, save, loaded, uploadStamp, removeStamp } = usePixSettings();
-  const { subscription, isInTrial, trialDaysRemaining } = useSubscription();
+  const { subscription, isInTrial, trialDaysRemaining, isAdmin } = useSubscription();
   const [form, setForm] = useState<PixSettingsRow>(settings);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -348,39 +348,41 @@ export default function SettingsPage() {
       </div>
 
       {/* Assinatura */}
-      <div className="finance-card p-6 space-y-4">
-        <div className="flex items-center gap-2 pb-2 border-b border-border">
-          <Crown className="h-5 w-5 text-primary" />
-          <h2 className="font-semibold">Assinatura e Plano</h2>
-        </div>
-
-        <p className="text-sm text-muted-foreground">
-          Gerencie seu plano de assinatura, visualize o status e o histórico de faturamento no Asaas.
-        </p>
-
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-md bg-secondary/30 border border-border">
-          <div>
-            <p className="text-sm font-medium">
-              Status Atual: <span className="font-bold text-primary">{subscription?.subscription_status || (isInTrial ? 'TESTE GRATUITO (Trial)' : 'INATIVO')}</span>
-            </p>
-            {isInTrial && trialDaysRemaining !== null && (
-              <p className="text-xs text-muted-foreground mt-1">
-                Restam <strong>{trialDaysRemaining}</strong> {trialDaysRemaining === 1 ? 'dia' : 'dias'} de teste gratuito.
-              </p>
-            )}
-            {subscription?.subscription_due_date && (
-              <p className="text-xs text-muted-foreground mt-1">
-                Vencimento: <strong>{new Date(subscription.subscription_due_date + 'T12:00:00').toLocaleDateString('pt-BR')}</strong>
-              </p>
-            )}
+      {!isAdmin && (
+        <div className="finance-card p-6 space-y-4">
+          <div className="flex items-center gap-2 pb-2 border-b border-border">
+            <Crown className="h-5 w-5 text-primary" />
+            <h2 className="font-semibold">Assinatura e Plano</h2>
           </div>
-          <Button asChild variant="outline" className="w-full sm:w-auto">
-            <Link to="/subscription">
-              Gerenciar Assinatura
-            </Link>
-          </Button>
+
+          <p className="text-sm text-muted-foreground">
+            Gerencie seu plano de assinatura, visualize o status e o histórico de faturamento no Asaas.
+          </p>
+
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-md bg-secondary/30 border border-border">
+            <div>
+              <p className="text-sm font-medium">
+                Status Atual: <span className="font-bold text-primary">{subscription?.subscription_status || (isInTrial ? 'TESTE GRATUITO (Trial)' : 'INATIVO')}</span>
+              </p>
+              {isInTrial && trialDaysRemaining !== null && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Restam <strong>{trialDaysRemaining}</strong> {trialDaysRemaining === 1 ? 'dia' : 'dias'} de teste gratuito.
+                </p>
+              )}
+              {subscription?.subscription_due_date && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Vencimento: <strong>{new Date(subscription.subscription_due_date + 'T12:00:00').toLocaleDateString('pt-BR')}</strong>
+                </p>
+              )}
+            </div>
+            <Button asChild variant="outline" className="w-full sm:w-auto">
+              <Link to="/subscription">
+                Gerenciar Assinatura
+              </Link>
+            </Button>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
