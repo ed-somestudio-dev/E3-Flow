@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Check, Crown, Loader2, Sparkles } from 'lucide-react';
+import { Check, Crown, Loader2, Sparkles, PlayCircle } from 'lucide-react';
 import { useSubscription, PLANS, TRIAL_DAYS } from '@/lib/subscription-context';
 import { useAuth } from '@/lib/auth-context';
 import { toast } from 'sonner';
@@ -403,6 +403,18 @@ export default function SubscriptionPage() {
           Você será redirecionado para o ambiente seguro do Asaas para escolher Pix, Cartão ou Boleto.
           {isInTrial ? ' A primeira cobrança só ocorrerá após o período de teste.' : ''}
         </p>
+
+        <div className="pt-4 border-t border-border mt-6">
+          <a
+            href="https://drive.google.com/file/d/1NBZRgRmSb1ZXuZg5iLwxh6H1mS17-5Gl/view?usp=sharing"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex w-full items-center justify-center gap-2 text-sm font-medium text-primary bg-primary/10 hover:bg-primary/20 px-4 py-2.5 rounded-lg transition-colors"
+          >
+            <PlayCircle className="h-5 w-5" />
+            Assistir vídeo de Primeiros Passos
+          </a>
+        </div>
       </div>
     </div>
   );

@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Mail, Lock, Chrome, ArrowLeft, PieChart, QrCode, Package, Users, Eye, EyeOff, HelpCircle, Loader2 } from 'lucide-react';
+import { Mail, Lock, Chrome, ArrowLeft, PieChart, QrCode, Package, Users, Eye, EyeOff, HelpCircle, Loader2, PlayCircle } from 'lucide-react';
 import logoE3Flow from '@/assets/Logo_E3Flow_Final.png';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { toast } from 'sonner';
@@ -272,6 +272,16 @@ export default function AuthPage() {
               </form>
             ) : (
               <>
+                <a
+                  href="https://drive.google.com/file/d/1NBZRgRmSb1ZXuZg5iLwxh6H1mS17-5Gl/view?usp=sharing"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex w-full items-center justify-center gap-2 text-sm font-medium text-primary bg-primary/10 hover:bg-primary/20 h-11 rounded-md transition-colors"
+                >
+                  <PlayCircle className="h-5 w-5" />
+                  Assistir vídeo de Primeiros Passos
+                </a>
+
                 <Button variant="outline" className="w-full h-11 font-medium bg-card" onClick={handleGoogleLogin}>
                   <Chrome className="h-4 w-4 mr-2" />
                   Entrar com Google
@@ -328,6 +338,7 @@ export default function AuthPage() {
                     {loading ? 'Carregando...' : mode === 'signup' ? 'Criar Conta' : 'Entrar na Conta'}
                   </Button>
                 </form>
+
 
                 <div className="flex flex-col items-center gap-4 pt-4">
                   {mode === 'login' && (
