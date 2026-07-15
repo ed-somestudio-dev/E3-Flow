@@ -726,7 +726,21 @@ export default function ReceivablesPage() {
                       setDialogOpen(false);
                       setEditingItem(null);
                     } else {
-                      updateReceivable({ ...receivable, id: editingItem.id } as Receivable);
+                      if ((installments && installments > 1) || recurrence) {
+                        const isInst = installments && installments > 1;
+                        const suffix = isInst ? ` (1/${installments})` : recurrence ? ` (1/${recurrence.occurrences})` : '';
+                        const firstAmount = isInst ? Math.round((receivable.amount / installments) * 100) / 100 : receivable.amount;
+                        
+                        updateReceivable({ 
+                          ...receivable, 
+                          id: editingItem.id,
+                          description: receivable.description + suffix,
+                          amount: firstAmount
+                        } as Receivable);
+                        addReceivable(receivable, installments, recurrence, true);
+                      } else {
+                        updateReceivable({ ...receivable, id: editingItem.id } as Receivable);
+                      }
                       setDialogOpen(false);
                       setEditingItem(null);
                     }

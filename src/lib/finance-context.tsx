@@ -18,7 +18,7 @@ interface FinanceContextType {
   addTransaction: (tx: Omit<Transaction, 'id'>) => Promise<Transaction | undefined>;
   updateTransaction: (tx: Transaction) => Promise<void>;
   deleteTransaction: (id: string) => Promise<void>;
-  addPayable: (p: Omit<Payable, 'id'>, installments?: number, isCredit?: boolean, recurrence?: { frequency: 'weekly' | 'monthly' | 'yearly'; occurrences: number }) => Promise<void>;
+  addPayable: (p: Omit<Payable, 'id'>, installments?: number, isCredit?: boolean, recurrence?: { frequency: 'weekly' | 'monthly' | 'yearly'; occurrences: number }, skipFirst?: boolean) => Promise<void>;
   updatePayable: (p: Payable) => Promise<void>;
   updatePayableWithFuture: (p: Payable) => Promise<number>;
   deletePayable: (id: string) => Promise<void>;
@@ -26,7 +26,7 @@ interface FinanceContextType {
   markPayablePaid: (id: string, accountId?: string, skipTransaction?: boolean, interestAmount?: number, discountAmount?: number) => Promise<void>;
   markPayablePaidPartial: (id: string, accountId: string, paidAmount: number, skipTransaction?: boolean, interestAmount?: number, discountAmount?: number) => Promise<void>;
   insertGroupedTransaction: (tx: Omit<Transaction, 'id'>) => Promise<void>;
-  addReceivable: (r: Omit<Receivable, 'id'>, installments?: number, recurrence?: { frequency: 'weekly' | 'monthly' | 'yearly'; occurrences: number }) => Promise<Receivable | undefined>;
+  addReceivable: (r: Omit<Receivable, 'id'>, installments?: number, recurrence?: { frequency: 'weekly' | 'monthly' | 'yearly'; occurrences: number }, skipFirst?: boolean) => Promise<Receivable | undefined>;
   updateReceivable: (r: Receivable) => Promise<void>;
   updateReceivableWithFuture: (r: Receivable) => Promise<number>;
   deleteReceivable: (id: string) => Promise<void>;
@@ -693,7 +693,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   }, [user, data.transactions, data.accounts, fetchAll, persistAccountAdjustments, queueTransactionAccountAdjustment, adjustCreditCardInvoice]);
 
   // --- Payables ---
-  const addPayable = useCallback(async (p: Omit<Payable, 'id'>, installments?: number, isCredit?: boolean, recurrence?: { frequency: 'weekly' | 'monthly' | 'yearly'; occurrences: number }) => {
+  const addPayable = useCallback(async (p: Omit<Payable, 'id'>, installments?: number, isCredit?: boolean, recurrence?: { frequency: 'weekly' | 'monthly' | 'yearly'; occurrences: number }, skipFirst?: boolean) => {
     if (!user) return;
     const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
 
@@ -706,7 +706,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       const baseDate = new Date(p.dueDate + 'T12:00:00');
       const basePurchase = (p as any).purchaseDate ? new Date((p as any).purchaseDate + 'T12:00:00') : null;
 
-      for (let i = 0; i < recurrence.occurrences; i++) {
+      for (let i = skipFirst ? 1 : 0; i < recurrence.occurrences; i++) {
         let dueStr: string;
         let purchaseStr: string | null = null;
 
@@ -774,7 +774,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       const closeDay = acc?.billingCloseDay || 1;
       const dDay = acc?.dueDay || 10;
 
-      for (let i = 0; i < installments; i++) {
+      for (let i = skipFirst ? 1 : 0; i < installments; i++) {
         let dueStr: string;
 
         if (acc?.type?.includes('credit_card') && (p as any).purchaseDate) {
@@ -1433,7 +1433,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   }, [user, fetchAll]);
 
   // --- Receivables ---
-  const addReceivable = useCallback(async (r: Omit<Receivable, 'id'>, installments?: number, recurrence?: { frequency: 'weekly' | 'monthly' | 'yearly'; occurrences: number }) => {
+  const addReceivable = useCallback(async (r: Omit<Receivable, 'id'>, installments?: number, recurrence?: { frequency: 'weekly' | 'monthly' | 'yearly'; occurrences: number }, skipFirst?: boolean) => {
     if (!user) return;
     const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
 
@@ -1441,7 +1441,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     if (recurrence && recurrence.occurrences > 1) {
       const baseDate = new Date(r.dueDate + 'T12:00:00');
       let firstRec: Receivable | undefined;
-      for (let i = 0; i < recurrence.occurrences; i++) {
+      for (let i = skipFirst ? 1 : 0; i < recurrence.occurrences; i++) {
         const d = new Date(baseDate);
         if (recurrence.frequency === 'weekly') d.setDate(d.getDate() + 7 * i);
         else if (recurrence.frequency === 'monthly') d.setMonth(d.getMonth() + i);
@@ -1483,7 +1483,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       const baseDate = new Date(r.dueDate + 'T12:00:00');
       let firstRec: Receivable | undefined;
 
-      for (let i = 0; i < installments; i++) {
+      for (let i = skipFirst ? 1 : 0; i < installments; i++) {
         const d = new Date(baseDate);
         d.setMonth(d.getMonth() + i);
         const dueStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;

@@ -553,7 +553,21 @@ export default function PayablesPage() {
                     setDialogOpen(false);
                     setEditingItem(null);
                   } else {
-                    updatePayable({ ...payable, id: editingItem.id } as Payable);
+                    if ((installments && installments > 1) || recurrence) {
+                      const isInst = installments && installments > 1;
+                      const suffix = isInst ? ` (1/${installments})` : recurrence ? ` (1/${recurrence.occurrences})` : '';
+                      const firstAmount = isInst ? Math.round((payable.amount / installments) * 100) / 100 : payable.amount;
+                      
+                      updatePayable({ 
+                        ...payable, 
+                        id: editingItem.id,
+                        description: payable.description + suffix,
+                        amount: firstAmount
+                      } as Payable);
+                      addPayable(payable, installments, isCredit, recurrence, true);
+                    } else {
+                      updatePayable({ ...payable, id: editingItem.id } as Payable);
+                    }
                     setDialogOpen(false);
                     setEditingItem(null);
                   }
