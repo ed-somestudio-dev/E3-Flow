@@ -40,6 +40,7 @@ export default function SubscriptionPage() {
   const [customerName, setCustomerName] = useState(user?.user_metadata?.full_name || '');
   const [customerCpfCnpj, setCustomerCpfCnpj] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
+  const [videoOpen, setVideoOpen] = useState(false);
 
   useEffect(() => {
     if (subscription?.subscription_plan) {
@@ -405,17 +406,36 @@ export default function SubscriptionPage() {
         </p>
 
         <div className="pt-4 border-t border-border mt-6">
-          <a
-            href="https://drive.google.com/file/d/1NBZRgRmSb1ZXuZg5iLwxh6H1mS17-5Gl/view?usp=sharing"
-            target="_blank"
-            rel="noopener noreferrer"
+          <button
+            type="button"
+            onClick={() => setVideoOpen(true)}
             className="inline-flex w-full items-center justify-center gap-2 text-sm font-medium text-primary bg-primary/10 hover:bg-primary/20 px-4 py-2.5 rounded-lg transition-colors"
           >
             <PlayCircle className="h-5 w-5" />
             Assistir vídeo de Primeiros Passos
-          </a>
+          </button>
         </div>
       </div>
+
+      {/* Modal de Vídeo Primeiros Passos */}
+      <Dialog open={videoOpen} onOpenChange={setVideoOpen}>
+        <DialogContent className="sm:max-w-4xl p-0 overflow-hidden bg-black/95 border-none">
+          <div className="relative w-full aspect-video">
+            {videoOpen && (
+              <iframe
+                width="100%"
+                height="100%"
+                src="https://www.youtube.com/embed/a4zBsrx8oRg?autoplay=1"
+                title="Primeiros Passos E3 Flow"
+                frameBorder="0"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                className="absolute inset-0 w-full h-full"
+              ></iframe>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
