@@ -1055,7 +1055,7 @@ export default function ReceivablesPage() {
               <span className="text-lg font-bold text-muted-foreground mono">{fmt(receivingTotal)}</span>
             </div>
             
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Juros (%)</Label>
                   <Input type="number" step="0.1" min="0" value={interestPercent} onChange={(e) => setInterestPercent(e.target.value)} placeholder="0.0" />
