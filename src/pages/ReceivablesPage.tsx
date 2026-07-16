@@ -1165,7 +1165,7 @@ export default function ReceivablesPage() {
                         type="button"
                         variant="outline"
                         size="sm"
-                        className="w-full gap-2 border-primary/40 text-primary hover:bg-primary/10"
+                        className="w-full gap-2 border-primary/40 text-primary hover:bg-primary/10 whitespace-normal h-auto py-2"
                         onClick={() => {
                           const amt = parseFloat(partialAmount);
                           if (!amt || amt <= 0) return;
@@ -1209,7 +1209,7 @@ export default function ReceivablesPage() {
               </div>
               );
             })()}
-            <Button className="w-full" disabled={!receiveAccountId || (partialMode && (!partialAmount || parseFloat(partialAmount) <= 0))} onClick={confirmReceive}>
+            <Button className="w-full h-auto whitespace-normal py-2" disabled={!receiveAccountId || (partialMode && (!partialAmount || parseFloat(partialAmount) <= 0))} onClick={confirmReceive}>
               <CheckCircle className="h-4 w-4 mr-2" />
               {partialMode ? 'Confirmar Recebimento Parcial' : 'Confirmar Recebimento'}
             </Button>

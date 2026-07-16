@@ -1304,7 +1304,7 @@ export default function SalesPage() {
               </Select>
             </div>
 
-            <Button className="w-full mt-4" onClick={handleBulkReceive} disabled={saving || !bulkReceiveAccount}>
+            <Button className="w-full mt-4 h-auto whitespace-normal py-2" onClick={handleBulkReceive} disabled={saving || !bulkReceiveAccount}>
               {saving ? 'Processando...' : 'Confirmar Recebimento'}
             </Button>
           </div>

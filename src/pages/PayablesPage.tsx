@@ -939,7 +939,7 @@ export default function PayablesPage() {
               }
               return partialBlock;
             })()}
-            <Button className="w-full" disabled={!payAccountId || (partialMode && (!partialAmount || parseFloat(partialAmount) <= 0))} onClick={confirmPay}>
+            <Button className="w-full h-auto whitespace-normal py-2" disabled={!payAccountId || (partialMode && (!partialAmount || parseFloat(partialAmount) <= 0))} onClick={confirmPay}>
               <CheckCircle className="h-4 w-4 mr-2" />
               {partialMode ? 'Confirmar Pagamento Parcial' : 'Confirmar Pagamento'}
             </Button>
