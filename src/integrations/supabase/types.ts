@@ -309,6 +309,113 @@ export type Database = {
         }
         Relationships: []
       }
+      goals: {
+        Row: {
+          account_id: string | null
+          auto_deposit: boolean
+          auto_deposit_amount: number
+          auto_deposit_day: number | null
+          created_at: string
+          deadline_months: number
+          estimated_yield: number
+          id: string
+          status: string
+          target_amount: number
+          title: string
+          type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          account_id?: string | null
+          auto_deposit?: boolean
+          auto_deposit_amount?: number
+          auto_deposit_day?: number | null
+          created_at?: string
+          deadline_months: number
+          estimated_yield?: number
+          id?: string
+          status?: string
+          target_amount: number
+          title: string
+          type: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          account_id?: string | null
+          auto_deposit?: boolean
+          auto_deposit_amount?: number
+          auto_deposit_day?: number | null
+          created_at?: string
+          deadline_months?: number
+          estimated_yield?: number
+          id?: string
+          status?: string
+          target_amount?: number
+          title?: string
+          type?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "goals_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "financial_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      goal_transactions: {
+        Row: {
+          account_id: string | null
+          amount: number
+          created_at: string
+          date: string
+          goal_id: string
+          id: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          account_id?: string | null
+          amount: number
+          created_at?: string
+          date: string
+          goal_id: string
+          id?: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          account_id?: string | null
+          amount?: number
+          created_at?: string
+          date?: string
+          goal_id?: string
+          id?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "goal_transactions_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "financial_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "goal_transactions_goal_id_fkey"
+            columns: ["goal_id"]
+            isOneToOne: false
+            referencedRelation: "goals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payables: {
         Row: {
           account_id: string | null

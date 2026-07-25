@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { Input } from '@/components/ui/input';
 import { Search, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -38,11 +38,25 @@ export function SearchAutocomplete({
     return () => document.removeEventListener('mousedown', onClickOutside);
   }, []);
 
-  const term = removeAccents(value.trim().toLowerCase());
-  const suggestions = (term
-    ? options.filter(o => removeAccents(o.toLowerCase()).includes(term))
-    : options
-  ).slice(0, 8);
+  const suggestions = useMemo(() => {
+    const term = removeAccents(value.trim().toLowerCase());
+    const seen = new Set<string>();
+    const result: string[] = [];
+
+    for (const rawOpt of options) {
+      const name = rawOpt?.trim();
+      if (!name) continue;
+      const key = removeAccents(name.toLowerCase());
+      if (seen.has(key)) continue;
+
+      if (!term || key.includes(term)) {
+        seen.add(key);
+        result.push(name);
+        if (result.length >= 8) break;
+      }
+    }
+    return result;
+  }, [options, value]);
 
   const showList = open && suggestions.length > 0;
 

@@ -777,9 +777,19 @@ export default function SalesPage() {
             autoComplete="off"
           />
           {showSearchSuggestions && search.length >= 1 && (() => {
-            const suggestions = contacts
-              .filter(c => removeAccents(c.name.toLowerCase()).includes(removeAccents(search.toLowerCase())))
-              .slice(0, 10);
+            const term = removeAccents(search.trim().toLowerCase());
+            const seen = new Set<string>();
+            const suggestions = contacts.filter(c => {
+              const name = c.name?.trim();
+              if (!name) return false;
+              const key = removeAccents(name.toLowerCase());
+              if (seen.has(key)) return false;
+              if (key.includes(term)) {
+                seen.add(key);
+                return true;
+              }
+              return false;
+            }).slice(0, 10);
             return suggestions.length > 0 ? (
               <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-popover border border-border rounded-md shadow-lg overflow-hidden">
                 {suggestions.map(c => (

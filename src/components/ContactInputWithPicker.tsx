@@ -1,8 +1,9 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Users } from 'lucide-react';
-import { useContacts } from '@/lib/contacts-context';
+import { useContacts, Contact } from '@/lib/contacts-context';
+import { removeAccents } from '@/lib/utils';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
@@ -21,17 +22,49 @@ export function ContactInputWithPicker({ value, onChange, placeholder = 'Nome do
 
   // Autocomplete dropdown
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const suggestions = value.length >= 1
-    ? contacts.filter(c => c.name.toLowerCase().includes(value.toLowerCase())).slice(0, 6)
-    : [];
+  const suggestions = useMemo(() => {
+    const term = removeAccents(value.trim().toLowerCase());
+    if (!term) return [];
+    const seen = new Set<string>();
+    const result: Contact[] = [];
+
+    for (const c of contacts) {
+      const name = c.name?.trim();
+      if (!name) continue;
+      const key = removeAccents(name.toLowerCase());
+      if (seen.has(key)) continue;
+
+      if (key.includes(term)) {
+        seen.add(key);
+        result.push(c);
+        if (result.length >= 6) break;
+      }
+    }
+    return result;
+  }, [contacts, value]);
 
   useEffect(() => {
     setShowSuggestions(suggestions.length > 0 && document.activeElement === inputRef.current);
   }, [value, suggestions.length]);
 
-  const filtered = search
-    ? contacts.filter(c => c.name.toLowerCase().includes(search.toLowerCase()))
-    : contacts;
+  const filtered = useMemo(() => {
+    const term = removeAccents(search.trim().toLowerCase());
+    const seen = new Set<string>();
+    const result: Contact[] = [];
+
+    for (const c of contacts) {
+      const name = c.name?.trim();
+      if (!name) continue;
+      const key = removeAccents(name.toLowerCase());
+      if (seen.has(key)) continue;
+
+      if (!term || key.includes(term) || (c.phone && c.phone.includes(term))) {
+        seen.add(key);
+        result.push(c);
+      }
+    }
+    return result;
+  }, [contacts, search]);
 
   const pick = (name: string) => {
     onChange(name);

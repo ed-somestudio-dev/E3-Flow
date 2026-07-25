@@ -7,6 +7,7 @@ import { Plus, Trash2, Edit2, CheckCircle, RefreshCw, CreditCard, Wallet, Chevro
 import { CalculatorInput } from '@/components/CalculatorInput';
 import { ContactAutocomplete } from '@/components/ContactAutocomplete';
 import { SearchAutocomplete } from '@/components/SearchAutocomplete';
+import { useContacts } from '@/lib/contacts-context';
 import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog';
 import {
   AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle,
@@ -276,6 +277,7 @@ function SupplierGroupTable({ supplierName, items, getCategoryName, getAccountNa
 
 export default function PayablesPage() {
   const { data, addPayable, updatePayable, updatePayableWithFuture, deletePayable, deletePayableWithFuture, markPayablePaid, markPayablePaidPartial, getCategoryName, getAccountName, insertGroupedTransaction } = useFinance();
+  const { contacts } = useContacts();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('pending_overdue');
   const [editingItem, setEditingItem] = useState<Payable | null>(null);
@@ -335,12 +337,24 @@ export default function PayablesPage() {
 
   // Lista única de fornecedores para sugestões de busca (exclui faturas de cartão internas)
   const supplierOptions = useMemo(() => {
-    const set = new Set<string>();
-    data.payables.forEach(p => {
-      if (p.supplier && !p.supplier.startsWith('cartao:')) set.add(p.supplier);
-    });
-    return Array.from(set).sort((a, b) => a.localeCompare(b));
-  }, [data.payables]);
+    const seen = new Set<string>();
+    const result: string[] = [];
+
+    const addName = (rawName: string | undefined | null) => {
+      const name = rawName?.trim();
+      if (!name || name.startsWith('cartao:')) return;
+      const key = removeAccents(name.toLowerCase());
+      if (!seen.has(key)) {
+        seen.add(key);
+        result.push(name);
+      }
+    };
+
+    data.payables.forEach(p => addName(p.supplier));
+    contacts.forEach(c => addName(c.name));
+
+    return result.sort((a, b) => a.localeCompare(b));
+  }, [data.payables, contacts]);
 
   const regularPayables = allFiltered.filter(p => !p.supplier?.startsWith('cartao:'));
   const creditPayables = allFiltered.filter(p => p.supplier?.startsWith('cartao:'));
@@ -539,7 +553,7 @@ export default function PayablesPage() {
                     ? data.payables.filter(x =>
                         x.id !== editingItem.id &&
                         (x.recurring || /\(\d+\/\d+\)\s*$/.test(x.description)) &&
-                        x.supplier === editingItem.supplier &&
+                        (x.supplier || '').trim().toLowerCase() === (editingItem.supplier || '').trim().toLowerCase() &&
                         x.categoryId === editingItem.categoryId &&
                         x.dueDate >= editingItem.dueDate &&
                         stripSuffix(x.description) === baseDesc &&
@@ -553,21 +567,7 @@ export default function PayablesPage() {
                     setDialogOpen(false);
                     setEditingItem(null);
                   } else {
-                    if ((installments && installments > 1) || recurrence) {
-                      const isInst = installments && installments > 1;
-                      const suffix = isInst ? ` (1/${installments})` : recurrence ? ` (1/${recurrence.occurrences})` : '';
-                      const firstAmount = isInst ? Math.round((payable.amount / installments) * 100) / 100 : payable.amount;
-                      
-                      updatePayable({ 
-                        ...payable, 
-                        id: editingItem.id,
-                        description: payable.description + suffix,
-                        amount: firstAmount
-                      } as Payable);
-                      addPayable(payable, installments, isCredit, recurrence, true);
-                    } else {
-                      updatePayable({ ...payable, id: editingItem.id } as Payable);
-                    }
+                    updatePayable({ ...payable, id: editingItem.id } as Payable);
                     setDialogOpen(false);
                     setEditingItem(null);
                   }

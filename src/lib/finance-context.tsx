@@ -1049,7 +1049,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       .filter(x =>
         x.id !== target.id &&
         (x.recurring || /\(\d+\/\d+\)\s*$/.test(x.description)) &&
-        x.supplier === target.supplier &&
+        (x.supplier || '').trim().toLowerCase() === (target.supplier || '').trim().toLowerCase() &&
         x.categoryId === target.categoryId &&
         x.dueDate >= target.dueDate &&
         stripSuffix(x.description) === baseDesc &&
@@ -1694,7 +1694,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       .filter(x =>
         x.id !== target.id &&
         (x.recurring || /\(\d+\/\d+\)\s*$/.test(x.description)) &&
-        x.clientName === target.clientName &&
+        (x.clientName || '').trim().toLowerCase() === (target.clientName || '').trim().toLowerCase() &&
         x.categoryId === target.categoryId &&
         x.dueDate >= target.dueDate &&
         stripSuffix(x.description) === baseDesc &&

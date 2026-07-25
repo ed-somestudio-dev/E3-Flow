@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { Input } from '@/components/ui/input';
 import { useContacts, Contact } from '@/lib/contacts-context';
 import { User, Plus } from 'lucide-react';
@@ -41,11 +41,25 @@ export function ContactAutocomplete({
     return () => document.removeEventListener('mousedown', onClickOutside);
   }, []);
 
-  const term = removeAccents(value.trim().toLowerCase());
-  const suggestions = (term
-    ? contacts.filter(c => removeAccents(c.name.toLowerCase()).includes(term))
-    : contacts
-  ).slice(0, 8);
+  const suggestions = useMemo(() => {
+    const term = removeAccents(value.trim().toLowerCase());
+    const seen = new Set<string>();
+    const result: Contact[] = [];
+
+    for (const c of contacts) {
+      const name = c.name?.trim();
+      if (!name) continue;
+      const key = removeAccents(name.toLowerCase());
+      if (seen.has(key)) continue;
+
+      if (!term || key.includes(term)) {
+        seen.add(key);
+        result.push(c);
+        if (result.length >= 8) break;
+      }
+    }
+    return result;
+  }, [contacts, value]);
 
   const showList = open && suggestions.length > 0;
 

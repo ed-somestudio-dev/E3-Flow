@@ -314,10 +314,24 @@ export default function ReceivablesPage() {
     .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
 
   const clientOptions = useMemo(() => {
-    const set = new Set<string>();
-    data.receivables.forEach(r => { if (r.clientName) set.add(r.clientName); });
-    return Array.from(set).sort((a, b) => a.localeCompare(b));
-  }, [data.receivables]);
+    const seen = new Set<string>();
+    const result: string[] = [];
+
+    const addName = (rawName: string | undefined | null) => {
+      const name = rawName?.trim();
+      if (!name) return;
+      const key = removeAccents(name.toLowerCase());
+      if (!seen.has(key)) {
+        seen.add(key);
+        result.push(name);
+      }
+    };
+
+    data.receivables.forEach(r => addName(r.clientName));
+    contacts.forEach(c => addName(c.name));
+
+    return result.sort((a, b) => a.localeCompare(b));
+  }, [data.receivables, contacts]);
 
   const totalFiltered = filtered.reduce((sum, r) => sum + r.amount, 0);
   const selectableReceivables = filtered.filter(r => r.status !== 'received');
@@ -712,7 +726,7 @@ export default function ReceivablesPage() {
                       ? data.receivables.filter(x =>
                           x.id !== editingItem.id &&
                           (x.recurring || /\(\d+\/\d+\)\s*$/.test(x.description)) &&
-                          x.clientName === editingItem.clientName &&
+                          (x.clientName || '').trim().toLowerCase() === (editingItem.clientName || '').trim().toLowerCase() &&
                           x.categoryId === editingItem.categoryId &&
                           x.dueDate >= editingItem.dueDate &&
                           stripSuffix(x.description) === baseDesc &&
@@ -726,21 +740,7 @@ export default function ReceivablesPage() {
                       setDialogOpen(false);
                       setEditingItem(null);
                     } else {
-                      if ((installments && installments > 1) || recurrence) {
-                        const isInst = installments && installments > 1;
-                        const suffix = isInst ? ` (1/${installments})` : recurrence ? ` (1/${recurrence.occurrences})` : '';
-                        const firstAmount = isInst ? Math.round((receivable.amount / installments) * 100) / 100 : receivable.amount;
-                        
-                        updateReceivable({ 
-                          ...receivable, 
-                          id: editingItem.id,
-                          description: receivable.description + suffix,
-                          amount: firstAmount
-                        } as Receivable);
-                        addReceivable(receivable, installments, recurrence, true);
-                      } else {
-                        updateReceivable({ ...receivable, id: editingItem.id } as Receivable);
-                      }
+                      updateReceivable({ ...receivable, id: editingItem.id } as Receivable);
                       setDialogOpen(false);
                       setEditingItem(null);
                     }
