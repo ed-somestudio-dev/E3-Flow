@@ -326,7 +326,7 @@ export default function PayablesPage() {
       if (statusFilter === 'pending_overdue') return p.status === 'pending' || p.status === 'overdue';
       return p.status === statusFilter;
     })
-    .filter(p => removeAccents(p.description.toLowerCase()).includes(normalizedSearch) || removeAccents(p.supplier.toLowerCase()).includes(normalizedSearch))
+    .filter(p => removeAccents((p.description || '').toLowerCase()).includes(normalizedSearch) || removeAccents((p.supplier || '').toLowerCase()).includes(normalizedSearch))
     .filter(p => {
       const isPastOverdue = p.status === 'overdue' && dateFrom && p.dueDate < format(dateFrom, 'yyyy-MM-dd');
       if (isPastOverdue && showPastOverdue) return true;
@@ -335,7 +335,7 @@ export default function PayablesPage() {
       if (dateTo && p.dueDate > format(dateTo, 'yyyy-MM-dd')) return false;
       return true;
     })
-    .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+    .sort((a, b) => (a.dueDate || '').localeCompare(b.dueDate || ''));
 
   // Lista única de fornecedores para sugestões de busca (exclui faturas de cartão internas)
   const supplierOptions = useMemo(() => {
@@ -1151,8 +1151,8 @@ function PayableForm({ item, categories, accounts, onSave }: {
     setSupplier(val);
     if (!item && val) {
       const existing = data.payables
-        .filter(p => p.supplier.toLowerCase() === val.toLowerCase())
-        .sort((a, b) => b.dueDate.localeCompare(a.dueDate))[0];
+        .filter(p => (p.supplier || '').toLowerCase() === val.toLowerCase())
+        .sort((a, b) => (b.dueDate || '').localeCompare(a.dueDate || ''))[0];
 
       if (existing && existing.dueDate) {
         const existingDate = new Date(existing.dueDate + 'T12:00:00');
@@ -1461,7 +1461,7 @@ function PayableForm({ item, categories, accounts, onSave }: {
         onClick={() => {
           clearDraft();
           const isCredit = isCreditCard && paymentMode === 'credit';
-          const finalSupplier = isCredit && accountId ? `cartao:${accountId}` : (supplier.startsWith('cartao:') ? '' : supplier);
+          const finalSupplier = (supplier || '').trim() || (isCredit && accountId ? `cartao:${accountId}` : '');
           const computedDue = calcDueDate(purchaseDate, selectedAccount);
           const finalDueDate = isCredit ? (computedDue || dueDate || purchaseDate) : dueDate;
           const isRecurring = !useInstallments && recurring;
