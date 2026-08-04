@@ -543,7 +543,7 @@ export default function PayablesPage() {
           >
             <DialogHeader><DialogTitle>{editingItem ? 'Editar' : 'Nova'} {SAFE_LABELS.payable}</DialogTitle></DialogHeader>
             <PayableForm key={editingItem?.id || 'new'} item={editingItem} categories={data.categories.filter(c => c.type === 'expense')} accounts={data.accounts}
-              onSave={(p) => {
+              onSave={async (p) => {
                 const { installments, isCredit, recurrence, ...payable } = p;
                 if (editingItem) {
                   const stripSuffix = (s: string) => s.replace(/\s*\(\d+\/\d+\)\s*$/, '').trim().toLowerCase();
@@ -567,13 +567,57 @@ export default function PayablesPage() {
                     setUpdateFutureCount(linkedFuture.length);
                     setDialogOpen(false);
                     setEditingItem(null);
+                  } else if (installments && installments > 1) {
+                    const installmentAmount = Math.round((payable.amount / installments) * 100) / 100;
+                    const cleanDesc = stripSuffix(payable.description);
+                    const firstDesc = `${cleanDesc} (1/${installments})`;
+
+                    await updatePayable({
+                      ...payable,
+                      id: editingItem.id,
+                      description: firstDesc,
+                      amount: installmentAmount,
+                    } as Payable);
+
+                    await addPayable(
+                      { ...payable, description: cleanDesc, amount: payable.amount },
+                      installments,
+                      isCredit,
+                      undefined,
+                      true /* skipFirst */
+                    );
+
+                    setDialogOpen(false);
+                    setEditingItem(null);
+                  } else if (recurrence && recurrence.occurrences > 1) {
+                    const cleanDesc = stripSuffix(payable.description);
+                    const firstDesc = `${cleanDesc} (1/${recurrence.occurrences})`;
+
+                    await updatePayable({
+                      ...payable,
+                      id: editingItem.id,
+                      description: firstDesc,
+                      recurring: true,
+                      recurrenceFrequency: recurrence.frequency,
+                    } as Payable);
+
+                    await addPayable(
+                      { ...payable, description: cleanDesc },
+                      undefined,
+                      isCredit,
+                      recurrence,
+                      true /* skipFirst */
+                    );
+
+                    setDialogOpen(false);
+                    setEditingItem(null);
                   } else {
-                    updatePayable({ ...payable, id: editingItem.id } as Payable);
+                    await updatePayable({ ...payable, id: editingItem.id } as Payable);
                     setDialogOpen(false);
                     setEditingItem(null);
                   }
                 } else {
-                  addPayable(payable, installments, isCredit, recurrence);
+                  await addPayable(payable, installments, isCredit, recurrence);
                   setDialogOpen(false);
                   setEditingItem(null);
                 }
