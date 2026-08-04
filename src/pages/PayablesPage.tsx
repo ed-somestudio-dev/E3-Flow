@@ -799,7 +799,7 @@ export default function PayablesPage() {
 
       {/* Pay dialog - select account */}
       <Dialog open={payDialogOpen} onOpenChange={setPayDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] max-h-[90dvh] overflow-y-auto">
           <DialogHeader><DialogTitle>Confirmar Pagamento</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div className="flex items-center justify-between p-3 rounded-md bg-muted/50">
@@ -939,8 +939,8 @@ export default function PayablesPage() {
               }
               return partialBlock;
             })()}
-            <Button className="w-full h-auto whitespace-normal py-2" disabled={!payAccountId || (partialMode && (!partialAmount || parseFloat(partialAmount) <= 0))} onClick={confirmPay}>
-              <CheckCircle className="h-4 w-4 mr-2" />
+            <Button className="w-full h-auto whitespace-normal py-3 text-sm sm:text-base font-semibold mt-2 shrink-0" disabled={!payAccountId || (partialMode && (!partialAmount || parseFloat(partialAmount) <= 0))} onClick={confirmPay}>
+              <CheckCircle className="h-4 w-4 mr-2 shrink-0" />
               {partialMode ? 'Confirmar Pagamento Parcial' : 'Confirmar Pagamento'}
             </Button>
           </div>

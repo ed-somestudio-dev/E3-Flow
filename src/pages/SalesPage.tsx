@@ -1229,7 +1229,7 @@ export default function SalesPage() {
 
       {/* Bulk Receive Modal */}
       <Dialog open={bulkReceiveModal} onOpenChange={(o) => { setBulkReceiveModal(o); if (!o) { setBulkReceiveAmount(''); setBulkReceiveAccount(''); } }}>
-        <DialogContent onPointerDownOutside={(e) => e.preventDefault()} onInteractOutside={(e) => e.preventDefault()}>
+        <DialogContent className="max-h-[90vh] max-h-[90dvh] overflow-y-auto" onPointerDownOutside={(e) => e.preventDefault()} onInteractOutside={(e) => e.preventDefault()}>
           <DialogHeader>
             <DialogTitle>Confirmar Recebimento</DialogTitle>
           </DialogHeader>
@@ -1314,8 +1314,8 @@ export default function SalesPage() {
               </Select>
             </div>
 
-            <Button className="w-full mt-4 h-auto whitespace-normal py-2" onClick={handleBulkReceive} disabled={saving || !bulkReceiveAccount}>
-              {saving ? 'Processando...' : 'Confirmar Recebimento'}
+            <Button className="w-full mt-4 h-auto whitespace-normal py-3 text-sm sm:text-base font-semibold shrink-0" onClick={handleBulkReceive} disabled={saving || !bulkReceiveAccount}>
+              {saving ? 'Processando...' : receivePartialMode ? 'Confirmar Recebimento Parcial' : 'Confirmar Recebimento'}
             </Button>
           </div>
         </DialogContent>

@@ -960,8 +960,8 @@ export default function ReceivablesPage() {
                 <span className="hidden sm:inline">WhatsApp</span>
               </Button>
               <Button size="sm" className="flex-1 sm:flex-none bg-success text-success-foreground hover:bg-success/90" onClick={handleReceiveSelected}>
-                <CheckCircle className="h-4 w-4 sm:mr-1" />
-                <span className="hidden sm:inline">
+                <CheckCircle className="h-4 w-4 mr-1 shrink-0" />
+                <span className="text-xs sm:text-sm font-medium">
                   {bulkPartialMode ? 'Receber parcial' : 'Receber selecionados'}
                 </span>
               </Button>
@@ -1047,7 +1047,7 @@ export default function ReceivablesPage() {
 
       {/* Receive dialog */}
       <Dialog open={receiveDialogOpen} onOpenChange={setReceiveDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] max-h-[90dvh] overflow-y-auto">
           <DialogHeader><DialogTitle>Confirmar Recebimento</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div className="flex items-center justify-between p-3 rounded-md bg-muted/50">
@@ -1209,8 +1209,8 @@ export default function ReceivablesPage() {
               </div>
               );
             })()}
-            <Button className="w-full h-auto whitespace-normal py-2" disabled={!receiveAccountId || (partialMode && (!partialAmount || parseFloat(partialAmount) <= 0))} onClick={confirmReceive}>
-              <CheckCircle className="h-4 w-4 mr-2" />
+            <Button className="w-full h-auto whitespace-normal py-3 text-sm sm:text-base font-semibold mt-2 shrink-0" disabled={!receiveAccountId || (partialMode && (!partialAmount || parseFloat(partialAmount) <= 0))} onClick={confirmReceive}>
+              <CheckCircle className="h-4 w-4 mr-2 shrink-0" />
               {partialMode ? 'Confirmar Recebimento Parcial' : 'Confirmar Recebimento'}
             </Button>
           </div>
