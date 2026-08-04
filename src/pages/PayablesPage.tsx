@@ -553,7 +553,8 @@ export default function PayablesPage() {
                     ? data.payables.filter(x =>
                         x.id !== editingItem.id &&
                         (x.recurring || /\(\d+\/\d+\)\s*$/.test(x.description)) &&
-                        (x.supplier || '').trim().toLowerCase() === (editingItem.supplier || '').trim().toLowerCase() &&
+                        ((x.supplier || '').trim().toLowerCase() === (editingItem.supplier || '').trim().toLowerCase() ||
+                         (editingItem.supplier?.startsWith('cartao:') && x.supplier?.startsWith('cartao:'))) &&
                         x.categoryId === editingItem.categoryId &&
                         x.dueDate >= editingItem.dueDate &&
                         stripSuffix(x.description) === baseDesc &&
@@ -1059,7 +1060,7 @@ function PayableForm({ item, categories, accounts, onSave }: {
 }) {
   const { data } = useFinance();
   const initialDraft = {
-    supplier: item?.supplier || '',
+    supplier: item?.supplier?.startsWith('cartao:') ? '' : (item?.supplier || ''),
     description: item?.description || '',
     categoryId: item?.categoryId || '',
     accountId: item?.accountId || '',
@@ -1136,9 +1137,8 @@ function PayableForm({ item, categories, accounts, onSave }: {
     if (item?.supplier?.startsWith('cartao:')) return 'credit';
     const initialAcc = accounts.find(a => a.id === (item?.accountId || ''));
     const isCC = initialAcc?.type?.includes('credit_card');
-    if (item && isCC) return 'debit';
-    const canDebit = initialAcc?.type?.includes('checking') || initialAcc?.type?.includes('cash');
-    return isCC && canDebit ? 'debit' : 'credit';
+    if (isCC) return 'credit';
+    return 'debit';
   });
 
   const selectedAccount = accounts.find(a => a.id === accountId);
@@ -1404,11 +1404,13 @@ function PayableForm({ item, categories, accounts, onSave }: {
       )}
 
       <div><Label>Notas (opcional)</Label><Input value={notes} onChange={e => setNotes(e.target.value)} /></div>
-      <Button className="w-full" disabled={!description || !supplier || !categoryId || !amount || (isCreditCard && paymentMode === 'credit' ? !purchaseDate : !dueDate)}
+      <Button className="w-full" disabled={!description || (!supplier && !(isCreditCard && paymentMode === 'credit')) || !categoryId || !amount || (isCreditCard && paymentMode === 'credit' ? !purchaseDate : !dueDate)}
         onClick={() => {
           clearDraft();
           const isCredit = isCreditCard && paymentMode === 'credit';
-          const finalDueDate = isCredit && !dueDate ? purchaseDate : dueDate;
+          const finalSupplier = isCredit && accountId ? `cartao:${accountId}` : (supplier.startsWith('cartao:') ? '' : supplier);
+          const computedDue = calcDueDate(purchaseDate, selectedAccount);
+          const finalDueDate = isCredit ? (computedDue || dueDate || purchaseDate) : dueDate;
           const isRecurring = !useInstallments && recurring;
           let recurrencePayload: { frequency: RecurrenceFrequency; occurrences: number } | undefined;
           if (isRecurring) {
@@ -1419,9 +1421,15 @@ function PayableForm({ item, categories, accounts, onSave }: {
             recurrencePayload = { frequency: recurrenceFrequency, occurrences: occ };
           }
           onSave({
-            description, supplier, categoryId, accountId: accountId || undefined, amount: parseFloat(amount),
-            dueDate: finalDueDate, purchaseDate: isCredit ? purchaseDate : undefined,
-            status: item?.status || 'pending', notes: notes || undefined,
+            description,
+            supplier: finalSupplier || supplier || (isCredit ? `cartao:${accountId}` : 'Fornecedor'),
+            categoryId,
+            accountId: accountId || undefined,
+            amount: parseFloat(amount),
+            dueDate: finalDueDate,
+            purchaseDate: isCredit ? purchaseDate : undefined,
+            status: item?.status || 'pending',
+            notes: notes || undefined,
             recurring: isRecurring || undefined,
             recurrenceFrequency: isRecurring ? recurrenceFrequency : undefined,
             installments: (useInstallments && installments > 1) ? installments : undefined,

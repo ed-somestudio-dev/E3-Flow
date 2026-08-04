@@ -945,6 +945,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       recurring: p.recurring || false,
       recurrence_frequency: p.recurrenceFrequency || null,
       recurrence_end_date: p.recurrenceEndDate || null,
+      purchase_date: p.purchaseDate || null,
     };
 
     if (isOnline) {
@@ -1071,6 +1072,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       account_id: p.accountId || null,
       amount: Number(p.amount) || 0,
       notes: p.notes || null,
+      purchase_date: p.purchaseDate || null,
     };
 
     const payloadMain = {
@@ -1106,8 +1108,8 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
         const fresh = {
           ...prev,
           payables: prev.payables.map(x => {
-            if (x.id === p.id) return { ...x, ...payloadMain, status: newStatus as any, categoryId: p.categoryId, accountId: p.accountId, recurrenceFrequency: p.recurrenceFrequency, recurrenceEndDate: p.recurrenceEndDate };
-            if (futureIds.includes(x.id)) return { ...x, ...payloadFuture, categoryId: p.categoryId, accountId: p.accountId };
+            if (x.id === p.id) return { ...x, ...p, status: newStatus as any, categoryId: p.categoryId, accountId: p.accountId, supplier: p.supplier, purchaseDate: p.purchaseDate, recurrenceFrequency: p.recurrenceFrequency, recurrenceEndDate: p.recurrenceEndDate };
+            if (futureIds.includes(x.id)) return { ...x, ...payloadFuture, categoryId: p.categoryId, accountId: p.accountId, supplier: p.supplier, purchaseDate: p.purchaseDate };
             return x;
           })
         };
