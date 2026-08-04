@@ -152,6 +152,7 @@ function InvoiceMonthGroup({ monthKey, items, invoiceDueDate, invoiceStatus, mon
             <thead>
               <tr className="border-b border-border bg-muted/30">
                 <th className="text-left py-2 px-4 font-medium text-muted-foreground text-xs">Data da Compra</th>
+                <th className="text-left py-2 px-4 font-medium text-muted-foreground text-xs">Fornecedor</th>
                 <th className="text-left py-2 px-4 font-medium text-muted-foreground text-xs">Descrição</th>
                 <th className="text-right py-2 px-4 font-medium text-muted-foreground text-xs">Valor</th>
                 <th className="text-right py-2 px-4 font-medium text-muted-foreground text-xs"></th>
@@ -161,6 +162,7 @@ function InvoiceMonthGroup({ monthKey, items, invoiceDueDate, invoiceStatus, mon
               {items.map(p => (
                 <motion.tr key={p.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
                   <td className="py-2 px-4 mono text-muted-foreground whitespace-nowrap">{fmtDate(p.purchaseDate || p.dueDate)}</td>
+                  <td className="py-2 px-4 text-muted-foreground">{p.supplier && !p.supplier.startsWith('cartao:') ? p.supplier : '—'}</td>
                   <td className="py-2 px-4 font-medium">{p.description}</td>
                   <td className="py-2 px-4 text-right mono font-semibold text-destructive whitespace-nowrap">{fmt(p.amount)}</td>
                   <td className="py-2 px-4 text-right">
@@ -356,12 +358,19 @@ export default function PayablesPage() {
     return result.sort((a, b) => a.localeCompare(b));
   }, [data.payables, contacts]);
 
-  const regularPayables = allFiltered.filter(p => !p.supplier?.startsWith('cartao:'));
-  const creditPayables = allFiltered.filter(p => p.supplier?.startsWith('cartao:'));
+  const isCreditPayable = (p: Payable) => {
+    if (p.supplier?.startsWith('cartao:')) return true;
+    if (!p.accountId) return false;
+    const acc = data.accounts.find(a => a.id === p.accountId);
+    return acc?.type?.includes('credit_card') ?? false;
+  };
+
+  const regularPayables = allFiltered.filter(p => !isCreditPayable(p));
+  const creditPayables = allFiltered.filter(p => isCreditPayable(p));
 
   // Group credit payables by account
   const creditByAccount = creditPayables.reduce<Record<string, Payable[]>>((acc, p) => {
-    const accId = p.supplier.replace('cartao:', '');
+    const accId = p.supplier?.startsWith('cartao:') ? p.supplier.replace('cartao:', '') : p.accountId!;
     if (!acc[accId]) acc[accId] = [];
     acc[accId].push(p);
     return acc;

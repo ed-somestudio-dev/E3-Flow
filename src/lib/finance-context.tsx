@@ -739,7 +739,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
         }
 
         const desc = `${p.description} (${i + 1}/${recurrence.occurrences})`;
-        const supplier = isCC && acc ? `cartao:${acc.id}` : p.supplier;
+        const supplier = (p.supplier && !p.supplier.startsWith('cartao:')) ? p.supplier : (isCC && acc ? `cartao:${acc.id}` : p.supplier);
 
         const payload = {
           user_id: effectiveUserId, description: desc, supplier,
@@ -810,10 +810,11 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
         const id = generateId();
         let payload;
+        const supplierVal = (p.supplier && !p.supplier.startsWith('cartao:')) ? p.supplier : (acc?.type?.includes('credit_card') ? `cartao:${acc.id}` : p.supplier);
         if (acc?.type?.includes('credit_card')) {
           payload = {
             id,
-            user_id: effectiveUserId, description: desc, supplier: `cartao:${acc.id}`,
+            user_id: effectiveUserId, description: desc, supplier: supplierVal,
             category_id: p.categoryId, account_id: p.accountId || null,
             amount: installmentAmount, due_date: dueStr, status: 'pending',
             notes: p.notes || null, purchase_date: (p as any).purchaseDate || null,
@@ -821,7 +822,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
         } else {
           payload = {
             id,
-            user_id: effectiveUserId, description: desc, supplier: p.supplier,
+            user_id: effectiveUserId, description: desc, supplier: supplierVal,
             category_id: p.categoryId, account_id: p.accountId || null,
             amount: installmentAmount, due_date: dueStr, status: 'pending',
             notes: p.notes || null,
@@ -850,9 +851,10 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       const acc = data.accounts.find(a => a.id === p.accountId);
       if (acc?.type?.includes('credit_card')) {
         const id = generateId();
+        const supplierVal = (p.supplier && !p.supplier.startsWith('cartao:')) ? p.supplier : `cartao:${acc.id}`;
         const payload = {
           id,
-          user_id: effectiveUserId, description: p.description, supplier: `cartao:${acc.id}`,
+          user_id: effectiveUserId, description: p.description, supplier: supplierVal,
           category_id: p.categoryId, account_id: p.accountId || null,
           amount: p.amount, due_date: p.dueDate, status: 'pending',
           notes: p.notes || null, purchase_date: (p as any).purchaseDate || null,
