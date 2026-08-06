@@ -362,7 +362,16 @@ export default function PayablesPage() {
     if (p.supplier?.startsWith('cartao:')) return true;
     if (!p.accountId) return false;
     const acc = data.accounts.find(a => a.id === p.accountId);
-    return acc?.type?.includes('credit_card') ?? false;
+    if (!acc?.type?.includes('credit_card')) return false;
+
+    // Em contas híbridas (que aceitam tanto débito quanto crédito):
+    const canDebit = acc.type.includes('checking') || acc.type.includes('cash') || acc.type.includes('savings');
+    if (canDebit) {
+      // É fatura de cartão apenas se tiver prefixo 'cartao:' ou data de compra (purchaseDate)
+      return !!p.purchaseDate;
+    }
+
+    return true;
   };
 
   const regularPayables = allFiltered.filter(p => !isCreditPayable(p));
@@ -1187,16 +1196,22 @@ function PayableForm({ item, categories, accounts, onSave }: {
     }
   };
   const [paymentMode, setPaymentMode] = useState<'credit' | 'debit'>(() => {
-    if (item?.supplier?.startsWith('cartao:')) return 'credit';
-    const initialAcc = accounts.find(a => a.id === (item?.accountId || ''));
-    const isCC = initialAcc?.type?.includes('credit_card');
-    if (isCC) return 'credit';
+    if (item) {
+      if (item.supplier?.startsWith('cartao:')) return 'credit';
+      if (item.purchaseDate) return 'credit';
+      return 'debit';
+    }
+    const initialAcc = accounts.find(a => a.id === (accountId || ''));
+    if (!initialAcc) return 'debit';
+    const isCC = initialAcc.type.includes('credit_card');
+    const canDebit = initialAcc.type.includes('checking') || initialAcc.type.includes('cash') || initialAcc.type.includes('savings');
+    if (isCC && !canDebit) return 'credit';
     return 'debit';
   });
 
   const selectedAccount = accounts.find(a => a.id === accountId);
   const isCreditCard = selectedAccount?.type?.includes('credit_card') ?? false;
-  const hasDebitOption = isCreditCard && (selectedAccount?.type?.includes('checking') || selectedAccount?.type?.includes('cash'));
+  const hasDebitOption = isCreditCard && (selectedAccount?.type?.includes('checking') || selectedAccount?.type?.includes('cash') || selectedAccount?.type?.includes('savings'));
   const installmentAmount = amount ? (parseFloat(amount) / installments) : 0;
 
   // Auto-calculate due date from card billing cycle when in credit mode
