@@ -276,7 +276,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
               email: row.email ?? undefined, document: row.document ?? undefined,
               address: row.address ?? undefined, cep: row.cep ?? undefined,
               notes: meta.notes ?? undefined,
-              pixKey: row.pix_key ?? meta.pixKey ?? undefined,
+              pixKey: (row as any).pix_key ?? meta.pixKey ?? undefined,
             };
           }),
           goals: (gls.data || []).map(mapGoal),
@@ -300,7 +300,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
             email: row.email ?? undefined, document: row.document ?? undefined,
             address: row.address ?? undefined, cep: row.cep ?? undefined,
             notes: meta.notes ?? undefined,
-            pixKey: row.pix_key ?? meta.pixKey ?? undefined,
+            pixKey: (row as any).pix_key ?? meta.pixKey ?? undefined,
           };
         }),
         goals: (gls.data || []).map(mapGoal),
@@ -2811,7 +2811,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
         email: remote.email ?? undefined, document: remote.document ?? undefined,
         address: remote.address ?? undefined, cep: remote.cep ?? undefined,
         notes: meta.notes ?? undefined,
-        pixKey: remote.pix_key ?? meta.pixKey ?? undefined,
+        pixKey: (remote as any).pix_key ?? meta.pixKey ?? undefined,
       };
       setData(prev => {
         const fresh = { ...prev, contacts: [...prev.contacts, created].sort((a, b) => a.name.localeCompare(b.name)) };
