@@ -971,96 +971,81 @@ export default function PayablesPage() {
               const itemToPay = data.payables.find(x => x.id === payingIds[0]);
               if (!itemToPay) return null;
 
+              const hasPayablePix = !!itemToPay.pixKey;
+              const hasPayableBarcode = !!itemToPay.barcode;
+
               const supplierName = itemToPay.supplier && !itemToPay.supplier.startsWith('cartao:') ? itemToPay.supplier.trim() : null;
               const contact = supplierName ? contacts.find(c => removeAccents(c.name.toLowerCase()) === removeAccents(supplierName.toLowerCase())) : null;
+              const contactPixKey = contact?.pixKey;
 
-              const effectivePixKey = itemToPay.pixKey || contact?.pixKey;
-              const effectiveBarcode = itemToPay.barcode;
-              const isFromContact = !itemToPay.pixKey && !!contact?.pixKey;
+              // Se a conta não tem chave PIX ou boleto cadastrados, exibe a chave PIX do contato pré-cadastrado
+              const pixKeyToDisplay = itemToPay.pixKey || (!hasPayableBarcode ? contactPixKey : undefined);
+              const barcodeToDisplay = itemToPay.barcode;
+              const isContactPix = !hasPayablePix && !hasPayableBarcode && !!contactPixKey;
 
-              if (effectivePixKey || effectiveBarcode) {
-                return (
-                  <div className="p-3 rounded-lg bg-muted/60 border border-border space-y-2.5">
-                    <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-                      <Copy className="h-3.5 w-3.5 text-primary" />
-                      Atalhos de Pagamento Cadastrados
-                    </span>
-                    
-                    {effectivePixKey && (
-                      <div className="flex items-center justify-between gap-2 p-2 bg-background rounded-md border border-border">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-[11px] font-medium text-muted-foreground block">Chave PIX</span>
-                            {isFromContact && (
-                              <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-medium">Contato</span>
-                            )}
-                          </div>
-                          <span className="text-xs mono font-semibold truncate block text-foreground" title={effectivePixKey}>
-                            {effectivePixKey}
-                          </span>
+              if (!pixKeyToDisplay && !barcodeToDisplay) return null;
+
+              return (
+                <div className="p-3 rounded-lg bg-muted/60 border border-border space-y-2.5">
+                  <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                    <Copy className="h-3.5 w-3.5 text-primary" />
+                    {isContactPix ? `Chave PIX do Contato (${contact?.name})` : 'Atalhos de Pagamento Cadastrados'}
+                  </span>
+                  
+                  {pixKeyToDisplay && (
+                    <div className="flex items-center justify-between gap-2 p-2 bg-background rounded-md border border-border">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[11px] font-medium text-muted-foreground block">Chave PIX</span>
+                          {isContactPix && (
+                            <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-medium">Contato</span>
+                          )}
                         </div>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          className="h-8 gap-1 text-xs shrink-0 text-primary border-primary/30 hover:bg-primary/10 font-medium"
-                          onClick={() => {
-                            navigator.clipboard.writeText(effectivePixKey);
-                            toast.success('Chave PIX copiada!');
-                          }}
-                        >
-                          <Copy className="h-3.5 w-3.5" />
-                          Copiar PIX
-                        </Button>
+                        <span className="text-xs mono font-semibold truncate block text-foreground" title={pixKeyToDisplay}>
+                          {pixKeyToDisplay}
+                        </span>
                       </div>
-                    )}
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-8 gap-1 text-xs shrink-0 text-primary border-primary/30 hover:bg-primary/10 font-medium"
+                        onClick={() => {
+                          navigator.clipboard.writeText(pixKeyToDisplay);
+                          toast.success('Chave PIX copiada!');
+                        }}
+                      >
+                        <Copy className="h-3.5 w-3.5" />
+                        Copiar PIX
+                      </Button>
+                    </div>
+                  )}
 
-                    {effectiveBarcode && (
-                      <div className="flex items-center justify-between gap-2 p-2 bg-background rounded-md border border-border">
-                        <div className="min-w-0 flex-1">
-                          <span className="text-[11px] font-medium text-muted-foreground block">Código de Barras</span>
-                          <span className="text-xs mono font-semibold truncate block text-foreground" title={effectiveBarcode}>
-                            {effectiveBarcode}
-                          </span>
-                        </div>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          className="h-8 gap-1 text-xs shrink-0 text-primary border-primary/30 hover:bg-primary/10 font-medium"
-                          onClick={() => {
-                            navigator.clipboard.writeText(effectiveBarcode);
-                            toast.success('Código de barras copiado!');
-                          }}
-                        >
-                          <Copy className="h-3.5 w-3.5" />
-                          Copiar Código
-                        </Button>
+                  {barcodeToDisplay && (
+                    <div className="flex items-center justify-between gap-2 p-2 bg-background rounded-md border border-border">
+                      <div className="min-w-0 flex-1">
+                        <span className="text-[11px] font-medium text-muted-foreground block">Código de Barras</span>
+                        <span className="text-xs mono font-semibold truncate block text-foreground" title={barcodeToDisplay}>
+                          {barcodeToDisplay}
+                        </span>
                       </div>
-                    )}
-                  </div>
-                );
-              }
-
-              if (supplierName) {
-                return (
-                  <PayableQuickPixRegister
-                    supplierName={supplierName}
-                    contact={contact}
-                    onSave={async (newPixKey) => {
-                      await updatePayable({ ...itemToPay, pixKey: newPixKey });
-                      if (contact) {
-                        await updateContact({ ...contact, pixKey: newPixKey });
-                      } else {
-                        await addContact({ name: supplierName, pixKey: newPixKey });
-                      }
-                      toast.success('Chave PIX cadastrada e salva no contato!');
-                    }}
-                  />
-                );
-              }
-
-              return null;
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-8 gap-1 text-xs shrink-0 text-primary border-primary/30 hover:bg-primary/10 font-medium"
+                        onClick={() => {
+                          navigator.clipboard.writeText(barcodeToDisplay);
+                          toast.success('Código de barras copiado!');
+                        }}
+                      >
+                        <Copy className="h-3.5 w-3.5" />
+                        Copiar Código
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              );
             })()}
             {payingIds.length > 0 && (() => {
               const itemsToPay = payingIds.map(id => data.payables.find(x => x.id === id)).filter(Boolean).filter(p => p.status !== 'paid') as Payable[];

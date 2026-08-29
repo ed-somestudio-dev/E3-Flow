@@ -377,7 +377,8 @@ function ContactForm({ item, onSave }: {
   };
   // dialogOpen is not available here, so we always persist (form only mounts when dialog is open)
   const [draft, setDraft, clearDraft] = usePersistedFormDraft(`contacts-form-${item?.id || 'new'}`, true, initialDraft);
-  const { name, phone, email, document, pixKey, cep, address, notes } = draft;
+  const { name, phone, email, document, cep, address, notes } = draft;
+  const pixKey = draft.pixKey !== undefined ? draft.pixKey : (item?.pixKey || '');
   const setName = (v: string) => setDraft(d => ({ ...d, name: v }));
   const setPhone = (v: string) => setDraft(d => ({ ...d, phone: v }));
   const setEmail = (v: string) => setDraft(d => ({ ...d, email: v }));
