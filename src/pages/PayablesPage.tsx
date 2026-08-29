@@ -3,7 +3,8 @@ import { usePersistedDialog, usePersistedFormDraft } from '@/hooks/usePersistedD
 import { useFinance } from '@/lib/finance-context';
 import { supabase } from '@/integrations/supabase/client';
 import { Payable, PayableStatus, RecurrenceFrequency } from '@/lib/types';
-import { Plus, Trash2, Edit2, CheckCircle, RefreshCw, CreditCard, Wallet, ChevronDown, ChevronRight, CalendarIcon, X, Users } from 'lucide-react';
+import { Plus, Trash2, Edit2, CheckCircle, RefreshCw, CreditCard, Wallet, ChevronDown, ChevronRight, CalendarIcon, X, Users, Copy, QrCode, Barcode, ArrowLeftRight } from 'lucide-react';
+import { DebtOffsetModal } from '@/components/DebtOffsetModal';
 import { CalculatorInput } from '@/components/CalculatorInput';
 import { ContactAutocomplete } from '@/components/ContactAutocomplete';
 import { SearchAutocomplete } from '@/components/SearchAutocomplete';
@@ -247,9 +248,33 @@ function SupplierGroupTable({ supplierName, items, getCategoryName, getAccountNa
                   </td>
                   <td className="py-3 px-4 mono text-muted-foreground">{fmtDate(p.dueDate)}</td>
                   <td className={`py-3 px-4 font-medium ${p.status === 'overdue' ? 'text-destructive' : p.status === 'paid' ? 'text-success' : 'text-warning'}`}>
-                    <div className="flex items-center gap-1.5">
-                      {p.description}
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span>{p.description}</span>
                       {p.recurring && <RefreshCw className="h-3 w-3 text-primary" />}
+                      {p.pixKey && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-5 w-5 text-primary hover:bg-primary/10"
+                          title="Copiar Chave PIX"
+                          onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(p.pixKey); toast.success('Chave PIX copiada!'); }}
+                        >
+                          <QrCode className="h-3 w-3" />
+                        </Button>
+                      )}
+                      {p.barcode && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-5 w-5 text-primary hover:bg-primary/10"
+                          title="Copiar Código de Barras"
+                          onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(p.barcode); toast.success('Código de barras copiado!'); }}
+                        >
+                          <Barcode className="h-3 w-3" />
+                        </Button>
+                      )}
                     </div>
                   </td>
                   <td className="py-3 px-4 text-muted-foreground">{getCategoryName(p.categoryId)}</td>
@@ -294,11 +319,13 @@ export default function PayablesPage() {
   const [payAccountId, setPayAccountId] = useState('');
   const [partialMode, setPartialMode] = useState(false);
   const [partialAmount, setPartialAmount] = useState('');
-  const [interestPercent, setInterestPercent] = useState('');
+  const [payInterestAmount, setPayInterestAmount] = useState('');
+  const [payInterestType, setPayInterestType] = useState<'BRL' | 'PERCENT'>('BRL');
   const [payDiscountAmount, setPayDiscountAmount] = useState('');
   const [payDiscountType, setPayDiscountType] = useState<'BRL' | 'PERCENT'>('BRL');
   const [showPayItems, setShowPayItems] = useState(false);
   const [showMorePayOptions, setShowMorePayOptions] = useState(false);
+  const [offsetContactName, setOffsetContactName] = useState<string | null>(null);
   const [dateFrom, setDateFrom] = useState<Date | undefined>(startOfMonth(new Date()));
   const [dateTo, setDateTo] = useState<Date | undefined>(endOfMonth(new Date()));
   const [showPastOverdue, setShowPastOverdue] = useState(() => localStorage.getItem('payables_showPastOverdue') === 'true');
@@ -317,6 +344,16 @@ export default function PayablesPage() {
   const clearDateFilter = () => {
     setDateFrom(undefined);
     setDateTo(undefined);
+  };
+
+  const satisfiesDateFilter = (dueDate: string, from?: Date, to?: Date, pastOverdueAllowed?: boolean, isOverdue?: boolean) => {
+    if (!from && !to) return true;
+    const fromStr = from ? format(from, 'yyyy-MM-dd') : '';
+    const toStr = to ? format(to, 'yyyy-MM-dd') : '';
+    if (isOverdue && pastOverdueAllowed && fromStr && dueDate < fromStr) return true;
+    if (fromStr && dueDate < fromStr) return false;
+    if (toStr && dueDate > toStr) return false;
+    return true;
   };
 
   const normalizedSearch = removeAccents(search.toLowerCase());
@@ -409,7 +446,8 @@ export default function PayablesPage() {
     setPayAccountId(payable?.accountId || data.accounts[0]?.id || '');
     setPartialMode(false);
     setPartialAmount('');
-    setInterestPercent('');
+    setPayInterestAmount('');
+    setPayInterestType('BRL');
     setPayDiscountAmount('');
     setPayDiscountType('BRL');
     setShowPayItems(false);
@@ -423,7 +461,8 @@ export default function PayablesPage() {
     setPayAccountId(first?.accountId || data.accounts[0]?.id || '');
     setPartialMode(false);
     setPartialAmount('');
-    setInterestPercent('');
+    setPayInterestAmount('');
+    setPayInterestType('BRL');
     setPayDiscountAmount('');
     setPayDiscountType('BRL');
     setShowPayItems(false);
@@ -446,7 +485,9 @@ export default function PayablesPage() {
       const discountAmount = payDiscountType === 'PERCENT'
         ? baseTotal * (parseFloat(payDiscountAmount) || 0) / 100
         : (parseFloat(payDiscountAmount) || 0);
-      const interestAmount = baseTotal > 0 ? (baseTotal * (parseFloat(interestPercent) || 0) / 100) : 0;
+      const interestAmount = payInterestType === 'PERCENT'
+        ? baseTotal * (parseFloat(payInterestAmount) || 0) / 100
+        : (parseFloat(payInterestAmount) || 0);
       
       let totalActuallyPaid = 0;
 
@@ -522,7 +563,8 @@ export default function PayablesPage() {
       setPayingIds([]);
       setPartialMode(false);
       setPartialAmount('');
-      setInterestPercent('');
+      setPayInterestAmount('');
+      setPayInterestType('BRL');
       setPayDiscountAmount('');
       setPayDiscountType('BRL');
     }
@@ -532,7 +574,9 @@ export default function PayablesPage() {
     const p = data.payables.find(x => x.id === id);
     return sum + (p?.amount || 0);
   }, 0);
-  const interestAmount = payingTotal * (parseFloat(interestPercent) || 0) / 100;
+  const interestAmount = payInterestType === 'PERCENT'
+    ? payingTotal * (parseFloat(payInterestAmount) || 0) / 100
+    : (parseFloat(payInterestAmount) || 0);
   const calculatedDiscount = payDiscountType === 'PERCENT'
     ? payingTotal * (parseFloat(payDiscountAmount) || 0) / 100
     : (parseFloat(payDiscountAmount) || 0);
@@ -860,11 +904,114 @@ export default function PayablesPage() {
         </div>
       )}
 
-      {/* Pay dialog - select account */}
       <Dialog open={payDialogOpen} onOpenChange={setPayDialogOpen}>
-        <DialogContent className="max-h-[90vh] max-h-[90dvh] overflow-y-auto">
+        <DialogContent className="max-h-[90vh] max-h-[90dvh] overflow-y-auto" onPointerDownOutside={(e) => e.preventDefault()} onInteractOutside={(e) => e.preventDefault()}>
           <DialogHeader><DialogTitle>Confirmar Pagamento</DialogTitle></DialogHeader>
           <div className="space-y-4">
+            {payingIds.length === 1 && (() => {
+              const itemToPay = data.payables.find(x => x.id === payingIds[0]);
+              if (!itemToPay || (!itemToPay.pixKey && !itemToPay.barcode)) return null;
+              return (
+                <div className="p-3 rounded-lg bg-muted/60 border border-border space-y-2.5">
+                  <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                    <Copy className="h-3.5 w-3.5 text-primary" />
+                    Atalhos de Pagamento Cadastrados
+                  </span>
+                  
+                  {itemToPay.pixKey && (
+                    <div className="flex items-center justify-between gap-2 p-2 bg-background rounded-md border border-border">
+                      <div className="min-w-0 flex-1">
+                        <span className="text-[11px] font-medium text-muted-foreground block">Chave PIX</span>
+                        <span className="text-xs mono font-semibold truncate block text-foreground" title={itemToPay.pixKey}>
+                          {itemToPay.pixKey}
+                        </span>
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-8 gap-1 text-xs shrink-0 text-primary border-primary/30 hover:bg-primary/10 font-medium"
+                        onClick={() => {
+                          navigator.clipboard.writeText(itemToPay.pixKey!);
+                          toast.success('Chave PIX copiada!');
+                        }}
+                      >
+                        <Copy className="h-3.5 w-3.5" />
+                        Copiar PIX
+                      </Button>
+                    </div>
+                  )}
+
+                  {itemToPay.barcode && (
+                    <div className="flex items-center justify-between gap-2 p-2 bg-background rounded-md border border-border">
+                      <div className="min-w-0 flex-1">
+                        <span className="text-[11px] font-medium text-muted-foreground block">Código de Barras</span>
+                        <span className="text-xs mono font-semibold truncate block text-foreground" title={itemToPay.barcode}>
+                          {itemToPay.barcode}
+                        </span>
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-8 gap-1 text-xs shrink-0 text-primary border-primary/30 hover:bg-primary/10 font-medium"
+                        onClick={() => {
+                          navigator.clipboard.writeText(itemToPay.barcode!);
+                          toast.success('Código de barras copiado!');
+                        }}
+                      >
+                        <Copy className="h-3.5 w-3.5" />
+                        Copiar Código
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+            {payingIds.length > 0 && (() => {
+              const itemsToPay = payingIds.map(id => data.payables.find(x => x.id === id)).filter(Boolean).filter(p => p.status !== 'paid') as Payable[];
+              const suppliers = Array.from(new Set(itemsToPay.map(p => p.supplier.replace(/^cartao:/, '').trim())));
+              if (suppliers.length !== 1 || !suppliers[0]) return null;
+              const supplierName = suppliers[0];
+              const cleanSupplier = removeAccents(supplierName.toLowerCase());
+              const supplierReceivables = data.receivables.filter(r => {
+                if (r.status === 'received') return false;
+                if (removeAccents((r.clientName || '').trim().toLowerCase()) !== cleanSupplier) return false;
+                return satisfiesDateFilter(r.dueDate, dateFrom, dateTo, showPastOverdue, r.status === 'overdue');
+              });
+              if (supplierReceivables.length === 0) return null;
+              const recTotal = supplierReceivables.reduce((s, r) => s + r.amount, 0);
+
+              return (
+                <div className="p-3 rounded-lg bg-primary/10 border border-primary/20 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 text-xs font-semibold text-primary">
+                      <ArrowLeftRight className="h-4 w-4" />
+                      Encontro de Contas disponível
+                    </div>
+                    <span className="text-xs font-bold text-success mono">
+                      {fmt(recTotal)} a receber
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Este fornecedor possui contas a receber pendentes. Você pode descontar/compensar a dívida diretamente.
+                  </p>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="w-full text-xs font-semibold gap-1 text-primary border-primary/30 hover:bg-primary/10"
+                    onClick={() => {
+                      setPayDialogOpen(false);
+                      setTimeout(() => setOffsetContactName(supplierName), 150);
+                    }}
+                  >
+                    <ArrowLeftRight className="h-3.5 w-3.5" />
+                    Fazer Encontro de Contas (Compensar)
+                  </Button>
+                </div>
+              );
+            })()}
             <div className="flex items-center justify-between p-3 rounded-md bg-muted/50">
               <span className="text-sm text-muted-foreground">{payingIds.length > 1 ? `${payingIds.length} itens` : 'Valor'} original</span>
               <span className="text-lg font-bold text-muted-foreground mono">{fmt(payingTotal)}</span>
@@ -872,8 +1019,18 @@ export default function PayablesPage() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Juros (%)</Label>
-                <Input type="number" step="0.1" min="0" value={interestPercent} onChange={(e) => setInterestPercent(e.target.value)} placeholder="0.0" />
+                <Label>Juros</Label>
+                <div className="flex gap-1">
+                  <Input type="number" step="0.01" min="0" value={payInterestAmount} onChange={(e) => setPayInterestAmount(e.target.value)} placeholder="0,00" />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-12 shrink-0 font-bold"
+                    onClick={() => setPayInterestType(prev => prev === 'BRL' ? 'PERCENT' : 'BRL')}
+                  >
+                    {payInterestType === 'BRL' ? 'R$' : '%'}
+                  </Button>
+                </div>
               </div>
               <div className="space-y-2">
                 <Label>Desconto</Label>
@@ -1009,6 +1166,37 @@ export default function PayablesPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {offsetContactName && (() => {
+        const cleanName = removeAccents(offsetContactName.toLowerCase());
+        const selectedPayables = payingIds
+          .map(id => data.payables.find(x => x.id === id))
+          .filter(Boolean)
+          .filter(p => p.status !== 'paid') as Payable[];
+
+        const pendingPayables = selectedPayables.length > 0 && selectedPayables.every(p => removeAccents((p.supplier || '').replace(/^cartao:/, '').trim().toLowerCase()) === cleanName)
+          ? selectedPayables
+          : data.payables.filter(p => {
+              if (p.status === 'paid') return false;
+              if (removeAccents((p.supplier || '').replace(/^cartao:/, '').trim().toLowerCase()) !== cleanName) return false;
+              return satisfiesDateFilter(p.dueDate, dateFrom, dateTo, showPastOverdue, p.status === 'overdue');
+            });
+
+        const pendingReceivables = data.receivables.filter(r => {
+          if (r.status === 'received') return false;
+          if (removeAccents((r.clientName || '').trim().toLowerCase()) !== cleanName) return false;
+          return satisfiesDateFilter(r.dueDate, dateFrom, dateTo, showPastOverdue, r.status === 'overdue');
+        });
+        return (
+          <DebtOffsetModal
+            open={!!offsetContactName}
+            onOpenChange={(o) => { if (!o) setOffsetContactName(null); }}
+            contactName={offsetContactName}
+            payables={pendingPayables}
+            receivables={pendingReceivables}
+          />
+        );
+      })()}
       {(() => {
         const target = deleteId ? data.payables.find(p => p.id === deleteId) : null;
         if (!target) {
@@ -1137,9 +1325,11 @@ function PayableForm({ item, categories, accounts, onSave }: {
     recurring: item?.recurring || false,
     recurrenceFrequency: (item?.recurrenceFrequency || 'monthly') as RecurrenceFrequency,
     occurrences: '',
+    pixKey: item?.pixKey || '',
+    barcode: item?.barcode || '',
   };
   const [draft, setDraft, clearDraft] = usePersistedFormDraft(`payables-form-${item?.id || 'new'}`, true, initialDraft);
-  const { supplier, description, categoryId, accountId, amount, dueDate, purchaseDate, notes, useInstallments, installments, inputMode, installmentValue, recurring, recurrenceFrequency, occurrences } = draft;
+  const { supplier, description, categoryId, accountId, amount, dueDate, purchaseDate, notes, useInstallments, installments, inputMode, installmentValue, recurring, recurrenceFrequency, occurrences, pixKey, barcode } = draft;
   const setSupplier = (v: string) => setDraft(d => ({ ...d, supplier: v }));
   const setDescription = (v: string) => setDraft(d => ({ ...d, description: v }));
   const setCategoryId = (v: string) => setDraft(d => ({ ...d, categoryId: v }));
@@ -1148,6 +1338,8 @@ function PayableForm({ item, categories, accounts, onSave }: {
   const setDueDate = (v: string) => setDraft(d => ({ ...d, dueDate: v }));
   const setPurchaseDate = (v: string) => setDraft(d => ({ ...d, purchaseDate: v }));
   const setNotes = (v: string) => setDraft(d => ({ ...d, notes: v }));
+  const setPixKey = (v: string) => setDraft(d => ({ ...d, pixKey: v }));
+  const setBarcode = (v: string) => setDraft(d => ({ ...d, barcode: v }));
   const setUseInstallments = (v: boolean) => setDraft(d => ({ ...d, useInstallments: v }));
   const setInstallments = (v: number) => setDraft(d => ({ ...d, installments: v }));
   const setInputMode = (v: 'total' | 'installment') => setDraft(d => ({ ...d, inputMode: v }));
@@ -1471,6 +1663,29 @@ function PayableForm({ item, categories, accounts, onSave }: {
         </div>
       )}
 
+      <div className="space-y-3 p-3 rounded-lg bg-muted/40 border border-border">
+        <Label className="text-sm font-semibold flex items-center gap-1.5">
+          <QrCode className="h-4 w-4 text-primary" />
+          Dados para Pagamento (Chave PIX / Boleto)
+        </Label>
+        <div className="space-y-2">
+          <Label className="text-xs text-muted-foreground">Chave PIX ou PIX Copia e Cola</Label>
+          <Input
+            value={pixKey}
+            onChange={e => setPixKey(e.target.value)}
+            placeholder="Cole aqui a chave PIX ou o código Copia e Cola"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label className="text-xs text-muted-foreground">Código de Barras / Linha Digitável do Boleto</Label>
+          <Input
+            value={barcode}
+            onChange={e => setBarcode(e.target.value)}
+            placeholder="Cole o código de barras ou linha digitável do boleto"
+          />
+        </div>
+      </div>
+
       <div><Label>Notas (opcional)</Label><Input value={notes} onChange={e => setNotes(e.target.value)} /></div>
       <Button className="w-full" disabled={!description || (!supplier && !(isCreditCard && paymentMode === 'credit')) || !categoryId || !amount || (isCreditCard && paymentMode === 'credit' ? !purchaseDate : !dueDate)}
         onClick={() => {
@@ -1498,6 +1713,8 @@ function PayableForm({ item, categories, accounts, onSave }: {
             purchaseDate: isCredit ? purchaseDate : undefined,
             status: item?.status || 'pending',
             notes: notes || undefined,
+            pixKey: pixKey?.trim() || undefined,
+            barcode: barcode?.trim() || undefined,
             recurring: isRecurring || undefined,
             recurrenceFrequency: isRecurring ? recurrenceFrequency : undefined,
             installments: (useInstallments && installments > 1) ? installments : undefined,

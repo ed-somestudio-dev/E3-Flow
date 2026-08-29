@@ -292,7 +292,8 @@ export default function SalesPage() {
   const [bulkReceiveAmount, setBulkReceiveAmount] = useState<string>('');
   const [bulkReceiveAccount, setBulkReceiveAccount] = useState<string>(localStorage.getItem('last_sale_account') || '');
   const [bulkReceivePaymentMethod, setBulkReceivePaymentMethod] = useState<string>('keep');
-  const [receiveInterestPercent, setReceiveInterestPercent] = useState('');
+  const [receiveInterestAmount, setReceiveInterestAmount] = useState('');
+  const [receiveInterestType, setReceiveInterestType] = useState<'BRL' | 'PERCENT'>('BRL');
   const [receiveDiscountAmount, setReceiveDiscountAmount] = useState('');
   const [receiveDiscountType, setReceiveDiscountType] = useState<'BRL' | 'PERCENT'>('BRL');
   const [receivePartialMode, setReceivePartialMode] = useState(false);
@@ -493,8 +494,9 @@ export default function SalesPage() {
     try {
       const items = selectedSales.map(id => sales.find(s => s.id === id)).filter(Boolean) as Sale[];
       const baseTotal = items.reduce((sum, i) => sum + i.total, 0);
-      const interestRatio = (parseFloat(receiveInterestPercent) || 0) / 100;
-      const totalInterest = baseTotal * interestRatio;
+      const totalInterest = receiveInterestType === 'PERCENT'
+        ? baseTotal * (parseFloat(receiveInterestAmount) || 0) / 100
+        : (parseFloat(receiveInterestAmount) || 0);
       const totalDiscount = receiveDiscountType === 'PERCENT'
         ? baseTotal * (parseFloat(receiveDiscountAmount) || 0) / 100
         : (parseFloat(receiveDiscountAmount) || 0);
@@ -569,6 +571,10 @@ export default function SalesPage() {
       
       setSelectedSales([]);
       setBulkReceiveModal(false);
+      setReceiveInterestAmount('');
+      setReceiveInterestType('BRL');
+      setReceiveDiscountAmount('');
+      setReceiveDiscountType('BRL');
       setSheetOpen(false);
       resetForm();
 
@@ -696,11 +702,11 @@ export default function SalesPage() {
     }, 0);
   }, [selectedSales, sales]);
 
-  const bulkCalculatedDiscount = receiveDiscountType === 'PERCENT'
-    ? selectedSalesTotal * (parseFloat(receiveDiscountAmount) || 0) / 100
-    : (parseFloat(receiveDiscountAmount) || 0);
+  const bulkCalculatedInterest = receiveInterestType === 'PERCENT'
+    ? selectedSalesTotal * (parseFloat(receiveInterestAmount) || 0) / 100
+    : (parseFloat(receiveInterestAmount) || 0);
 
-  const bulkFinalTotal = Math.max(0, selectedSalesTotal + (selectedSalesTotal * (parseFloat(receiveInterestPercent) || 0) / 100) - bulkCalculatedDiscount);
+  const bulkFinalTotal = Math.max(0, selectedSalesTotal + bulkCalculatedInterest - bulkCalculatedDiscount);
 
   return (
     <div className="p-4 sm:p-8 max-w-7xl mx-auto space-y-6 relative pb-24">
@@ -1241,8 +1247,18 @@ export default function SalesPage() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Juros (%)</Label>
-                <Input type="number" step="0.1" min="0" value={receiveInterestPercent} onChange={(e) => setReceiveInterestPercent(e.target.value)} placeholder="0.0" />
+                <Label>Juros</Label>
+                <div className="flex gap-1">
+                  <Input type="number" step="0.01" min="0" value={receiveInterestAmount} onChange={(e) => setReceiveInterestAmount(e.target.value)} placeholder="0,00" />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-12 shrink-0 font-bold"
+                    onClick={() => setReceiveInterestType(prev => prev === 'BRL' ? 'PERCENT' : 'BRL')}
+                  >
+                    {receiveInterestType === 'BRL' ? 'R$' : '%'}
+                  </Button>
+                </div>
               </div>
               <div className="space-y-2">
                 <Label>Desconto</Label>

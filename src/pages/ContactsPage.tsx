@@ -254,6 +254,8 @@ export default function ContactsPage() {
                   </div>
                 )}
               </div>
+
+
               {(c.phone || c.email) && (
                 <div className="flex gap-2 pt-1">
                   {c.phone && (
@@ -297,6 +299,8 @@ export default function ContactsPage() {
         title="Excluir contato?"
         description="Esta ação não pode ser desfeita."
       />
+
+
 
       <Dialog open={nativePickerOpen} onOpenChange={setNativePickerOpen}>
         <DialogContent className="max-h-[90vh] flex flex-col gap-0 p-0" onPointerDownOutside={(e) => e.preventDefault()} onInteractOutside={(e) => e.preventDefault()}>

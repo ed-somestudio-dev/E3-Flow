@@ -4,7 +4,8 @@ import { useFinance } from '@/lib/finance-context';
 import { supabase } from '@/integrations/supabase/client';
 import { usePixSettings } from '@/lib/pix-settings-context';
 import { Receivable, ReceivableStatus, RecurrenceFrequency } from '@/lib/types';
-import { Plus, Trash2, Edit2, CheckCircle, CreditCard, CalendarIcon, X, RefreshCw, QrCode, Receipt, AlertTriangle, ChevronDown, ChevronRight, Upload, MessageCircle, FileText, Users } from 'lucide-react';
+import { Plus, Trash2, Edit2, CheckCircle, CreditCard, CalendarIcon, X, RefreshCw, QrCode, Receipt, AlertTriangle, ChevronDown, ChevronRight, Upload, MessageCircle, FileText, Users, ArrowLeftRight } from 'lucide-react';
+import { DebtOffsetModal } from '@/components/DebtOffsetModal';
 import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog';
 import { CalculatorInput } from '@/components/CalculatorInput';
 import { ContactAutocomplete } from '@/components/ContactAutocomplete';
@@ -169,13 +170,25 @@ export default function ReceivablesPage() {
   const [receiveAccountId, setReceiveAccountId] = useState('');
   const [partialMode, setPartialMode] = useState(false);
   const [partialAmount, setPartialAmount] = useState('');
-  const [interestPercent, setInterestPercent] = useState('');
+  const [receiveInterestAmount, setReceiveInterestAmount] = useState('');
+  const [receiveInterestType, setReceiveInterestType] = useState<'BRL' | 'PERCENT'>('BRL');
   const [receiveDiscountAmount, setReceiveDiscountAmount] = useState('');
   const [receiveDiscountType, setReceiveDiscountType] = useState<'BRL' | 'PERCENT'>('BRL');
   const [showReceiveItems, setShowReceiveItems] = useState(false);
+  const [offsetContactName, setOffsetContactName] = useState<string | null>(null);
   const [dateFrom, setDateFrom] = useState<Date | undefined>(startOfMonth(new Date()));
   const [dateTo, setDateTo] = useState<Date | undefined>(endOfMonth(new Date()));
   const [showPastOverdue, setShowPastOverdue] = useState(() => localStorage.getItem('receivables_showPastOverdue') === 'true');
+
+  const satisfiesDateFilter = (dueDate: string, from?: Date, to?: Date, pastOverdueAllowed?: boolean, isOverdue?: boolean) => {
+    if (!from && !to) return true;
+    const fromStr = from ? format(from, 'yyyy-MM-dd') : '';
+    const toStr = to ? format(to, 'yyyy-MM-dd') : '';
+    if (isOverdue && pastOverdueAllowed && fromStr && dueDate < fromStr) return true;
+    if (fromStr && dueDate < fromStr) return false;
+    if (toStr && dueDate > toStr) return false;
+    return true;
+  };
 
   useEffect(() => {
     localStorage.setItem('receivables_groupByContact', String(groupByContact));
@@ -359,7 +372,8 @@ export default function ReceivablesPage() {
     setReceiveAccountId(receivable?.accountId || data.accounts[0]?.id || '');
     setPartialMode(false);
     setPartialAmount('');
-    setInterestPercent('');
+    setReceiveInterestAmount('');
+    setReceiveInterestType('BRL');
     setReceiveDiscountAmount('');
     setReceiveDiscountType('BRL');
     setShowReceiveItems(false);
@@ -380,7 +394,8 @@ export default function ReceivablesPage() {
       setPartialMode(false);
       setPartialAmount('');
     }
-    setInterestPercent('');
+    setReceiveInterestAmount('');
+    setReceiveInterestType('BRL');
     setReceiveDiscountAmount('');
     setReceiveDiscountType('BRL');
     setShowReceiveItems(false);
@@ -396,7 +411,9 @@ export default function ReceivablesPage() {
     const discountAmount = receiveDiscountType === 'PERCENT'
       ? baseTotal * (parseFloat(receiveDiscountAmount) || 0) / 100
       : (parseFloat(receiveDiscountAmount) || 0);
-    const interestAmount = baseTotal > 0 ? (baseTotal * (parseFloat(interestPercent) || 0) / 100) : 0;
+    const interestAmount = receiveInterestType === 'PERCENT'
+      ? baseTotal * (parseFloat(receiveInterestAmount) || 0) / 100
+      : (parseFloat(receiveInterestAmount) || 0);
     
     let partialAmtUsed = 0;
     if (partialMode) {
@@ -453,7 +470,8 @@ export default function ReceivablesPage() {
     const partialAmt = partialAmtUsed;
     setPartialMode(false);
     setPartialAmount('');
-    setInterestPercent('');
+    setReceiveInterestAmount('');
+    setReceiveInterestType('BRL');
     setReceiveDiscountAmount('');
     setReceiveDiscountType('BRL');
 
@@ -686,7 +704,9 @@ export default function ReceivablesPage() {
     const r = data.receivables.find(x => x.id === id);
     return sum + (r?.amount || 0);
   }, 0);
-  const interestAmount = receivingTotal * (parseFloat(interestPercent) || 0) / 100;
+  const interestAmount = receiveInterestType === 'PERCENT'
+    ? receivingTotal * (parseFloat(receiveInterestAmount) || 0) / 100
+    : (parseFloat(receiveInterestAmount) || 0);
   const calculatedDiscount = receiveDiscountType === 'PERCENT'
     ? receivingTotal * (parseFloat(receiveDiscountAmount) || 0) / 100
     : (parseFloat(receiveDiscountAmount) || 0);
@@ -1050,6 +1070,50 @@ export default function ReceivablesPage() {
         <DialogContent className="max-h-[90vh] max-h-[90dvh] overflow-y-auto">
           <DialogHeader><DialogTitle>Confirmar Recebimento</DialogTitle></DialogHeader>
           <div className="space-y-4">
+            {receivingIds.length > 0 && (() => {
+              const itemsToReceive = receivingIds.map(id => data.receivables.find(x => x.id === id)).filter(Boolean).filter(r => r.status !== 'received') as Receivable[];
+              const clients = Array.from(new Set(itemsToReceive.map(r => r.clientName.trim())));
+              if (clients.length !== 1 || !clients[0]) return null;
+              const clientName = clients[0];
+              const cleanClient = removeAccents(clientName.toLowerCase());
+              const clientPayables = data.payables.filter(p => {
+                if (p.status === 'paid') return false;
+                if (removeAccents((p.supplier || '').replace(/^cartao:/, '').trim().toLowerCase()) !== cleanClient) return false;
+                return satisfiesDateFilter(p.dueDate, dateFrom, dateTo, showPastOverdue, p.status === 'overdue');
+              });
+              if (clientPayables.length === 0) return null;
+              const payTotal = clientPayables.reduce((s, p) => s + p.amount, 0);
+
+              return (
+                <div className="p-3 rounded-lg bg-primary/10 border border-primary/20 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 text-xs font-semibold text-primary">
+                      <ArrowLeftRight className="h-4 w-4" />
+                      Encontro de Contas disponível
+                    </div>
+                    <span className="text-xs font-bold text-destructive mono">
+                      {fmt(payTotal)} a pagar
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Este cliente possui contas a pagar pendentes. Você pode descontar/compensar a dívida diretamente.
+                  </p>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="w-full text-xs font-semibold gap-1 text-primary border-primary/30 hover:bg-primary/10"
+                    onClick={() => {
+                      setReceiveDialogOpen(false);
+                      setTimeout(() => setOffsetContactName(clientName), 150);
+                    }}
+                  >
+                    <ArrowLeftRight className="h-3.5 w-3.5" />
+                    Fazer Encontro de Contas (Compensar)
+                  </Button>
+                </div>
+              );
+            })()}
             <div className="flex items-center justify-between p-3 rounded-md bg-muted/50">
               <span className="text-sm text-muted-foreground">{receivingIds.length > 1 ? `${receivingIds.length} itens` : 'Valor'} original</span>
               <span className="text-lg font-bold text-muted-foreground mono">{fmt(receivingTotal)}</span>
@@ -1057,8 +1121,18 @@ export default function ReceivablesPage() {
             
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Juros (%)</Label>
-                  <Input type="number" step="0.1" min="0" value={interestPercent} onChange={(e) => setInterestPercent(e.target.value)} placeholder="0.0" />
+                  <Label>Juros</Label>
+                  <div className="flex gap-1">
+                    <Input type="number" step="0.01" min="0" value={receiveInterestAmount} onChange={(e) => setReceiveInterestAmount(e.target.value)} placeholder="0,00" />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-12 shrink-0 font-bold"
+                      onClick={() => setReceiveInterestType(prev => prev === 'BRL' ? 'PERCENT' : 'BRL')}
+                    >
+                      {receiveInterestType === 'BRL' ? 'R$' : '%'}
+                    </Button>
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label>Desconto</Label>
@@ -1216,6 +1290,37 @@ export default function ReceivablesPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {offsetContactName && (() => {
+        const cleanName = removeAccents(offsetContactName.toLowerCase());
+        const selectedReceivables = receivingIds
+          .map(id => data.receivables.find(x => x.id === id))
+          .filter(Boolean)
+          .filter(r => r.status !== 'received') as Receivable[];
+
+        const pendingReceivables = selectedReceivables.length > 0 && selectedReceivables.every(r => removeAccents((r.clientName || '').trim().toLowerCase()) === cleanName)
+          ? selectedReceivables
+          : data.receivables.filter(r => {
+              if (r.status === 'received') return false;
+              if (removeAccents((r.clientName || '').trim().toLowerCase()) !== cleanName) return false;
+              return satisfiesDateFilter(r.dueDate, dateFrom, dateTo, showPastOverdue, r.status === 'overdue');
+            });
+
+        const pendingPayables = data.payables.filter(p => {
+          if (p.status === 'paid') return false;
+          if (removeAccents((p.supplier || '').replace(/^cartao:/, '').trim().toLowerCase()) !== cleanName) return false;
+          return satisfiesDateFilter(p.dueDate, dateFrom, dateTo, showPastOverdue, p.status === 'overdue');
+        });
+        return (
+          <DebtOffsetModal
+            open={!!offsetContactName}
+            onOpenChange={(o) => { if (!o) setOffsetContactName(null); }}
+            contactName={offsetContactName}
+            payables={pendingPayables}
+            receivables={pendingReceivables}
+          />
+        );
+      })()}
 
       {/* PIX not configured warning */}
       <Dialog open={pixWarningOpen} onOpenChange={setPixWarningOpen}>

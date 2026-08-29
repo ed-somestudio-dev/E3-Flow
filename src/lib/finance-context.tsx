@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import { saveSnapshot, loadSnapshot, enqueueMutation } from './offline-store';
 import { assertOnline } from './online-guard';
 import { syncOfflineMutations } from './sync-engine';
-import { generateId } from './utils';
+import { generateId, parseNotesMetadata, formatNotesMetadata } from './utils';
 import { Capacitor } from '@capacitor/core';
 
 
@@ -103,17 +103,20 @@ function mapPayable(row: any): Payable {
   const today = new Date().toISOString().split('T')[0];
   let status = row.status;
   if (status === 'pending' && row.due_date < today) status = 'overdue';
+  const meta = parseNotesMetadata(row.notes);
   return {
     id: row.id, description: row.description, supplier: row.supplier,
     categoryId: row.category_id, accountId: row.account_id ?? undefined,
     amount: Number(row.amount), dueDate: row.due_date, paymentDate: row.payment_date ?? undefined,
     paymentMethod: row.payment_method ?? undefined, status,
-    notes: row.notes ?? undefined, purchaseDate: row.purchase_date ?? undefined,
+    notes: meta.notes, purchaseDate: row.purchase_date ?? undefined,
     recurring: row.recurring ?? undefined,
     recurrenceFrequency: row.recurrence_frequency ?? undefined,
     recurrenceEndDate: row.recurrence_end_date ?? undefined,
     interestAmount: row.interest_amount ? Number(row.interest_amount) : undefined,
     discountAmount: row.discount_amount ? Number(row.discount_amount) : undefined,
+    pixKey: row.pix_key ?? meta.pixKey,
+    barcode: row.barcode ?? meta.barcode,
   };
 }
 
@@ -817,7 +820,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
             user_id: effectiveUserId, description: desc, supplier: supplierVal,
             category_id: p.categoryId, account_id: p.accountId || null,
             amount: installmentAmount, due_date: dueStr, status: 'pending',
-            notes: p.notes || null, purchase_date: (p as any).purchaseDate || null,
+            notes: formatNotesMetadata(p.notes, p.pixKey, p.barcode), purchase_date: (p as any).purchaseDate || null,
           };
         } else {
           payload = {
@@ -825,7 +828,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
             user_id: effectiveUserId, description: desc, supplier: supplierVal,
             category_id: p.categoryId, account_id: p.accountId || null,
             amount: installmentAmount, due_date: dueStr, status: 'pending',
-            notes: p.notes || null,
+            notes: formatNotesMetadata(p.notes, p.pixKey, p.barcode),
           };
         }
 
@@ -857,7 +860,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
           user_id: effectiveUserId, description: p.description, supplier: supplierVal,
           category_id: p.categoryId, account_id: p.accountId || null,
           amount: p.amount, due_date: p.dueDate, status: 'pending',
-          notes: p.notes || null, purchase_date: (p as any).purchaseDate || null,
+          notes: formatNotesMetadata(p.notes, p.pixKey, p.barcode), purchase_date: (p as any).purchaseDate || null,
         };
         if (isOnline) {
           await supabase.from('payables').insert(payload);
@@ -887,7 +890,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       amount: Number(p.amount) || 0, 
       due_date: p.dueDate, 
       status: p.status,
-      notes: p.notes || null, 
+      notes: formatNotesMetadata(p.notes, p.pixKey, p.barcode), 
       recurring: p.recurring || false,
       recurrence_frequency: p.recurrenceFrequency || null,
       recurrence_end_date: p.recurrenceEndDate || null,
@@ -943,7 +946,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       amount: Number(p.amount) || 0, 
       due_date: p.dueDate, 
       status: newStatus,
-      notes: p.notes || null, 
+      notes: formatNotesMetadata(p.notes, p.pixKey, p.barcode), 
       recurring: p.recurring || false,
       recurrence_frequency: p.recurrenceFrequency || null,
       recurrence_end_date: p.recurrenceEndDate || null,
@@ -1073,7 +1076,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       category_id: p.categoryId,
       account_id: p.accountId || null,
       amount: Number(p.amount) || 0,
-      notes: p.notes || null,
+      notes: formatNotesMetadata(p.notes, p.pixKey, p.barcode),
       purchase_date: p.purchaseDate || null,
     };
 
@@ -1147,7 +1150,24 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
     if (isOnline) {
       const { error } = await supabase.from('payables').update(updatePayload).eq('id', id).eq('user_id', effectiveUserId);
-      if (error) { console.error('markPayablePaid error:', error); toast.error('Erro ao marcar como pago'); return; }
+      if (error) {
+        if (error.message?.includes('Failed to fetch')) {
+          await enqueueMutation({
+            userId: effectiveUserId,
+            type: 'UPDATE',
+            payload: { table: 'payables', data: updatePayload, match: { id } }
+          });
+          setData(prev => {
+            const fresh = { ...prev, payables: prev.payables.map(p => p.id === id ? { ...p, status: 'paid' as const, paymentDate: today, accountId: targetAccountId, interestAmount, discountAmount } : p) };
+            saveSnapshot(effectiveUserId, fresh).catch(() => {});
+            return fresh;
+          });
+        } else {
+          console.error('markPayablePaid error:', error);
+          toast.error('Erro ao marcar como pago');
+          return;
+        }
+      }
     } else {
       await enqueueMutation({
         userId: effectiveUserId,
@@ -1168,7 +1188,22 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
         if (debitsMainBalance) {
           if (isOnline) {
             const { error: balErr } = await supabase.rpc('decrement_account_balance' as any, { p_account_id: targetAccountId, p_amount: finalAmount });
-            if (balErr) console.error('decrement balance error:', balErr);
+            if (balErr) {
+              if (balErr.message?.includes('Failed to fetch')) {
+                await enqueueMutation({
+                  userId: effectiveUserId,
+                  type: 'RPC',
+                  payload: { rpc: 'decrement_account_balance', args: { p_account_id: targetAccountId, p_amount: finalAmount } }
+                });
+                setData(prev => {
+                  const fresh = { ...prev, accounts: prev.accounts.map(a => a.id === targetAccountId ? { ...a, balance: a.balance - finalAmount } : a) };
+                  saveSnapshot(effectiveUserId, fresh).catch(() => {});
+                  return fresh;
+                });
+              } else {
+                console.error('decrement balance error:', balErr);
+              }
+            }
           } else {
             await enqueueMutation({
               userId: effectiveUserId,
@@ -1311,7 +1346,10 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     }
 
     // 2) Cria novo registro pendente com o valor restante (mantém os demais dados)
+    const newPayableId = generateId();
+    const cleanNotes = `${payable.notes ? payable.notes + ' | ' : ''}Saldo restante de pagamento parcial (original: ${payable.amount.toFixed(2)}, pago: ${paidAmount.toFixed(2)})`;
     const insertPayload = {
+      id: newPayableId,
       user_id: effectiveUserId,
       description: `${payable.description} (Saldo restante)`,
       supplier: payable.supplier,
@@ -1320,7 +1358,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       amount: remaining,
       due_date: payable.dueDate,
       status: 'pending',
-      notes: `${payable.notes ? payable.notes + ' | ' : ''}Saldo restante de pagamento parcial (original: ${payable.amount.toFixed(2)}, pago: ${paidAmount.toFixed(2)})`,
+      notes: formatNotesMetadata(cleanNotes, payable.pixKey, payable.barcode),
       purchase_date: payable.purchaseDate || null,
       interest_amount: 0,
       discount_amount: 0,
@@ -1328,14 +1366,32 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
     if (isOnline) {
       const { error: insErr } = await supabase.from('payables').insert(insertPayload);
-      if (insErr) { console.error('partial payable insert error:', insErr); toast.error('Erro ao criar saldo restante'); return; }
+      if (insErr) {
+        if (insErr.message?.includes('Failed to fetch')) {
+          await enqueueMutation({
+            userId: effectiveUserId,
+            type: 'INSERT',
+            payload: { table: 'payables', data: insertPayload }
+          });
+          const newPayable = mapPayable(insertPayload);
+          setData(prev => {
+            const fresh = { ...prev, payables: [...prev.payables, newPayable] };
+            saveSnapshot(effectiveUserId, fresh).catch(() => {});
+            return fresh;
+          });
+        } else {
+          console.error('partial payable insert error:', insErr);
+          toast.error('Erro ao criar saldo restante');
+          return;
+        }
+      }
     } else {
       await enqueueMutation({
         userId: effectiveUserId,
         type: 'INSERT',
         payload: { table: 'payables', data: insertPayload }
       });
-      const newPayable = mapPayable({ id: generateId(), ...insertPayload });
+      const newPayable = mapPayable(insertPayload);
       setData(prev => {
         const fresh = { ...prev, payables: [...prev.payables, newPayable] };
         saveSnapshot(effectiveUserId, fresh).catch(() => {});
@@ -1350,7 +1406,22 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       if (debitsMainBalance) {
         if (isOnline) {
           const { error: balErr } = await supabase.rpc('decrement_account_balance' as any, { p_account_id: accountId, p_amount: paidAmount });
-          if (balErr) console.error('decrement balance error:', balErr);
+          if (balErr) {
+            if (balErr.message?.includes('Failed to fetch')) {
+              await enqueueMutation({
+                userId: effectiveUserId,
+                type: 'RPC',
+                payload: { rpc: 'decrement_account_balance', args: { p_account_id: accountId, p_amount: paidAmount } }
+              });
+              setData(prev => {
+                const fresh = { ...prev, accounts: prev.accounts.map(a => a.id === accountId ? { ...a, balance: a.balance - paidAmount } : a) };
+                saveSnapshot(effectiveUserId, fresh).catch(() => {});
+                return fresh;
+              });
+            } else {
+              console.error('decrement balance error:', balErr);
+            }
+          }
         } else {
           await enqueueMutation({
             userId: effectiveUserId,

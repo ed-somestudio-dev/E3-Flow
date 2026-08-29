@@ -64,6 +64,8 @@ export interface Payable {
   recurring?: boolean;
   recurrenceFrequency?: RecurrenceFrequency;
   recurrenceEndDate?: string;
+  pixKey?: string;
+  barcode?: string;
 }
 
 export interface Receivable {
