@@ -971,19 +971,38 @@ export default function PayablesPage() {
               const itemToPay = data.payables.find(x => x.id === payingIds[0]);
               if (!itemToPay) return null;
 
-              const hasPayablePix = !!itemToPay.pixKey;
-              const hasPayableBarcode = !!itemToPay.barcode;
+              const rawSupplier = (itemToPay.supplier || '').replace(/^cartao:/, '').replace(/\s*\(\d+\/\d+\)\s*$/, '').trim();
+              const rawDesc = (itemToPay.description || '').replace(/\s*\(\d+\/\d+\)\s*$/, '').trim();
+              const cleanSupplier = removeAccents(rawSupplier.toLowerCase());
+              const cleanDesc = removeAccents(rawDesc.toLowerCase());
 
-              const supplierName = itemToPay.supplier && !itemToPay.supplier.startsWith('cartao:') ? itemToPay.supplier.trim() : null;
-              const contact = supplierName ? contacts.find(c => removeAccents(c.name.toLowerCase()) === removeAccents(supplierName.toLowerCase())) : null;
-              const contactPixKey = contact?.pixKey;
+              // Busca contato correspondente pelo fornecedor ou descrição
+              let contact = contacts.find(c => {
+                const cName = removeAccents(c.name.trim().toLowerCase());
+                return cName && (cName === cleanSupplier || cleanSupplier === cName);
+              });
+              if (!contact && cleanSupplier.length > 2) {
+                contact = contacts.find(c => {
+                  const cName = removeAccents(c.name.trim().toLowerCase());
+                  return cName && (cleanSupplier.includes(cName) || cName.includes(cleanSupplier));
+                });
+              }
+              if (!contact && cleanDesc.length > 2) {
+                contact = contacts.find(c => {
+                  const cName = removeAccents(c.name.trim().toLowerCase());
+                  return cName && (cleanDesc.includes(cName) || cName.includes(cleanDesc));
+                });
+              }
 
-              // Se a conta não tem chave PIX ou boleto cadastrados, exibe a chave PIX do contato pré-cadastrado
-              const pixKeyToDisplay = itemToPay.pixKey || (!hasPayableBarcode ? contactPixKey : undefined);
-              const barcodeToDisplay = itemToPay.barcode;
-              const isContactPix = !hasPayablePix && !hasPayableBarcode && !!contactPixKey;
+              // Preferência: chave da conta a pagar > chave do contato
+              const accountPixKey = itemToPay.pixKey?.trim();
+              const contactPixKey = contact?.pixKey?.trim();
+              const displayPixKey = accountPixKey || contactPixKey;
+              const displayBarcode = itemToPay.barcode?.trim();
 
-              if (!pixKeyToDisplay && !barcodeToDisplay) return null;
+              const isContactPix = !accountPixKey && !!contactPixKey;
+
+              if (!displayPixKey && !displayBarcode) return null;
 
               return (
                 <div className="p-3 rounded-lg bg-muted/60 border border-border space-y-2.5">
@@ -992,17 +1011,19 @@ export default function PayablesPage() {
                     {isContactPix ? `Chave PIX do Contato (${contact?.name})` : 'Atalhos de Pagamento Cadastrados'}
                   </span>
                   
-                  {pixKeyToDisplay && (
+                  {displayPixKey && (
                     <div className="flex items-center justify-between gap-2 p-2 bg-background rounded-md border border-border">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5">
                           <span className="text-[11px] font-medium text-muted-foreground block">Chave PIX</span>
-                          {isContactPix && (
+                          {isContactPix ? (
                             <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-medium">Contato</span>
+                          ) : (
+                            <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded font-medium">Conta</span>
                           )}
                         </div>
-                        <span className="text-xs mono font-semibold truncate block text-foreground" title={pixKeyToDisplay}>
-                          {pixKeyToDisplay}
+                        <span className="text-xs mono font-semibold truncate block text-foreground" title={displayPixKey}>
+                          {displayPixKey}
                         </span>
                       </div>
                       <Button
@@ -1011,7 +1032,7 @@ export default function PayablesPage() {
                         variant="outline"
                         className="h-8 gap-1 text-xs shrink-0 text-primary border-primary/30 hover:bg-primary/10 font-medium"
                         onClick={() => {
-                          navigator.clipboard.writeText(pixKeyToDisplay);
+                          navigator.clipboard.writeText(displayPixKey);
                           toast.success('Chave PIX copiada!');
                         }}
                       >
@@ -1021,12 +1042,12 @@ export default function PayablesPage() {
                     </div>
                   )}
 
-                  {barcodeToDisplay && (
+                  {displayBarcode && (
                     <div className="flex items-center justify-between gap-2 p-2 bg-background rounded-md border border-border">
                       <div className="min-w-0 flex-1">
                         <span className="text-[11px] font-medium text-muted-foreground block">Código de Barras</span>
-                        <span className="text-xs mono font-semibold truncate block text-foreground" title={barcodeToDisplay}>
-                          {barcodeToDisplay}
+                        <span className="text-xs mono font-semibold truncate block text-foreground" title={displayBarcode}>
+                          {displayBarcode}
                         </span>
                       </div>
                       <Button
@@ -1035,7 +1056,7 @@ export default function PayablesPage() {
                         variant="outline"
                         className="h-8 gap-1 text-xs shrink-0 text-primary border-primary/30 hover:bg-primary/10 font-medium"
                         onClick={() => {
-                          navigator.clipboard.writeText(barcodeToDisplay);
+                          navigator.clipboard.writeText(displayBarcode);
                           toast.success('Código de barras copiado!');
                         }}
                       >
