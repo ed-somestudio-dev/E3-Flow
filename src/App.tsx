@@ -106,19 +106,19 @@ function ProtectedRoutes() {
           <SalesProvider>
             <AppLayout>
               <Routes>
-                <Route path="/" element={<DashboardPage />} />
-                <Route path="/transactions" element={<TransactionsPage />} />
-                <Route path="/payables" element={<PayablesPage />} />
+                <Route path="/" element={<ErrorBoundary><DashboardPage /></ErrorBoundary>} />
+                <Route path="/transactions" element={<ErrorBoundary><TransactionsPage /></ErrorBoundary>} />
+                <Route path="/payables" element={<ErrorBoundary><PayablesPage /></ErrorBoundary>} />
                 <Route path="/receivables" element={<ErrorBoundary><ReceivablesPage /></ErrorBoundary>} />
-                <Route path="/accounts" element={<AccountsPage />} />
-                <Route path="/contacts" element={<ContactsPage />} />
-                <Route path="/budgets" element={<BudgetsPage />} />
-                <Route path="/goals" element={<GoalsPage />} />
-                <Route path="/reports" element={<ReportsPage />} />
-                <Route path="/categories" element={<CategoriesPage />} />
-                <Route path="/settings" element={<SettingsPage />} />
-                <Route path="/sales" element={<SalesPage />} />
-                <Route path="/products" element={<ProductsPage />} />
+                <Route path="/accounts" element={<ErrorBoundary><AccountsPage /></ErrorBoundary>} />
+                <Route path="/contacts" element={<ErrorBoundary><ContactsPage /></ErrorBoundary>} />
+                <Route path="/budgets" element={<ErrorBoundary><BudgetsPage /></ErrorBoundary>} />
+                <Route path="/goals" element={<ErrorBoundary><GoalsPage /></ErrorBoundary>} />
+                <Route path="/reports" element={<ErrorBoundary><ReportsPage /></ErrorBoundary>} />
+                <Route path="/categories" element={<ErrorBoundary><CategoriesPage /></ErrorBoundary>} />
+                <Route path="/settings" element={<ErrorBoundary><SettingsPage /></ErrorBoundary>} />
+                <Route path="/sales" element={<ErrorBoundary><SalesPage /></ErrorBoundary>} />
+                <Route path="/products" element={<ErrorBoundary><ProductsPage /></ErrorBoundary>} />
                 <Route path="/instalar" element={<InstallPage />} />
                 <Route path="/subscription" element={<SubscriptionPage />} />
                 <Route path="/bem-vindo" element={<WelcomeSubscriptionPage />} />

@@ -706,6 +706,10 @@ export default function SalesPage() {
     ? selectedSalesTotal * (parseFloat(receiveInterestAmount) || 0) / 100
     : (parseFloat(receiveInterestAmount) || 0);
 
+  const bulkCalculatedDiscount = receiveDiscountType === 'PERCENT'
+    ? selectedSalesTotal * (parseFloat(receiveDiscountAmount) || 0) / 100
+    : (parseFloat(receiveDiscountAmount) || 0);
+
   const bulkFinalTotal = Math.max(0, selectedSalesTotal + bulkCalculatedInterest - bulkCalculatedDiscount);
 
   return (
