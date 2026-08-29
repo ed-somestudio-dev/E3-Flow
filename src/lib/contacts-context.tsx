@@ -11,6 +11,7 @@ export interface Contact {
   address?: string;
   cep?: string;
   notes?: string;
+  pixKey?: string;
 }
 
 interface ContactsContextType {

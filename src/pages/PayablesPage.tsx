@@ -301,10 +301,69 @@ function SupplierGroupTable({ supplierName, items, getCategoryName, getAccountNa
     </div>
   );
 }
+function PayableQuickPixRegister({
+  supplierName,
+  contact,
+  onSave,
+}: {
+  supplierName: string;
+  contact?: Contact | null;
+  onSave: (pixKey: string) => Promise<void>;
+}) {
+  const [pixInput, setPixInput] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleSave = async () => {
+    if (!pixInput.trim()) return;
+    setLoading(true);
+    try {
+      await onSave(pixInput.trim());
+      setPixInput('');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="p-3 rounded-lg bg-primary/10 border border-primary/20 space-y-2.5">
+      <div className="flex items-center gap-2 text-xs font-semibold text-primary">
+        <QrCode className="h-4 w-4 shrink-0 text-primary" />
+        Cadastrar Chave PIX {contact ? `do contato "${contact.name}"` : `de "${supplierName}"`}
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Nenhuma chave PIX ou boleto cadastrado. Informe a chave PIX para salvar no contato e agilizar pagamentos:
+      </p>
+      <div className="flex items-center gap-2">
+        <Input
+          placeholder="CPF, CNPJ, Celular, E-mail ou Aleatória"
+          value={pixInput}
+          onChange={(e) => setPixInput(e.target.value)}
+          className="text-xs h-9 bg-background"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              handleSave();
+            }
+          }}
+        />
+        <Button
+          type="button"
+          size="sm"
+          disabled={!pixInput.trim() || loading}
+          onClick={handleSave}
+          className="h-9 text-xs whitespace-nowrap gap-1 font-semibold"
+        >
+          <QrCode className="h-3.5 w-3.5" />
+          Salvar PIX
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 export default function PayablesPage() {
   const { data, addPayable, updatePayable, updatePayableWithFuture, deletePayable, deletePayableWithFuture, markPayablePaid, markPayablePaidPartial, getCategoryName, getAccountName, insertGroupedTransaction } = useFinance();
-  const { contacts } = useContacts();
+  const { contacts, addContact, updateContact } = useContacts();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('pending_overdue');
   const [editingItem, setEditingItem] = useState<Payable | null>(null);
@@ -910,63 +969,98 @@ export default function PayablesPage() {
           <div className="space-y-4">
             {payingIds.length === 1 && (() => {
               const itemToPay = data.payables.find(x => x.id === payingIds[0]);
-              if (!itemToPay || (!itemToPay.pixKey && !itemToPay.barcode)) return null;
-              return (
-                <div className="p-3 rounded-lg bg-muted/60 border border-border space-y-2.5">
-                  <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-                    <Copy className="h-3.5 w-3.5 text-primary" />
-                    Atalhos de Pagamento Cadastrados
-                  </span>
-                  
-                  {itemToPay.pixKey && (
-                    <div className="flex items-center justify-between gap-2 p-2 bg-background rounded-md border border-border">
-                      <div className="min-w-0 flex-1">
-                        <span className="text-[11px] font-medium text-muted-foreground block">Chave PIX</span>
-                        <span className="text-xs mono font-semibold truncate block text-foreground" title={itemToPay.pixKey}>
-                          {itemToPay.pixKey}
-                        </span>
-                      </div>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className="h-8 gap-1 text-xs shrink-0 text-primary border-primary/30 hover:bg-primary/10 font-medium"
-                        onClick={() => {
-                          navigator.clipboard.writeText(itemToPay.pixKey!);
-                          toast.success('Chave PIX copiada!');
-                        }}
-                      >
-                        <Copy className="h-3.5 w-3.5" />
-                        Copiar PIX
-                      </Button>
-                    </div>
-                  )}
+              if (!itemToPay) return null;
 
-                  {itemToPay.barcode && (
-                    <div className="flex items-center justify-between gap-2 p-2 bg-background rounded-md border border-border">
-                      <div className="min-w-0 flex-1">
-                        <span className="text-[11px] font-medium text-muted-foreground block">Código de Barras</span>
-                        <span className="text-xs mono font-semibold truncate block text-foreground" title={itemToPay.barcode}>
-                          {itemToPay.barcode}
-                        </span>
+              const supplierName = itemToPay.supplier && !itemToPay.supplier.startsWith('cartao:') ? itemToPay.supplier.trim() : null;
+              const contact = supplierName ? contacts.find(c => removeAccents(c.name.toLowerCase()) === removeAccents(supplierName.toLowerCase())) : null;
+
+              const effectivePixKey = itemToPay.pixKey || contact?.pixKey;
+              const effectiveBarcode = itemToPay.barcode;
+              const isFromContact = !itemToPay.pixKey && !!contact?.pixKey;
+
+              if (effectivePixKey || effectiveBarcode) {
+                return (
+                  <div className="p-3 rounded-lg bg-muted/60 border border-border space-y-2.5">
+                    <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                      <Copy className="h-3.5 w-3.5 text-primary" />
+                      Atalhos de Pagamento Cadastrados
+                    </span>
+                    
+                    {effectivePixKey && (
+                      <div className="flex items-center justify-between gap-2 p-2 bg-background rounded-md border border-border">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[11px] font-medium text-muted-foreground block">Chave PIX</span>
+                            {isFromContact && (
+                              <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-medium">Contato</span>
+                            )}
+                          </div>
+                          <span className="text-xs mono font-semibold truncate block text-foreground" title={effectivePixKey}>
+                            {effectivePixKey}
+                          </span>
+                        </div>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-8 gap-1 text-xs shrink-0 text-primary border-primary/30 hover:bg-primary/10 font-medium"
+                          onClick={() => {
+                            navigator.clipboard.writeText(effectivePixKey);
+                            toast.success('Chave PIX copiada!');
+                          }}
+                        >
+                          <Copy className="h-3.5 w-3.5" />
+                          Copiar PIX
+                        </Button>
                       </div>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className="h-8 gap-1 text-xs shrink-0 text-primary border-primary/30 hover:bg-primary/10 font-medium"
-                        onClick={() => {
-                          navigator.clipboard.writeText(itemToPay.barcode!);
-                          toast.success('Código de barras copiado!');
-                        }}
-                      >
-                        <Copy className="h-3.5 w-3.5" />
-                        Copiar Código
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              );
+                    )}
+
+                    {effectiveBarcode && (
+                      <div className="flex items-center justify-between gap-2 p-2 bg-background rounded-md border border-border">
+                        <div className="min-w-0 flex-1">
+                          <span className="text-[11px] font-medium text-muted-foreground block">Código de Barras</span>
+                          <span className="text-xs mono font-semibold truncate block text-foreground" title={effectiveBarcode}>
+                            {effectiveBarcode}
+                          </span>
+                        </div>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-8 gap-1 text-xs shrink-0 text-primary border-primary/30 hover:bg-primary/10 font-medium"
+                          onClick={() => {
+                            navigator.clipboard.writeText(effectiveBarcode);
+                            toast.success('Código de barras copiado!');
+                          }}
+                        >
+                          <Copy className="h-3.5 w-3.5" />
+                          Copiar Código
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+
+              if (supplierName) {
+                return (
+                  <PayableQuickPixRegister
+                    supplierName={supplierName}
+                    contact={contact}
+                    onSave={async (newPixKey) => {
+                      await updatePayable({ ...itemToPay, pixKey: newPixKey });
+                      if (contact) {
+                        await updateContact({ ...contact, pixKey: newPixKey });
+                      } else {
+                        await addContact({ name: supplierName, pixKey: newPixKey });
+                      }
+                      toast.success('Chave PIX cadastrada e salva no contato!');
+                    }}
+                  />
+                );
+              }
+
+              return null;
             })()}
             {payingIds.length > 0 && (() => {
               const itemsToPay = payingIds.map(id => data.payables.find(x => x.id === id)).filter(Boolean).filter(p => p.status !== 'paid') as Payable[];

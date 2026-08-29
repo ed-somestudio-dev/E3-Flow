@@ -103,6 +103,7 @@ export interface Contact {
   notes?: string;
   address?: string;
   cep?: string;
+  pixKey?: string;
 }
 
 export interface Goal {

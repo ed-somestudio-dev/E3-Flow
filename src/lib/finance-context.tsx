@@ -269,12 +269,16 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
           payables: (pays2.data || []).map(mapPayable),
           receivables: (recs2.data || []).map(mapReceivable),
           budgets: (buds2.data || []).map(mapBudget),
-          contacts: (conts.data || []).map(row => ({
-            id: row.id, name: row.name, phone: row.phone ?? undefined,
-            email: row.email ?? undefined, document: row.document ?? undefined,
-            address: row.address ?? undefined, cep: row.cep ?? undefined,
-            notes: row.notes ?? undefined
-          })),
+          contacts: (conts.data || []).map(row => {
+            const meta = parseNotesMetadata(row.notes);
+            return {
+              id: row.id, name: row.name, phone: row.phone ?? undefined,
+              email: row.email ?? undefined, document: row.document ?? undefined,
+              address: row.address ?? undefined, cep: row.cep ?? undefined,
+              notes: meta.notes ?? undefined,
+              pixKey: row.pix_key ?? meta.pixKey ?? undefined,
+            };
+          }),
           goals: (gls.data || []).map(mapGoal),
           goalTransactions: (gltxs.data || []).map(mapGoalTransaction),
         });
@@ -289,12 +293,16 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
         payables: (pays.data || []).map(mapPayable),
         receivables: (recs.data || []).map(mapReceivable),
         budgets: (buds.data || []).map(mapBudget),
-        contacts: (conts.data || []).map(row => ({
-          id: row.id, name: row.name, phone: row.phone ?? undefined,
-          email: row.email ?? undefined, document: row.document ?? undefined,
-          address: row.address ?? undefined, cep: row.cep ?? undefined,
-          notes: row.notes ?? undefined
-        })),
+        contacts: (conts.data || []).map(row => {
+          const meta = parseNotesMetadata(row.notes);
+          return {
+            id: row.id, name: row.name, phone: row.phone ?? undefined,
+            email: row.email ?? undefined, document: row.document ?? undefined,
+            address: row.address ?? undefined, cep: row.cep ?? undefined,
+            notes: meta.notes ?? undefined,
+            pixKey: row.pix_key ?? meta.pixKey ?? undefined,
+          };
+        }),
         goals: (gls.data || []).map(mapGoal),
         goalTransactions: (gltxs.data || []).map(mapGoalTransaction),
       };
@@ -2780,6 +2788,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     if (!user) return null;
     const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
     const id = generateId();
+    const metaNotes = formatNotesMetadata(c.notes, c.pixKey, null);
     const payload = {
       id,
       user_id: effectiveUserId,
@@ -2789,17 +2798,20 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       document: c.document || null,
       address: c.address || null,
       cep: c.cep || null,
-      notes: c.notes || null,
+      pix_key: c.pixKey || null,
+      notes: metaNotes || null,
     };
 
     if (isOnline) {
       const { data: remote, error } = await supabase.from('contacts').insert(payload).select().single();
       if (error) { toast.error('Erro ao salvar contato'); return null; }
+      const meta = parseNotesMetadata(remote.notes);
       const created = { 
         id: remote.id, name: remote.name, phone: remote.phone ?? undefined,
         email: remote.email ?? undefined, document: remote.document ?? undefined,
         address: remote.address ?? undefined, cep: remote.cep ?? undefined,
-        notes: remote.notes ?? undefined
+        notes: meta.notes ?? undefined,
+        pixKey: remote.pix_key ?? meta.pixKey ?? undefined,
       };
       setData(prev => {
         const fresh = { ...prev, contacts: [...prev.contacts, created].sort((a, b) => a.name.localeCompare(b.name)) };
@@ -2827,6 +2839,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   const updateContact = useCallback(async (c: Contact) => {
     if (!user) return;
     const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
+    const metaNotes = formatNotesMetadata(c.notes, c.pixKey, null);
     const payload = {
       name: c.name,
       phone: c.phone || null,
@@ -2834,7 +2847,8 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       document: c.document || null,
       address: c.address || null,
       cep: c.cep || null,
-      notes: c.notes || null,
+      pix_key: c.pixKey || null,
+      notes: metaNotes || null,
     };
 
     if (isOnline) {

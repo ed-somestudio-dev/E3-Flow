@@ -253,6 +253,21 @@ export default function ContactsPage() {
                     <span className="truncate">{c.email}</span>
                   </div>
                 )}
+                {c.pixKey && (
+                  <div className="flex items-center justify-between gap-1 text-xs bg-muted/40 p-1.5 rounded border border-border mt-1">
+                    <span className="text-muted-foreground font-medium">PIX:</span>
+                    <span className="font-mono font-semibold truncate text-foreground flex-1" title={c.pixKey}>{c.pixKey}</span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-5 w-5 text-primary hover:bg-primary/10 shrink-0"
+                      title="Copiar PIX"
+                      onClick={() => { navigator.clipboard.writeText(c.pixKey!); toast.success('Chave PIX copiada!'); }}
+                    >
+                      <QrCode className="h-3 w-3" />
+                    </Button>
+                  </div>
+                )}
               </div>
 
 
@@ -355,17 +370,19 @@ function ContactForm({ item, onSave }: {
     phone: item?.phone || '',
     email: item?.email || '',
     document: item?.document || '',
+    pixKey: item?.pixKey || '',
     cep: item?.cep || '',
     address: item?.address || '',
     notes: item?.notes || '',
   };
   // dialogOpen is not available here, so we always persist (form only mounts when dialog is open)
   const [draft, setDraft, clearDraft] = usePersistedFormDraft(`contacts-form-${item?.id || 'new'}`, true, initialDraft);
-  const { name, phone, email, document, cep, address, notes } = draft;
+  const { name, phone, email, document, pixKey, cep, address, notes } = draft;
   const setName = (v: string) => setDraft(d => ({ ...d, name: v }));
   const setPhone = (v: string) => setDraft(d => ({ ...d, phone: v }));
   const setEmail = (v: string) => setDraft(d => ({ ...d, email: v }));
   const setDocument = (v: string) => setDraft(d => ({ ...d, document: v }));
+  const setPixKey = (v: string) => setDraft(d => ({ ...d, pixKey: v }));
   const setCep = (v: string) => setDraft(d => ({ ...d, cep: v }));
   const setAddress = (v: string) => setDraft(d => ({ ...d, address: v }));
   const setNotes = (v: string) => setDraft(d => ({ ...d, notes: v }));
@@ -392,13 +409,19 @@ function ContactForm({ item, onSave }: {
           <Input value={document} onChange={e => setDocument(e.target.value)} placeholder="000.000.000-00" />
         </div>
         <div>
+          <Label>Chave PIX</Label>
+          <Input value={pixKey} onChange={e => setPixKey(e.target.value)} placeholder="CPF, CNPJ, Celular, E-mail..." />
+        </div>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
           <Label>CEP</Label>
           <Input value={cep} onChange={e => setCep(e.target.value)} placeholder="00000-000" />
         </div>
-      </div>
-      <div>
-        <Label>Endereço Completo</Label>
-        <Input value={address} onChange={e => setAddress(e.target.value)} placeholder="Rua, Número, Bairro, Cidade - UF" />
+        <div>
+          <Label>Endereço Completo</Label>
+          <Input value={address} onChange={e => setAddress(e.target.value)} placeholder="Rua, Número, Bairro..." />
+        </div>
       </div>
       <div>
         <Label>Notas</Label>
@@ -412,6 +435,7 @@ function ContactForm({ item, onSave }: {
           phone: phone.trim() || undefined,
           email: email.trim() || undefined,
           document: document.trim() || undefined,
+          pixKey: pixKey.trim() || undefined,
           cep: cep.trim() || undefined,
           address: address.trim() || undefined,
           notes: notes.trim() || undefined,
