@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { usePersistedDialog, usePersistedFormDraft } from '@/hooks/usePersistedDialog';
 import { Contact, parseVCard, useContacts, whatsappLink } from '@/lib/contacts-context';
-import { Plus, Trash2, Edit2, Search, Upload, Smartphone, MessageCircle, Mail, User, Phone, IdCard } from 'lucide-react';
+import { Plus, Trash2, Edit2, Search, Upload, Smartphone, MessageCircle, Mail, User, Phone, IdCard, QrCode } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';

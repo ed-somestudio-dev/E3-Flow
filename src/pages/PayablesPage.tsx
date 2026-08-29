@@ -2,7 +2,7 @@ import { useState, useCallback, useMemo, useEffect } from 'react';
 import { usePersistedDialog, usePersistedFormDraft } from '@/hooks/usePersistedDialog';
 import { useFinance } from '@/lib/finance-context';
 import { supabase } from '@/integrations/supabase/client';
-import { Payable, PayableStatus, RecurrenceFrequency } from '@/lib/types';
+import { Payable, PayableStatus, RecurrenceFrequency, Contact } from '@/lib/types';
 import { Plus, Trash2, Edit2, CheckCircle, RefreshCw, CreditCard, Wallet, ChevronDown, ChevronRight, CalendarIcon, X, Users, Copy, QrCode, Barcode, ArrowLeftRight } from 'lucide-react';
 import { DebtOffsetModal } from '@/components/DebtOffsetModal';
 import { CalculatorInput } from '@/components/CalculatorInput';
