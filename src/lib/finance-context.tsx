@@ -2789,7 +2789,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
     const id = generateId();
     const metaNotes = formatNotesMetadata(c.notes, c.pixKey, null);
-    const payload = {
+    const payload: Record<string, any> = {
       id,
       user_id: effectiveUserId,
       name: c.name,
@@ -2798,12 +2798,11 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       document: c.document || null,
       address: c.address || null,
       cep: c.cep || null,
-      pix_key: c.pixKey || null,
       notes: metaNotes || null,
     };
 
     if (isOnline) {
-      const { data: remote, error } = await supabase.from('contacts').insert(payload).select().single();
+      const { data: remote, error } = await supabase.from('contacts').insert(payload as any).select().single();
       if (error) { toast.error('Erro ao salvar contato'); return null; }
       const meta = parseNotesMetadata(remote.notes);
       const created = { 
@@ -2811,7 +2810,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
         email: remote.email ?? undefined, document: remote.document ?? undefined,
         address: remote.address ?? undefined, cep: remote.cep ?? undefined,
         notes: meta.notes ?? undefined,
-        pixKey: (remote as any).pix_key ?? meta.pixKey ?? undefined,
+        pixKey: c.pixKey || meta.pixKey || (remote as any).pix_key || undefined,
       };
       setData(prev => {
         const fresh = { ...prev, contacts: [...prev.contacts, created].sort((a, b) => a.name.localeCompare(b.name)) };
@@ -2840,19 +2839,18 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     if (!user) return;
     const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
     const metaNotes = formatNotesMetadata(c.notes, c.pixKey, null);
-    const payload = {
+    const payload: Record<string, any> = {
       name: c.name,
       phone: c.phone || null,
       email: c.email || null,
       document: c.document || null,
       address: c.address || null,
       cep: c.cep || null,
-      pix_key: c.pixKey || null,
       notes: metaNotes || null,
     };
 
     if (isOnline) {
-      const { error } = await supabase.from('contacts').update(payload).eq('id', c.id).eq('user_id', effectiveUserId);
+      const { error } = await supabase.from('contacts').update(payload as any).eq('id', c.id).eq('user_id', effectiveUserId);
       if (error) { toast.error('Erro ao atualizar contato'); return; }
     } else {
       await enqueueMutation({
