@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react';
 import { usePersistedDialog, usePersistedFormDraft } from '@/hooks/usePersistedDialog';
 import { Contact, parseVCard, useContacts, whatsappLink } from '@/lib/contacts-context';
-import { Plus, Trash2, Edit2, Search, Upload, Smartphone, MessageCircle, Mail, User, Phone, IdCard, QrCode } from 'lucide-react';
+import { Plus, Trash2, Edit2, Search, Upload, Smartphone, MessageCircle, Mail, User, Phone, IdCard, QrCode, Camera } from 'lucide-react';
+import { CameraScannerModal } from '@/components/CameraScannerModal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,7 +13,7 @@ import { toast } from 'sonner';
 import { Capacitor } from '@capacitor/core';
 import { Contacts as CapacitorContacts } from '@capacitor-community/contacts';
 import { Checkbox } from '@/components/ui/checkbox';
-import { removeAccents } from '@/lib/utils';
+import { removeAccents, formatTruncatedCode } from '@/lib/utils';
 
 // Chrome Android Contact Picker API
 declare global {
@@ -254,9 +255,11 @@ export default function ContactsPage() {
                   </div>
                 )}
                 {c.pixKey && (
-                  <div className="flex items-center justify-between gap-1 text-xs bg-muted/40 p-1.5 rounded border border-border mt-1">
-                    <span className="text-muted-foreground font-medium">PIX:</span>
-                    <span className="font-mono font-semibold truncate text-foreground flex-1" title={c.pixKey}>{c.pixKey}</span>
+                  <div className="flex items-center justify-between gap-1 text-xs bg-muted/40 p-1.5 rounded border border-border mt-1 min-w-0 overflow-hidden">
+                    <span className="text-muted-foreground font-medium shrink-0">PIX:</span>
+                    <span className="font-mono font-semibold truncate text-foreground flex-1 min-w-0 overflow-hidden" title={c.pixKey}>
+                      {formatTruncatedCode(c.pixKey, 20)}
+                    </span>
                     <Button
                       variant="ghost"
                       size="icon"
@@ -388,6 +391,8 @@ function ContactForm({ item, onSave }: {
   const setAddress = (v: string) => setDraft(d => ({ ...d, address: v }));
   const setNotes = (v: string) => setDraft(d => ({ ...d, notes: v }));
 
+  const [cameraModalOpen, setCameraModalOpen] = useState(false);
+
   return (
     <div className="space-y-4">
       <div>
@@ -410,10 +415,29 @@ function ContactForm({ item, onSave }: {
           <Input value={document} onChange={e => setDocument(e.target.value)} placeholder="000.000.000-00" />
         </div>
         <div>
-          <Label>Chave PIX</Label>
+          <div className="flex items-center justify-between">
+            <Label>Chave PIX</Label>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-6 text-[11px] px-1.5 gap-1 text-primary"
+              onClick={() => setCameraModalOpen(true)}
+            >
+              <Camera className="h-3 w-3" />
+              Ler Câmera
+            </Button>
+          </div>
           <Input value={pixKey} onChange={e => setPixKey(e.target.value)} placeholder="CPF, CNPJ, Celular, E-mail..." />
         </div>
       </div>
+
+      <CameraScannerModal
+        open={cameraModalOpen}
+        onOpenChange={setCameraModalOpen}
+        expectedType="pix"
+        onScan={(scannedText) => setPixKey(scannedText)}
+      />
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <Label>CEP</Label>

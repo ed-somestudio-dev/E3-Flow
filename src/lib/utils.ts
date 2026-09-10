@@ -19,6 +19,15 @@ export function removeAccents(str: string): string {
   return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
 
+export function formatTruncatedCode(code?: string | null, maxLength: number = 22): string {
+  if (!code) return '';
+  const trimmed = code.trim();
+  if (trimmed.length <= maxLength) return trimmed;
+  const start = Math.ceil((maxLength - 3) / 2);
+  const end = Math.floor((maxLength - 3) / 2);
+  return `${trimmed.substring(0, start)}...${trimmed.substring(trimmed.length - end)}`;
+}
+
 export function parseNotesMetadata(rawNotes?: string | null): { notes?: string; pixKey?: string; barcode?: string } {
   if (!rawNotes) return {};
   let notes = rawNotes;

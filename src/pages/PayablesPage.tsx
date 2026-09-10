@@ -3,7 +3,8 @@ import { usePersistedDialog, usePersistedFormDraft } from '@/hooks/usePersistedD
 import { useFinance } from '@/lib/finance-context';
 import { supabase } from '@/integrations/supabase/client';
 import { Payable, PayableStatus, RecurrenceFrequency, Contact } from '@/lib/types';
-import { Plus, Trash2, Edit2, CheckCircle, RefreshCw, CreditCard, Wallet, ChevronDown, ChevronRight, CalendarIcon, X, Users, Copy, QrCode, Barcode, ArrowLeftRight } from 'lucide-react';
+import { Plus, Trash2, Edit2, CheckCircle, RefreshCw, CreditCard, Wallet, ChevronDown, ChevronRight, CalendarIcon, X, Users, Copy, QrCode, Barcode, ArrowLeftRight, Camera } from 'lucide-react';
+import { CameraScannerModal } from '@/components/CameraScannerModal';
 import { DebtOffsetModal } from '@/components/DebtOffsetModal';
 import { CalculatorInput } from '@/components/CalculatorInput';
 import { ContactAutocomplete } from '@/components/ContactAutocomplete';
@@ -28,7 +29,7 @@ import { fmt, fmtDate } from '@/lib/format';
 import { SAFE_LABELS } from '@/lib/safe-labels';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { cn, removeAccents } from '@/lib/utils';
+import { cn, removeAccents, formatTruncatedCode } from '@/lib/utils';
 import { toast } from 'sonner';
 
 const statusLabels: Record<PayableStatus, string> = { pending: 'Pendente', paid: 'Pago', overdue: 'Vencida' };
@@ -1012,8 +1013,8 @@ export default function PayablesPage() {
                   </span>
                   
                   {displayPixKey && (
-                    <div className="flex items-center justify-between gap-2 p-2 bg-background rounded-md border border-border">
-                      <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-2 p-2 bg-background rounded-md border border-border min-w-0 w-full overflow-hidden">
+                      <div className="min-w-0 flex-1 overflow-hidden">
                         <div className="flex items-center gap-1.5">
                           <span className="text-[11px] font-medium text-muted-foreground block">Chave PIX</span>
                           {isContactPix ? (
@@ -1022,8 +1023,8 @@ export default function PayablesPage() {
                             <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded font-medium">Conta</span>
                           )}
                         </div>
-                        <span className="text-xs mono font-semibold truncate block text-foreground" title={displayPixKey}>
-                          {displayPixKey}
+                        <span className="text-xs mono font-semibold truncate block w-full text-foreground min-w-0 overflow-hidden" title={displayPixKey}>
+                          {formatTruncatedCode(displayPixKey, 22)}
                         </span>
                       </div>
                       <Button
@@ -1043,11 +1044,11 @@ export default function PayablesPage() {
                   )}
 
                   {displayBarcode && (
-                    <div className="flex items-center justify-between gap-2 p-2 bg-background rounded-md border border-border">
-                      <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-2 p-2 bg-background rounded-md border border-border min-w-0 w-full overflow-hidden">
+                      <div className="min-w-0 flex-1 overflow-hidden">
                         <span className="text-[11px] font-medium text-muted-foreground block">Código de Barras</span>
-                        <span className="text-xs mono font-semibold truncate block text-foreground" title={displayBarcode}>
-                          {displayBarcode}
+                        <span className="text-xs mono font-semibold truncate block w-full text-foreground min-w-0 overflow-hidden" title={displayBarcode}>
+                          {formatTruncatedCode(displayBarcode, 22)}
                         </span>
                       </div>
                       <Button
@@ -1448,6 +1449,9 @@ function PayableForm({ item, categories, accounts, onSave }: {
   const setRecurrenceFrequency = (v: RecurrenceFrequency) => setDraft(d => ({ ...d, recurrenceFrequency: v }));
   const setOccurrences = (v: string) => setDraft(d => ({ ...d, occurrences: v }));
 
+  const [cameraModalOpen, setCameraModalOpen] = useState(false);
+  const [cameraTargetType, setCameraTargetType] = useState<'pix' | 'barcode' | 'auto'>('auto');
+
   const handleSupplierChange = (val: string) => {
     setSupplier(val);
     if (!item && val) {
@@ -1764,12 +1768,42 @@ function PayableForm({ item, categories, accounts, onSave }: {
       )}
 
       <div className="space-y-3 p-3 rounded-lg bg-muted/40 border border-border">
-        <Label className="text-sm font-semibold flex items-center gap-1.5">
-          <QrCode className="h-4 w-4 text-primary" />
-          Dados para Pagamento (Chave PIX / Boleto)
-        </Label>
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <Label className="text-sm font-semibold flex items-center gap-1.5">
+            <QrCode className="h-4 w-4 text-primary" />
+            Dados para Pagamento (Chave PIX / Boleto)
+          </Label>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-7 text-xs gap-1 border-primary/30 text-primary hover:bg-primary/10"
+            onClick={() => {
+              setCameraTargetType('auto');
+              setCameraModalOpen(true);
+            }}
+          >
+            <Camera className="h-3.5 w-3.5" />
+            Escanear Câmera
+          </Button>
+        </div>
         <div className="space-y-2">
-          <Label className="text-xs text-muted-foreground">Chave PIX ou PIX Copia e Cola</Label>
+          <div className="flex items-center justify-between">
+            <Label className="text-xs text-muted-foreground">Chave PIX ou PIX Copia e Cola</Label>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-6 text-[11px] px-1.5 gap-1 text-primary"
+              onClick={() => {
+                setCameraTargetType('pix');
+                setCameraModalOpen(true);
+              }}
+            >
+              <Camera className="h-3 w-3" />
+              Ler PIX
+            </Button>
+          </div>
           <Input
             value={pixKey}
             onChange={e => setPixKey(e.target.value)}
@@ -1777,7 +1811,22 @@ function PayableForm({ item, categories, accounts, onSave }: {
           />
         </div>
         <div className="space-y-2">
-          <Label className="text-xs text-muted-foreground">Código de Barras / Linha Digitável do Boleto</Label>
+          <div className="flex items-center justify-between">
+            <Label className="text-xs text-muted-foreground">Código de Barras / Linha Digitável do Boleto</Label>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-6 text-[11px] px-1.5 gap-1 text-primary"
+              onClick={() => {
+                setCameraTargetType('barcode');
+                setCameraModalOpen(true);
+              }}
+            >
+              <Camera className="h-3 w-3" />
+              Ler Boleto
+            </Button>
+          </div>
           <Input
             value={barcode}
             onChange={e => setBarcode(e.target.value)}
@@ -1785,6 +1834,21 @@ function PayableForm({ item, categories, accounts, onSave }: {
           />
         </div>
       </div>
+
+      <CameraScannerModal
+        open={cameraModalOpen}
+        onOpenChange={setCameraModalOpen}
+        expectedType={cameraTargetType}
+        onScan={(scannedText, detectedType) => {
+          if (cameraTargetType === 'pix' || (cameraTargetType === 'auto' && detectedType === 'pix')) {
+            setPixKey(scannedText);
+          } else if (cameraTargetType === 'barcode' || (cameraTargetType === 'auto' && detectedType === 'barcode')) {
+            setBarcode(scannedText);
+          } else {
+            setPixKey(scannedText);
+          }
+        }}
+      />
 
       <div><Label>Notas (opcional)</Label><Input value={notes} onChange={e => setNotes(e.target.value)} /></div>
       <Button className="w-full" disabled={!description || (!supplier && !(isCreditCard && paymentMode === 'credit')) || !categoryId || !amount || (isCreditCard && paymentMode === 'credit' ? !purchaseDate : !dueDate)}
