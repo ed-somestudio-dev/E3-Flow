@@ -14,6 +14,7 @@ import { Capacitor } from '@capacitor/core';
 import { Contacts as CapacitorContacts } from '@capacitor-community/contacts';
 import { Checkbox } from '@/components/ui/checkbox';
 import { removeAccents, formatTruncatedCode } from '@/lib/utils';
+import { parsePixEMV } from '@/lib/scanner-utils';
 
 // Chrome Android Contact Picker API
 declare global {
@@ -436,7 +437,10 @@ function ContactForm({ item, onSave }: {
         open={cameraModalOpen}
         onOpenChange={setCameraModalOpen}
         expectedType="pix"
-        onScan={(scannedText) => setPixKey(scannedText)}
+        onScan={(scannedText) => {
+          const parsed = parsePixEMV(scannedText);
+          setPixKey(parsed.pixKey || scannedText);
+        }}
       />
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>

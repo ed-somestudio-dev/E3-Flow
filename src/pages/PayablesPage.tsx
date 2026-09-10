@@ -30,6 +30,7 @@ import { SAFE_LABELS } from '@/lib/safe-labels';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn, removeAccents, formatTruncatedCode } from '@/lib/utils';
+import { parsePixEMV, parseBoleto } from '@/lib/scanner-utils';
 import { toast } from 'sonner';
 
 const statusLabels: Record<PayableStatus, string> = { pending: 'Pendente', paid: 'Pago', overdue: 'Vencida' };
@@ -1768,25 +1769,10 @@ function PayableForm({ item, categories, accounts, onSave }: {
       )}
 
       <div className="space-y-3 p-3 rounded-lg bg-muted/40 border border-border">
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <Label className="text-sm font-semibold flex items-center gap-1.5">
-            <QrCode className="h-4 w-4 text-primary" />
-            Dados para Pagamento (Chave PIX / Boleto)
-          </Label>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="h-7 text-xs gap-1 border-primary/30 text-primary hover:bg-primary/10"
-            onClick={() => {
-              setCameraTargetType('auto');
-              setCameraModalOpen(true);
-            }}
-          >
-            <Camera className="h-3.5 w-3.5" />
-            Escanear Câmera
-          </Button>
-        </div>
+        <Label className="text-sm font-semibold flex items-center gap-1.5">
+          <QrCode className="h-4 w-4 text-primary" />
+          Dados para Pagamento (Chave PIX / Boleto)
+        </Label>
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <Label className="text-xs text-muted-foreground">Chave PIX ou PIX Copia e Cola</Label>
@@ -1840,10 +1826,32 @@ function PayableForm({ item, categories, accounts, onSave }: {
         onOpenChange={setCameraModalOpen}
         expectedType={cameraTargetType}
         onScan={(scannedText, detectedType) => {
-          if (cameraTargetType === 'pix' || (cameraTargetType === 'auto' && detectedType === 'pix')) {
-            setPixKey(scannedText);
-          } else if (cameraTargetType === 'barcode' || (cameraTargetType === 'auto' && detectedType === 'barcode')) {
-            setBarcode(scannedText);
+          const isPix = cameraTargetType === 'pix' || (cameraTargetType === 'auto' && detectedType === 'pix');
+          const isBarcode = cameraTargetType === 'barcode' || (cameraTargetType === 'auto' && detectedType === 'barcode');
+
+          if (isPix) {
+            const parsed = parsePixEMV(scannedText);
+            setPixKey(parsed.pixKey || scannedText);
+
+            if (parsed.amount && !amount) {
+              setAmount(parsed.amount.toFixed(2));
+              toast.info(`Valor do PIX preenchido automaticamente: R$ ${parsed.amount.toFixed(2)}`);
+            }
+            if (parsed.beneficiaryName && !supplier) {
+              setSupplier(parsed.beneficiaryName);
+            }
+          } else if (isBarcode) {
+            const parsed = parseBoleto(scannedText);
+            setBarcode(parsed.cleanBarcode || scannedText);
+
+            if (parsed.amount && !amount) {
+              setAmount(parsed.amount.toFixed(2));
+              toast.info(`Valor do boleto preenchido automaticamente: R$ ${parsed.amount.toFixed(2)}`);
+            }
+            if (parsed.dueDate && !dueDate) {
+              setDueDate(parsed.dueDate);
+              toast.info(`Vencimento do boleto preenchido automaticamente`);
+            }
           } else {
             setPixKey(scannedText);
           }
