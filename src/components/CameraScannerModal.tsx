@@ -37,7 +37,7 @@ export function CameraScannerModal({
   const regionId = 'html5-qrcode-scanner-region';
   const isBarcode = expectedType === 'barcode';
 
-  // Anima a linha de scan horizontal (da esquerda para direita) no modo boleto
+  // Anima a linha de scan horizontal no modo boleto
   useEffect(() => {
     if (!isBarcode || !isScanning) {
       if (scanAnimRef.current) cancelAnimationFrame(scanAnimRef.current);
@@ -83,8 +83,8 @@ export function CameraScannerModal({
     const finalType = expectedType !== 'auto' ? expectedType : detected;
 
     toast.success(
-      finalType === 'pix'     ? 'QR Code PIX lido com sucesso!'       :
-      finalType === 'barcode' ? 'Código de barras lido com sucesso!'   :
+      finalType === 'pix'     ? 'QR Code PIX lido com sucesso!'     :
+      finalType === 'barcode' ? 'Código de barras lido com sucesso!' :
                                 'Código lido com sucesso!',
     );
 
@@ -125,183 +125,13 @@ export function CameraScannerModal({
     }
   };
 
-  // ─── Solicita permissão de câmera ─────────────────────────────────────────
-  const requestCameraPermission = useCallback(async (): Promise<boolean> => {
-    // ── Plataforma nativa (APK Android/iOS): usa Capacitor Camera API ─────────
-    if (Capacitor.isNativePlatform()) {
-      try {
-        const status = await Camera.checkPermissions();
-        if (status.camera === 'granted') return true;
-        if (status.camera === 'denied') {
-          setCameraError(
-            'Permissão de câmera negada. Acesse Configurações > Aplicativos > E3 Flow > Permissões e habilite a Câmera.',
-          );
-          return false;
-        }
-        const result = await Camera.requestPermissions({ permissions: ['camera'] });
-        if (result.camera === 'granted') return true;
-        setCameraError('Permissão de câmera negada. Por favor, permita o acesso à câmera quando solicitado.');
-        return false;
-      } catch {
-        return true;
-      }
-    }
-
-    // ── PWA / browser: pré-solicita getUserMedia() para forçar o diálogo ──────
-    // Isso é necessário porque alguns browsers não exibem o diálogo quando
-    // html5-qrcode chama getUserMedia internamente.
-    if (!navigator?.mediaDevices?.getUserMedia) {
-      setCameraError('Seu browser não suporta acesso à câmera. Tente pelo Chrome ou Safari.');
-      return false;
-    }
-
-    try {
-      // Tenta com câmera traseira primeiro
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: 'environment' } },
-      });
-      // Permissão concedida — encerra o stream temporário (html5-qrcode abrirá o seu próprio)
-      stream.getTracks().forEach(t => t.stop());
-      return true;
-    } catch (err: any) {
-      const name: string = err?.name ?? '';
-
-      if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
-        setCameraError(
-          'Permissão de câmera negada pelo browser. Toque no ícone de cadeado 🔒 na barra de endereços e habilite a Câmera.',
-        );
-        return false;
-      }
-
-      if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
-        setCameraError('Nenhuma câmera encontrada neste dispositivo.');
-        return false;
-      }
-
-      if (name === 'OverconstrainedError' || name === 'ConstraintNotSatisfiedError') {
-        // Tenta novamente sem constraints extras (somente facingMode)
-        try {
-          const stream2 = await navigator.mediaDevices.getUserMedia({ video: true });
-          stream2.getTracks().forEach(t => t.stop());
-          return true;
-        } catch {
-          setCameraError('Não foi possível acessar a câmera. Verifique as permissões do browser.');
-          return false;
-        }
-      }
-
-      // Outros erros: tenta mesmo assim — html5-qrcode pode conseguir
-      console.warn('Camera pre-check warning:', name, err?.message);
-      return true;
-    }
-  }, []);
-
   // ─── Inicializa / para scanner ─────────────────────────────────────────────
   useEffect(() => {
     let scanner: Html5Qrcode | null = null;
     let cancelled = false;
 
-    if (open) {
-      setCameraError(null);
-      setIsScanning(false);
-      setTorchOn(false);
-      setTorchAvailable(false);
-      hasScannedRef.current = false;
-      setScanLineX(5);
-      scanDirRef.current = 1;
-
-      const formats = isBarcode
-        ? [
-            Html5QrcodeSupportedFormats.CODE_128,
-            Html5QrcodeSupportedFormats.ITF,
-            Html5QrcodeSupportedFormats.EAN_13,
-            Html5QrcodeSupportedFormats.EAN_8,
-            Html5QrcodeSupportedFormats.UPC_A,
-            Html5QrcodeSupportedFormats.CODE_39,
-          ]
-        : expectedType === 'pix'
-        ? [Html5QrcodeSupportedFormats.QR_CODE]
-        : [
-            Html5QrcodeSupportedFormats.QR_CODE,
-            Html5QrcodeSupportedFormats.CODE_128,
-            Html5QrcodeSupportedFormats.ITF,
-            Html5QrcodeSupportedFormats.EAN_13,
-            Html5QrcodeSupportedFormats.EAN_8,
-            Html5QrcodeSupportedFormats.UPC_A,
-            Html5QrcodeSupportedFormats.DATA_MATRIX,
-          ];
-
-      // Solicita permissão antes de iniciar (essencial no Android/Capacitor)
-      requestCameraPermission().then(granted => {
-        if (!granted || cancelled) return;
-
-        const tid = setTimeout(() => {
-          if (cancelled) return;
-          try {
-            scanner = new Html5Qrcode(regionId, { formatsToSupport: formats, verbose: false });
-            scannerRef.current = scanner;
-
-            // Vídeo em portrait com alta resolução para capturar códigos longos
-            const videoConstraints: MediaTrackConstraints = {
-              facingMode: 'environment',
-              width:  { ideal: 720 },   // portrait: largura menor
-              height: { ideal: 1280 },  // portrait: altura maior → mais pixels para o código
-            };
-
-            scanner
-              .start(
-                videoConstraints,
-                {
-                  fps: 15,
-                  // Para boleto: janela larga e ALTA para capturar o código inteiro
-                  // O código CODE_128 de boleto tem até 44 barras → precisa de altura generosa
-                  qrbox: (vw, vh) => {
-                    if (isBarcode) {
-                      return {
-                        width:  Math.floor(vw * 0.92),   // quase toda a largura
-                        height: Math.floor(vh * 0.55),   // mais da metade da altura → código inteiro cabe
-                      };
-                    }
-                    // QR Code: quadrado centralizado
-                    const side = Math.floor(Math.min(vw, vh) * 0.72);
-                    return { width: side, height: side };
-                  },
-                },
-                async (text) => { await handleResult(text, scanner); },
-                () => {},
-              )
-              .then(() => {
-                if (!cancelled) {
-                  setIsScanning(true);
-                  try {
-                    const caps = scanner?.getRunningTrackCapabilities() as any;
-                    if (caps?.torch !== undefined) setTorchAvailable(true);
-                  } catch {}
-                }
-              })
-              .catch(err => {
-                console.error('Scanner start error:', err);
-                if (!cancelled) {
-                  setCameraError('Não foi possível acessar a câmera. Verifique as permissões.');
-                }
-              });
-          } catch (e) {
-            console.error('Scanner init error:', e);
-            if (!cancelled) setCameraError('Erro ao inicializar câmera.');
-          }
-        }, 250);
-
-        // Armazena o timeout para cancelamento
-        return () => clearTimeout(tid);
-      });
-
-      return () => {
-        cancelled = true;
-        if (scanner?.isScanning) {
-          scanner.stop().catch(() => {}).finally(() => { try { scanner?.clear(); } catch {} });
-        }
-      };
-    } else {
+    if (!open) {
+      // Fecha o scanner quando o modal fecha
       if (scannerRef.current?.isScanning) {
         scannerRef.current.stop().catch(() => {}).finally(() => {
           try { scannerRef.current?.clear(); } catch {}
@@ -309,8 +139,161 @@ export function CameraScannerModal({
         });
       }
       setIsScanning(false);
+      return;
     }
-  }, [open, isBarcode, expectedType, handleResult, requestCameraPermission]);
+
+    // ── Reset de estado ────────────────────────────────────────────────────────
+    setCameraError(null);
+    setIsScanning(false);
+    setTorchOn(false);
+    setTorchAvailable(false);
+    hasScannedRef.current = false;
+    setScanLineX(5);
+    scanDirRef.current = 1;
+
+    const formats = isBarcode
+      ? [
+          Html5QrcodeSupportedFormats.CODE_128,
+          Html5QrcodeSupportedFormats.ITF,
+          Html5QrcodeSupportedFormats.EAN_13,
+          Html5QrcodeSupportedFormats.EAN_8,
+          Html5QrcodeSupportedFormats.UPC_A,
+          Html5QrcodeSupportedFormats.CODE_39,
+        ]
+      : expectedType === 'pix'
+      ? [Html5QrcodeSupportedFormats.QR_CODE]
+      : [
+          Html5QrcodeSupportedFormats.QR_CODE,
+          Html5QrcodeSupportedFormats.CODE_128,
+          Html5QrcodeSupportedFormats.ITF,
+          Html5QrcodeSupportedFormats.EAN_13,
+          Html5QrcodeSupportedFormats.EAN_8,
+          Html5QrcodeSupportedFormats.UPC_A,
+          Html5QrcodeSupportedFormats.DATA_MATRIX,
+        ];
+
+    // ── Função principal de inicialização ────────────────────────────────────
+    const initScanner = async () => {
+      // ── 1. Permissão nativa (APK Android/iOS) ────────────────────────────
+      if (Capacitor.isNativePlatform()) {
+        try {
+          const status = await Camera.checkPermissions();
+          if (status.camera === 'denied') {
+            if (!cancelled) setCameraError(
+              'Permissão de câmera negada. Acesse Configurações > Aplicativos > E3 Flow > Permissões e habilite a Câmera.',
+            );
+            return;
+          }
+          if (status.camera !== 'granted') {
+            const result = await Camera.requestPermissions({ permissions: ['camera'] });
+            if (result.camera !== 'granted') {
+              if (!cancelled) setCameraError('Permissão de câmera negada.');
+              return;
+            }
+          }
+        } catch { /* ignora — prossegue */ }
+      }
+
+      // ── 2. Aguarda DOM estar pronto ───────────────────────────────────────
+      await new Promise(r => setTimeout(r, 300));
+      if (cancelled) return;
+
+      // ── 3. Cria instância do scanner ──────────────────────────────────────
+      try {
+        scanner = new Html5Qrcode(regionId, { formatsToSupport: formats, verbose: false });
+        scannerRef.current = scanner;
+      } catch (e) {
+        console.error('Html5Qrcode init error:', e);
+        if (!cancelled) setCameraError('Erro ao inicializar câmera. Recarregue a página.');
+        return;
+      }
+
+      // ── 4. Config de scan ─────────────────────────────────────────────────
+      const scanConfig = {
+        fps: 10,
+        qrbox: (vw: number, vh: number) => {
+          if (isBarcode) {
+            return { width: Math.floor(vw * 0.92), height: Math.floor(vh * 0.50) };
+          }
+          const side = Math.floor(Math.min(vw, vh) * 0.72);
+          return { width: side, height: side };
+        },
+      };
+
+      const onSuccess = async (text: string) => { await handleResult(text, scanner); };
+      const onError   = () => {};
+
+      // ── 5. Constraints com retry progressivo ──────────────────────────────
+      // APK nativo: alta resolução → fallback simples
+      // PWA/browser: SEM width/height (causa OverconstrainedError em muitos Android)
+      const constraintsList: MediaTrackConstraints[] = Capacitor.isNativePlatform()
+        ? [
+            { facingMode: 'environment', width: { ideal: 720 }, height: { ideal: 1280 } },
+            { facingMode: 'environment' },
+          ]
+        : [
+            { facingMode: 'environment' },
+            { facingMode: { ideal: 'environment' } },
+          ];
+
+      let started = false;
+      let lastError: any = null;
+
+      for (const constraints of constraintsList) {
+        if (cancelled || started) break;
+        try {
+          await scanner!.start(constraints, scanConfig, onSuccess, onError);
+          started = true;
+        } catch (err: any) {
+          lastError = err;
+          const name: string = err?.name ?? String(err);
+          console.warn('Scanner start attempt failed:', name, constraints);
+
+          // Erros fatais — não adianta tentar outras constraints
+          if (name === 'NotAllowedError' || name === 'NotFoundError') break;
+
+          // OverconstrainedError / NotReadableError / outros → tenta próximas constraints
+          await new Promise(r => setTimeout(r, 200)); // pequena pausa antes do retry
+        }
+      }
+
+      if (cancelled) return;
+
+      if (started) {
+        setIsScanning(true);
+        try {
+          const caps = scanner?.getRunningTrackCapabilities() as any;
+          if (caps?.torch !== undefined) setTorchAvailable(true);
+        } catch {}
+        return;
+      }
+
+      // ── 6. Todos os attempts falharam ─────────────────────────────────────
+      const errName: string = lastError?.name ?? '';
+      if (errName === 'NotAllowedError') {
+        setCameraError('Permissão de câmera negada. Toque no cadeado 🔒 na barra de endereços e habilite a Câmera.');
+      } else if (errName === 'NotFoundError') {
+        setCameraError('Nenhuma câmera encontrada neste dispositivo.');
+      } else if (errName === 'NotReadableError') {
+        setCameraError('A câmera está sendo usada por outro aplicativo. Feche-o e tente novamente.');
+      } else {
+        setCameraError(
+          `Não foi possível abrir a câmera (${errName || 'erro desconhecido'}). Tente recarregar a página.`,
+        );
+      }
+    };
+
+    initScanner();
+
+    return () => {
+      cancelled = true;
+      if (scanner?.isScanning) {
+        scanner.stop().catch(() => {}).finally(() => {
+          try { scanner?.clear(); } catch {}
+        });
+      }
+    };
+  }, [open, isBarcode, expectedType, handleResult]);
 
   if (!open) return null;
 
@@ -347,16 +330,11 @@ export function CameraScannerModal({
 
       {/* ── Área de câmera ── */}
       <div className="relative flex-1 bg-black overflow-hidden">
-        {/*
-          O html5-qrcode injeta <video> e outros elementos dentro de regionId.
-          Escondemos tudo que ele renderiza e deixamos só o vídeo visível.
-        */}
         <div
           id={regionId}
           className="absolute inset-0 w-full h-full"
-          style={{ '--scanner-hide-ui': 'none' } as React.CSSProperties}
         />
-        {/* Esconde a UI padrão do html5-qrcode via CSS global (sem modificar o DOM) */}
+        {/* Esconde a UI padrão do html5-qrcode via CSS */}
         <style>{`
           #${regionId} > div:not(:has(video)) { display: none !important; }
           #${regionId} video { width: 100% !important; height: 100% !important; object-fit: cover !important; }
@@ -374,7 +352,6 @@ export function CameraScannerModal({
           //  MODO BOLETO — janela alta, linha animada horizontal
           // ══════════════════════════════════════════════════
           <div className="absolute inset-0 pointer-events-none z-10">
-            {/* Overlay escuro, com "buraco" para a janela de leitura */}
             <div
               className="absolute"
               style={{
@@ -382,45 +359,23 @@ export function CameraScannerModal({
                 background: `linear-gradient(
                   to bottom,
                   rgba(0,0,0,0.6) 0%,
-                  rgba(0,0,0,0.6) 22%,
-                  transparent 22%,
-                  transparent 78%,
-                  rgba(0,0,0,0.6) 78%,
+                  rgba(0,0,0,0.6) 25%,
+                  transparent 25%,
+                  transparent 75%,
+                  rgba(0,0,0,0.6) 75%,
                   rgba(0,0,0,0.6) 100%
                 )`,
               }}
             />
-            {/* Sombra lateral (esquerda e direita) */}
-            <div
-              className="absolute inset-y-0"
-              style={{
-                left: 0, width: '4%',
-                background: 'rgba(0,0,0,0.6)',
-              }}
-            />
-            <div
-              className="absolute inset-y-0"
-              style={{
-                right: 0, width: '4%',
-                background: 'rgba(0,0,0,0.6)',
-              }}
-            />
+            <div className="absolute inset-y-0" style={{ left: 0, width: '4%', background: 'rgba(0,0,0,0.6)' }} />
+            <div className="absolute inset-y-0" style={{ right: 0, width: '4%', background: 'rgba(0,0,0,0.6)' }} />
 
-            {/* Janela de leitura: 92% da largura × 56% da altura, centrada verticalmente */}
-            <div
-              className="absolute"
-              style={{
-                left: '4%', right: '4%',
-                top: '22%',  bottom: '22%',
-              }}
-            >
-              {/* Cantos amarelos */}
+            <div className="absolute" style={{ left: '4%', right: '4%', top: '25%', bottom: '25%' }}>
               <div className="absolute top-0 left-0   w-7 h-7 border-t-[3px] border-l-[3px] border-yellow-400" />
               <div className="absolute top-0 right-0  w-7 h-7 border-t-[3px] border-r-[3px] border-yellow-400" />
               <div className="absolute bottom-0 left-0  w-7 h-7 border-b-[3px] border-l-[3px] border-yellow-400" />
               <div className="absolute bottom-0 right-0 w-7 h-7 border-b-[3px] border-r-[3px] border-yellow-400" />
 
-              {/* Linha de scan animada (da esquerda para direita) */}
               <div
                 className="absolute top-0 bottom-0 w-[2px] bg-yellow-400"
                 style={{
@@ -431,11 +386,7 @@ export function CameraScannerModal({
               />
             </div>
 
-            {/* Texto lateral (direita) — instrução rotacionada como no BB */}
-            <div
-              className="absolute right-1 top-1/2 -translate-y-1/2 z-20"
-              style={{ writingMode: 'vertical-rl' }}
-            >
+            <div className="absolute right-1 top-1/2 -translate-y-1/2 z-20" style={{ writingMode: 'vertical-rl' }}>
               <span
                 className="text-white/90 text-[11px] font-semibold tracking-wide drop-shadow-md"
                 style={{ transform: 'rotate(180deg)', display: 'block' }}
@@ -479,7 +430,6 @@ export function CameraScannerModal({
           </p>
         )}
 
-        {/* Botão galeria */}
         <button
           onClick={handleGallery}
           className="flex flex-col items-center gap-1.5 text-white opacity-90 active:opacity-60 transition-opacity"
@@ -491,7 +441,7 @@ export function CameraScannerModal({
         </button>
       </div>
 
-      {/* ── Botão lateral esquerdo (modo boleto) — estilo BB ── */}
+      {/* ── Botão lateral esquerdo (modo boleto) ── */}
       {isBarcode && (
         <div className="absolute left-0 top-1/2 -translate-y-1/2 z-20 flex flex-col gap-3 pl-3">
           <button
