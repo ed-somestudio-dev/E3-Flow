@@ -125,31 +125,73 @@ export function CameraScannerModal({
     }
   };
 
-  // ─── Solicita permissão de câmera via Capacitor (Android/iOS nativo) ────────
-  // No PWA/browser, o próprio browser trata a permissão via getUserMedia().
-  // Só usamos a API Capacitor quando rodando como app nativo.
+  // ─── Solicita permissão de câmera ─────────────────────────────────────────
   const requestCameraPermission = useCallback(async (): Promise<boolean> => {
-    if (!Capacitor.isNativePlatform()) {
-      // PWA / browser: deixa getUserMedia() solicitar a permissão nativamente
-      return true;
+    // ── Plataforma nativa (APK Android/iOS): usa Capacitor Camera API ─────────
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const status = await Camera.checkPermissions();
+        if (status.camera === 'granted') return true;
+        if (status.camera === 'denied') {
+          setCameraError(
+            'Permissão de câmera negada. Acesse Configurações > Aplicativos > E3 Flow > Permissões e habilite a Câmera.',
+          );
+          return false;
+        }
+        const result = await Camera.requestPermissions({ permissions: ['camera'] });
+        if (result.camera === 'granted') return true;
+        setCameraError('Permissão de câmera negada. Por favor, permita o acesso à câmera quando solicitado.');
+        return false;
+      } catch {
+        return true;
+      }
     }
+
+    // ── PWA / browser: pré-solicita getUserMedia() para forçar o diálogo ──────
+    // Isso é necessário porque alguns browsers não exibem o diálogo quando
+    // html5-qrcode chama getUserMedia internamente.
+    if (!navigator?.mediaDevices?.getUserMedia) {
+      setCameraError('Seu browser não suporta acesso à câmera. Tente pelo Chrome ou Safari.');
+      return false;
+    }
+
     try {
-      const status = await Camera.checkPermissions();
-      if (status.camera === 'granted') return true;
-      if (status.camera === 'denied') {
+      // Tenta com câmera traseira primeiro
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' } },
+      });
+      // Permissão concedida — encerra o stream temporário (html5-qrcode abrirá o seu próprio)
+      stream.getTracks().forEach(t => t.stop());
+      return true;
+    } catch (err: any) {
+      const name: string = err?.name ?? '';
+
+      if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
         setCameraError(
-          'Permissão de câmera negada. Acesse Configurações > Aplicativos > E3 Flow > Permissões e habilite a Câmera.',
+          'Permissão de câmera negada pelo browser. Toque no ícone de cadeado 🔒 na barra de endereços e habilite a Câmera.',
         );
         return false;
       }
-      // 'prompt' ou 'prompt-with-rationale' — pede ao usuário
-      const result = await Camera.requestPermissions({ permissions: ['camera'] });
-      if (result.camera === 'granted') return true;
-      setCameraError(
-        'Permissão de câmera negada. Por favor, permita o acesso à câmera quando solicitado.',
-      );
-      return false;
-    } catch {
+
+      if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+        setCameraError('Nenhuma câmera encontrada neste dispositivo.');
+        return false;
+      }
+
+      if (name === 'OverconstrainedError' || name === 'ConstraintNotSatisfiedError') {
+        // Tenta novamente sem constraints extras (somente facingMode)
+        try {
+          const stream2 = await navigator.mediaDevices.getUserMedia({ video: true });
+          stream2.getTracks().forEach(t => t.stop());
+          return true;
+        } catch {
+          setCameraError('Não foi possível acessar a câmera. Verifique as permissões do browser.');
+          return false;
+        }
+      }
+
+      // Outros erros: tenta mesmo assim — html5-qrcode pode conseguir
+      console.warn('Camera pre-check warning:', name, err?.message);
       return true;
     }
   }, []);
