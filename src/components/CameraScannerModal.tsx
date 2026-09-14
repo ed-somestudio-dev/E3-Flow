@@ -4,6 +4,8 @@ import { Button } from '@/components/ui/button';
 import { ArrowLeft, Image as ImageIcon, Keyboard, Zap, ZapOff, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { detectScannedType } from '@/lib/scanner-utils';
+import { Camera } from '@capacitor/camera';
+import { Capacitor } from '@capacitor/core';
 
 interface CameraScannerModalProps {
   open: boolean;
@@ -123,6 +125,35 @@ export function CameraScannerModal({
     }
   };
 
+  // ─── Solicita permissão de câmera via Capacitor (Android/iOS nativo) ────────
+  // No PWA/browser, o próprio browser trata a permissão via getUserMedia().
+  // Só usamos a API Capacitor quando rodando como app nativo.
+  const requestCameraPermission = useCallback(async (): Promise<boolean> => {
+    if (!Capacitor.isNativePlatform()) {
+      // PWA / browser: deixa getUserMedia() solicitar a permissão nativamente
+      return true;
+    }
+    try {
+      const status = await Camera.checkPermissions();
+      if (status.camera === 'granted') return true;
+      if (status.camera === 'denied') {
+        setCameraError(
+          'Permissão de câmera negada. Acesse Configurações > Aplicativos > E3 Flow > Permissões e habilite a Câmera.',
+        );
+        return false;
+      }
+      // 'prompt' ou 'prompt-with-rationale' — pede ao usuário
+      const result = await Camera.requestPermissions({ permissions: ['camera'] });
+      if (result.camera === 'granted') return true;
+      setCameraError(
+        'Permissão de câmera negada. Por favor, permita o acesso à câmera quando solicitado.',
+      );
+      return false;
+    } catch {
+      return true;
+    }
+  }, []);
+
   // ─── Inicializa / para scanner ─────────────────────────────────────────────
   useEffect(() => {
     let scanner: Html5Qrcode | null = null;
@@ -158,63 +189,72 @@ export function CameraScannerModal({
             Html5QrcodeSupportedFormats.DATA_MATRIX,
           ];
 
-      const tid = setTimeout(() => {
-        if (cancelled) return;
-        try {
-          scanner = new Html5Qrcode(regionId, { formatsToSupport: formats, verbose: false });
-          scannerRef.current = scanner;
+      // Solicita permissão antes de iniciar (essencial no Android/Capacitor)
+      requestCameraPermission().then(granted => {
+        if (!granted || cancelled) return;
 
-          // Vídeo em portrait com alta resolução para capturar códigos longos
-          const videoConstraints: MediaTrackConstraints = {
-            facingMode: 'environment',
-            width:  { ideal: 720 },   // portrait: largura menor
-            height: { ideal: 1280 },  // portrait: altura maior → mais pixels para o código
-          };
+        const tid = setTimeout(() => {
+          if (cancelled) return;
+          try {
+            scanner = new Html5Qrcode(regionId, { formatsToSupport: formats, verbose: false });
+            scannerRef.current = scanner;
 
-          scanner
-            .start(
-              videoConstraints,
-              {
-                fps: 15,
-                // Para boleto: janela larga e ALTA para capturar o código inteiro
-                // O código CODE_128 de boleto tem até 44 barras → precisa de altura generosa
-                qrbox: (vw, vh) => {
-                  if (isBarcode) {
-                    return {
-                      width:  Math.floor(vw * 0.92),   // quase toda a largura
-                      height: Math.floor(vh * 0.55),   // mais da metade da altura → código inteiro cabe
-                    };
-                  }
-                  // QR Code: quadrado centralizado
-                  const side = Math.floor(Math.min(vw, vh) * 0.72);
-                  return { width: side, height: side };
+            // Vídeo em portrait com alta resolução para capturar códigos longos
+            const videoConstraints: MediaTrackConstraints = {
+              facingMode: 'environment',
+              width:  { ideal: 720 },   // portrait: largura menor
+              height: { ideal: 1280 },  // portrait: altura maior → mais pixels para o código
+            };
+
+            scanner
+              .start(
+                videoConstraints,
+                {
+                  fps: 15,
+                  // Para boleto: janela larga e ALTA para capturar o código inteiro
+                  // O código CODE_128 de boleto tem até 44 barras → precisa de altura generosa
+                  qrbox: (vw, vh) => {
+                    if (isBarcode) {
+                      return {
+                        width:  Math.floor(vw * 0.92),   // quase toda a largura
+                        height: Math.floor(vh * 0.55),   // mais da metade da altura → código inteiro cabe
+                      };
+                    }
+                    // QR Code: quadrado centralizado
+                    const side = Math.floor(Math.min(vw, vh) * 0.72);
+                    return { width: side, height: side };
+                  },
                 },
-              },
-              async (text) => { await handleResult(text, scanner); },
-              () => {},
-            )
-            .then(() => {
-              if (!cancelled) {
-                setIsScanning(true);
-                try {
-                  const caps = scanner?.getRunningTrackCapabilities() as any;
-                  if (caps?.torch !== undefined) setTorchAvailable(true);
-                } catch {}
-              }
-            })
-            .catch(err => {
-              console.error('Scanner start error:', err);
-              setCameraError('Não foi possível acessar a câmera. Verifique as permissões.');
-            });
-        } catch (e) {
-          console.error('Scanner init error:', e);
-          setCameraError('Erro ao inicializar câmera.');
-        }
-      }, 250);
+                async (text) => { await handleResult(text, scanner); },
+                () => {},
+              )
+              .then(() => {
+                if (!cancelled) {
+                  setIsScanning(true);
+                  try {
+                    const caps = scanner?.getRunningTrackCapabilities() as any;
+                    if (caps?.torch !== undefined) setTorchAvailable(true);
+                  } catch {}
+                }
+              })
+              .catch(err => {
+                console.error('Scanner start error:', err);
+                if (!cancelled) {
+                  setCameraError('Não foi possível acessar a câmera. Verifique as permissões.');
+                }
+              });
+          } catch (e) {
+            console.error('Scanner init error:', e);
+            if (!cancelled) setCameraError('Erro ao inicializar câmera.');
+          }
+        }, 250);
+
+        // Armazena o timeout para cancelamento
+        return () => clearTimeout(tid);
+      });
 
       return () => {
         cancelled = true;
-        clearTimeout(tid);
         if (scanner?.isScanning) {
           scanner.stop().catch(() => {}).finally(() => { try { scanner?.clear(); } catch {} });
         }
@@ -228,7 +268,7 @@ export function CameraScannerModal({
       }
       setIsScanning(false);
     }
-  }, [open, isBarcode, expectedType, handleResult]);
+  }, [open, isBarcode, expectedType, handleResult, requestCameraPermission]);
 
   if (!open) return null;
 
