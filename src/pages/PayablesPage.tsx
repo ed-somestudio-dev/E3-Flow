@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { usePersistedDialog, usePersistedFormDraft } from '@/hooks/usePersistedDialog';
 import { useFinance } from '@/lib/finance-context';
 import { supabase } from '@/integrations/supabase/client';
@@ -1821,42 +1822,45 @@ function PayableForm({ item, categories, accounts, onSave }: {
         </div>
       </div>
 
-      <CameraScannerModal
-        open={cameraModalOpen}
-        onOpenChange={setCameraModalOpen}
-        expectedType={cameraTargetType}
-        onScan={(scannedText, detectedType) => {
-          const isPix = cameraTargetType === 'pix' || (cameraTargetType === 'auto' && detectedType === 'pix');
-          const isBarcode = cameraTargetType === 'barcode' || (cameraTargetType === 'auto' && detectedType === 'barcode');
+      {cameraModalOpen && createPortal(
+        <CameraScannerModal
+          open={cameraModalOpen}
+          onOpenChange={setCameraModalOpen}
+          expectedType={cameraTargetType}
+          onScan={(scannedText, detectedType) => {
+            const isPix = cameraTargetType === 'pix' || (cameraTargetType === 'auto' && detectedType === 'pix');
+            const isBarcode = cameraTargetType === 'barcode' || (cameraTargetType === 'auto' && detectedType === 'barcode');
 
-          if (isPix) {
-            const parsed = parsePixEMV(scannedText);
-            setPixKey(parsed.pixKey || scannedText);
+            if (isPix) {
+              const parsed = parsePixEMV(scannedText);
+              setPixKey(parsed.pixKey || scannedText);
 
-            if (parsed.amount && !amount) {
-              setAmount(parsed.amount.toFixed(2));
-              toast.info(`Valor do PIX preenchido automaticamente: R$ ${parsed.amount.toFixed(2)}`);
-            }
-            if (parsed.beneficiaryName && !supplier) {
-              setSupplier(parsed.beneficiaryName);
-            }
-          } else if (isBarcode) {
-            const parsed = parseBoleto(scannedText);
-            setBarcode(parsed.cleanBarcode || scannedText);
+              if (parsed.amount && !amount) {
+                setAmount(parsed.amount.toFixed(2));
+                toast.info(`Valor do PIX preenchido automaticamente: R$ ${parsed.amount.toFixed(2)}`);
+              }
+              if (parsed.beneficiaryName && !supplier) {
+                setSupplier(parsed.beneficiaryName);
+              }
+            } else if (isBarcode) {
+              const parsed = parseBoleto(scannedText);
+              setBarcode(parsed.cleanBarcode || scannedText);
 
-            if (parsed.amount && !amount) {
-              setAmount(parsed.amount.toFixed(2));
-              toast.info(`Valor do boleto preenchido automaticamente: R$ ${parsed.amount.toFixed(2)}`);
+              if (parsed.amount && !amount) {
+                setAmount(parsed.amount.toFixed(2));
+                toast.info(`Valor do boleto preenchido automaticamente: R$ ${parsed.amount.toFixed(2)}`);
+              }
+              if (parsed.dueDate && !dueDate) {
+                setDueDate(parsed.dueDate);
+                toast.info(`Vencimento do boleto preenchido automaticamente`);
+              }
+            } else {
+              setPixKey(scannedText);
             }
-            if (parsed.dueDate && !dueDate) {
-              setDueDate(parsed.dueDate);
-              toast.info(`Vencimento do boleto preenchido automaticamente`);
-            }
-          } else {
-            setPixKey(scannedText);
-          }
-        }}
-      />
+          }}
+        />,
+        document.body
+      )}
 
       <div><Label>Notas (opcional)</Label><Input value={notes} onChange={e => setNotes(e.target.value)} /></div>
       <Button className="w-full" disabled={!description || (!supplier && !(isCreditCard && paymentMode === 'credit')) || !categoryId || !amount || (isCreditCard && paymentMode === 'credit' ? !purchaseDate : !dueDate)}
