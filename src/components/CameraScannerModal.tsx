@@ -24,6 +24,8 @@ export function CameraScannerModal({
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const hasScannedRef = useRef<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Rastreia a promise de cleanup para aguardar liberação da câmera antes de reiniciar
+  const cleanupPromiseRef = useRef<Promise<void>>(Promise.resolve());
   const [isScanning, setIsScanning] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [torchAvailable, setTorchAvailable] = useState(false);
@@ -136,7 +138,8 @@ export function CameraScannerModal({
       scannerRef.current = null;
       setIsScanning(false);
       if (s) {
-        (s.isScanning ? s.stop().catch(() => {}) : Promise.resolve())
+        // Salva a promise para que o próximo open possa aguardá-la
+        cleanupPromiseRef.current = (s.isScanning ? s.stop().catch(() => {}) : Promise.resolve())
           .finally(() => {
             try { s.clear(); } catch {}
             // Limpa resíduos do DOM para evitar crash na próxima abertura
@@ -144,7 +147,9 @@ export function CameraScannerModal({
               const el = document.getElementById('html5-qrcode-scanner-region');
               if (el) el.innerHTML = '';
             } catch {}
-          });
+          }) as Promise<void>;
+      } else {
+        cleanupPromiseRef.current = Promise.resolve();
       }
       return;
     }
@@ -201,8 +206,11 @@ export function CameraScannerModal({
         } catch { /* ignora — prossegue */ }
       }
 
-      // ── 2. Aguarda DOM estar pronto ───────────────────────────────────────
-      await new Promise(r => setTimeout(r, 300));
+      // ── 2. Aguarda cleanup anterior + DOM estar pronto ────────────────────
+      await cleanupPromiseRef.current;
+      if (cancelled) return;
+      // Pequeno buffer extra para garantir liberação do stream no browser
+      await new Promise(r => setTimeout(r, 150));
       if (cancelled) return;
 
       // ── 3. Cria instância do scanner ──────────────────────────────────────
