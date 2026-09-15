@@ -1822,7 +1822,7 @@ function PayableForm({ item, categories, accounts, onSave }: {
         </div>
       </div>
 
-      {cameraModalOpen && createPortal(
+      {createPortal(
         <CameraScannerModal
           open={cameraModalOpen}
           onOpenChange={setCameraModalOpen}
