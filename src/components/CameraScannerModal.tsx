@@ -213,16 +213,6 @@ export function CameraScannerModal({
       await new Promise(r => setTimeout(r, 150));
       if (cancelled) return;
 
-      // ── 3. Cria instância do scanner ──────────────────────────────────────
-      try {
-        scanner = new Html5Qrcode(regionId, { formatsToSupport: formats, verbose: false });
-        scannerRef.current = scanner;
-      } catch (e) {
-        console.error('Html5Qrcode init error:', e);
-        if (!cancelled) setCameraError('Erro ao inicializar câmera. Recarregue a página.');
-        return;
-      }
-
       // ── 4. Config de scan ─────────────────────────────────────────────────
       const scanConfig = {
         fps: 15,
@@ -240,13 +230,14 @@ export function CameraScannerModal({
       const onError   = () => {};
 
       // ── 5. Constraints com retry progressivo ──────────────────────────────
-      // Modo boleto: pede resolução LANDSCAPE para aproveitar a largura máxima
-      // APK nativo: alta resolução → fallback simples
-      // PWA/browser: SEM width/height (causa OverconstrainedError em muitos Android)
+      // APK nativo boleto: solicita landscape (maior resolução horizontal)
+      // PWA/browser: usa apenas facingMode para máxima compatibilidade —
+      //   constraints de resolução causam falha e corrompem a instância,
+      //   impedindo os fallbacks de funcionar.
       const constraintsList: MediaTrackConstraints[] = Capacitor.isNativePlatform()
         ? isBarcode
           ? [
-              // Landscape HD → fallback sem restrição
+              // Landscape HD → 720p → sem restrição
               { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } },
               { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
               { facingMode: 'environment' },
@@ -255,23 +246,36 @@ export function CameraScannerModal({
               { facingMode: 'environment', width: { ideal: 720 }, height: { ideal: 1280 } },
               { facingMode: 'environment' },
             ]
-        : isBarcode
-          ? [
-              // PWA/browser: tenta landscape, cai para sem restrição se o browser rejeitar
-              { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
-              { facingMode: 'environment' },
-              { facingMode: { ideal: 'environment' } },
-            ]
-          : [
-              { facingMode: 'environment' },
-              { facingMode: { ideal: 'environment' } },
-            ];
+        : [
+            // PWA: sem width/height — compatível com todos os browsers Android/iOS
+            { facingMode: 'environment' },
+            { facingMode: { ideal: 'environment' } },
+          ];
 
       let started = false;
       let lastError: any = null;
 
+      // IMPORTANTE: cada tentativa cria uma instância nova do Html5Qrcode.
+      // Se start() falha, a instância fica em estado corrompido e tentativas
+      // subsequentes na mesma instância também falham.
       for (const constraints of constraintsList) {
         if (cancelled || started) break;
+
+        // Cria instância limpa para esta tentativa
+        try {
+          if (scanner) { try { scanner.clear(); } catch {} }
+          // Garante DOM limpo para o novo Html5Qrcode
+          try {
+            const el = document.getElementById(regionId);
+            if (el) el.innerHTML = '';
+          } catch {}
+          scanner = new Html5Qrcode(regionId, { formatsToSupport: formats, verbose: false });
+          scannerRef.current = scanner;
+        } catch (initErr) {
+          console.error('Html5Qrcode init error on retry:', initErr);
+          break;
+        }
+
         try {
           await scanner!.start(constraints, scanConfig, onSuccess, onError);
           started = true;
@@ -284,7 +288,7 @@ export function CameraScannerModal({
           if (name === 'NotAllowedError' || name === 'NotFoundError') break;
 
           // OverconstrainedError / NotReadableError / outros → tenta próximas constraints
-          await new Promise(r => setTimeout(r, 200)); // pequena pausa antes do retry
+          await new Promise(r => setTimeout(r, 200));
         }
       }
 
