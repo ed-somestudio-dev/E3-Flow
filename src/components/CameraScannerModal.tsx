@@ -544,20 +544,28 @@ export function CameraScannerModal({
       <div id="gallery-reader" className="hidden" />
 
       {/* ── Barra superior ── */}
-      <div className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-4 pt-10 pb-3 bg-gradient-to-b from-black/80 to-transparent">
+      <div className="absolute top-0 left-0 right-0 z-50 flex items-center justify-between px-4 pt-10 pb-3 bg-gradient-to-b from-black/80 to-transparent pointer-events-none">
         <button
-          onClick={() => onOpenChange(false)}
-          className="flex items-center justify-center h-10 w-10 rounded-full bg-black/50 text-white"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onOpenChange(false);
+          }}
+          className="flex items-center justify-center h-10 w-10 rounded-full bg-black/50 text-white pointer-events-auto"
         >
-          <ArrowLeft className="h-5 w-5" />
+          <ArrowLeft className="h-5 w-5 pointer-events-none" />
         </button>
 
         {torchAvailable && (
           <button
-            onClick={toggleTorch}
-            className={`flex items-center justify-center h-10 w-10 rounded-full ${torchOn ? 'bg-yellow-400/30 text-yellow-300' : 'bg-black/50 text-white'}`}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              toggleTorch();
+            }}
+            className={`flex items-center justify-center h-10 w-10 rounded-full ${torchOn ? 'bg-yellow-400/30 text-yellow-300' : 'bg-black/50 text-white'} pointer-events-auto`}
           >
-            {torchOn ? <ZapOff className="h-5 w-5" /> : <Zap className="h-5 w-5" />}
+            {torchOn ? <ZapOff className="h-5 w-5 pointer-events-none" /> : <Zap className="h-5 w-5 pointer-events-none" />}
           </button>
         )}
       </div>
@@ -593,57 +601,7 @@ export function CameraScannerModal({
             <Button size="sm" variant="outline" onClick={() => onOpenChange(false)}>Fechar</Button>
           </div>
 
-        ) : isBarcode ? (
-          // ══════════════════════════════════════════════════
-          //  MODO BOLETO — janela alta, linha animada
-          // ══════════════════════════════════════════════════
-          <div className="absolute inset-0 pointer-events-none z-10">
-            <div
-              className="absolute"
-              style={{
-                inset: 0,
-                background: `linear-gradient(
-                  to bottom,
-                  rgba(0,0,0,0.6) 0%,
-                  rgba(0,0,0,0.6) 25%,
-                  transparent 25%,
-                  transparent 75%,
-                  rgba(0,0,0,0.6) 75%,
-                  rgba(0,0,0,0.6) 100%
-                )`,
-              }}
-            />
-            <div className="absolute inset-y-0" style={{ left: 0, width: '4%', background: 'rgba(0,0,0,0.6)' }} />
-            <div className="absolute inset-y-0" style={{ right: 0, width: '4%', background: 'rgba(0,0,0,0.6)' }} />
-
-            <div className="absolute" style={{ left: '4%', right: '4%', top: '25%', bottom: '25%' }}>
-              <div className="absolute top-0 left-0   w-7 h-7 border-t-[3px] border-l-[3px] border-yellow-400" />
-              <div className="absolute top-0 right-0  w-7 h-7 border-t-[3px] border-r-[3px] border-yellow-400" />
-              <div className="absolute bottom-0 left-0  w-7 h-7 border-b-[3px] border-l-[3px] border-yellow-400" />
-              <div className="absolute bottom-0 right-0 w-7 h-7 border-b-[3px] border-r-[3px] border-yellow-400" />
-
-              {/* Linha animada via CSS — zero re-renders React */}
-              <div
-                className="absolute top-0 bottom-0 w-[2px] bg-yellow-400"
-                style={{
-                  left: '4%',
-                  boxShadow: '0 0 10px 3px rgba(250,204,21,0.75)',
-                  animation: 'scanner-sweep 2s ease-in-out infinite',
-                }}
-              />
-            </div>
-
-            <div className="absolute right-1 top-1/2 -translate-y-1/2 z-20" style={{ writingMode: 'vertical-rl' }}>
-              <span
-                className="text-white/90 text-[11px] font-semibold tracking-wide drop-shadow-md"
-                style={{ transform: 'rotate(180deg)', display: 'block' }}
-              >
-                {titleText}
-              </span>
-            </div>
-          </div>
-
-        ) : (
+        ) : !isBarcode && (
           // ══════════════════════════════════════════════════
           //  MODO QR CODE / PIX — moldura quadrada com cantos
           // ══════════════════════════════════════════════════
@@ -670,33 +628,35 @@ export function CameraScannerModal({
       </div>
 
       {/* ── Barra inferior: instrução + galeria ── */}
-      <div className="absolute bottom-0 left-0 right-0 z-20 flex flex-col items-center gap-4 pb-10 pt-5 px-6 bg-gradient-to-t from-black/85 to-transparent">
-        {!isBarcode && (
-          <p className="text-white text-sm font-semibold text-center drop-shadow-md">
-            {titleText}
-          </p>
-        )}
+      <div className="absolute bottom-0 left-0 right-0 z-50 flex flex-col items-center gap-4 pb-10 pt-5 px-6 bg-gradient-to-t from-black/85 to-transparent pointer-events-none">
+        <p className="text-white text-sm font-semibold text-center drop-shadow-md">
+          {titleText}
+        </p>
 
         <button
           onClick={handleGallery}
-          className="flex flex-col items-center gap-1.5 text-white opacity-90 active:opacity-60 transition-opacity"
+          className="flex flex-col items-center gap-1.5 text-white opacity-90 active:opacity-60 transition-opacity pointer-events-auto"
         >
-          <div className="h-12 w-12 rounded-full bg-white/20 backdrop-blur-sm border border-white/30 flex items-center justify-center">
+          <div className="h-12 w-12 rounded-full bg-white/20 backdrop-blur-sm border border-white/30 flex items-center justify-center pointer-events-none">
             <ImageIcon className="h-6 w-6 text-white" />
           </div>
-          <span className="text-[11px] text-white/80 font-medium">Galeria</span>
+          <span className="text-[11px] text-white/80 font-medium pointer-events-none">Galeria</span>
         </button>
       </div>
 
       {/* ── Botão lateral esquerdo (modo boleto) ── */}
       {isBarcode && (
-        <div className="absolute left-0 top-1/2 -translate-y-1/2 z-20 flex flex-col gap-3 pl-3">
+        <div className="absolute left-0 top-1/2 -translate-y-1/2 z-50 flex flex-col gap-3 pl-3 pointer-events-none">
           <button
-            onClick={() => onOpenChange(false)}
-            className="flex flex-col items-center justify-center gap-2 h-[72px] w-[60px] rounded-2xl bg-blue-600/90 text-white text-center px-1 backdrop-blur-sm active:bg-blue-700 transition-colors"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onOpenChange(false);
+            }}
+            className="flex flex-col items-center justify-center gap-2 h-[72px] w-[60px] rounded-2xl bg-blue-600/90 text-white text-center px-1 backdrop-blur-sm active:bg-blue-700 transition-colors pointer-events-auto"
           >
-            <Keyboard className="h-5 w-5 shrink-0" />
-            <span className="text-[10px] font-semibold leading-tight">Digitar código</span>
+            <Keyboard className="h-5 w-5 shrink-0 pointer-events-none" />
+            <span className="text-[10px] font-semibold leading-tight pointer-events-none">Digitar código</span>
           </button>
         </div>
       )}
