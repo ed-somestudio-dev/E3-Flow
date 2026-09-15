@@ -342,9 +342,25 @@ export function CameraScannerModal({
         const formats = need.filter(f => supported.includes(f));
         if (formats.length === 0) return false;
 
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'environment' },
-        });
+        const constraintsList = isBarcode ? [
+          { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } },
+          { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+          { facingMode: 'environment' }
+        ] : [
+          { facingMode: 'environment' }
+        ];
+
+        let stream: MediaStream | null = null;
+        for (const constraints of constraintsList) {
+          try {
+            stream = await navigator.mediaDevices.getUserMedia({ video: constraints });
+            break;
+          } catch (e) {
+            // ignora e tenta o próximo
+          }
+        }
+        if (!stream) return false;
+
         if (cancelled) { stream.getTracks().forEach(t => t.stop()); return false; }
         bdStream = stream;
 
@@ -412,16 +428,17 @@ export function CameraScannerModal({
             Html5QrcodeSupportedFormats.DATA_MATRIX,
           ];
 
-      const scanConfig = {
+      const scanConfig: any = {
         fps: 15,
-        qrbox: (vw: number, vh: number) => {
-          if (isBarcode) {
-            return { width: Math.floor(vw * 0.96), height: Math.floor(Math.min(vh * 0.45, 300)) };
-          }
+      };
+      
+      // Para barcode, NÃO define qrbox para utilizar 100% da área (ideal para horizontal)
+      if (!isBarcode) {
+        scanConfig.qrbox = (vw: number, vh: number) => {
           const side = Math.floor(Math.min(vw, vh) * 0.72);
           return { width: side, height: side };
-        },
-      };
+        };
+      }
 
       const onSuccess = async (text: string) => { handleDetected(text); };
       const onError   = () => {};
