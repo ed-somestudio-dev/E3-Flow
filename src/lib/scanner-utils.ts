@@ -208,7 +208,7 @@ function mod11Arrecadacao(block: string): number {
 
 /**
  * Converte um código de barras físico (44 dígitos) para a linha digitável correspondente
- * (47 dígitos para boletos de cobrança, 48 dígitos para guias de arrecadação).
+ * (47 dígitos para boletos de cobrança, 48 dígitos para guias de arrecadação) já formatada!
  */
 export function formatBarcodeToLinhaDigitavel(barcode: string): string {
   const clean = barcode.replace(/\D/g, '');
@@ -217,13 +217,14 @@ export function formatBarcodeToLinhaDigitavel(barcode: string): string {
   if (clean[0] === '8') {
     // Guia de Arrecadação (48 dígitos)
     const isMod10 = clean[2] === '6' || clean[2] === '7';
-    let linha = '';
+    let formatted = '';
     for (let i = 0; i < 4; i++) {
       const block = clean.substr(i * 11, 11);
       const digit = isMod10 ? mod10(block) : mod11Arrecadacao(block);
-      linha += block + digit;
+      // Ex: 85850000005-3
+      formatted += `${block}-${digit} `;
     }
-    return linha;
+    return formatted.trim();
   } else {
     // Boleto de Cobrança (47 dígitos)
     const bank = clean.substr(0, 3);
@@ -235,16 +236,19 @@ export function formatBarcodeToLinhaDigitavel(barcode: string): string {
 
     const block1 = bank + currency + freeField.substr(0, 5);
     const dv1 = mod10(block1);
-    const field1 = block1 + dv1;
+    const field1 = `${block1.substr(0, 5)}.${block1.substr(5, 4)}${dv1}`;
 
     const block2 = freeField.substr(5, 10);
     const dv2 = mod10(block2);
-    const field2 = block2 + dv2;
+    const field2 = `${block2.substr(0, 5)}.${block2.substr(5, 5)}${dv2}`;
 
     const block3 = freeField.substr(15, 10);
     const dv3 = mod10(block3);
-    const field3 = block3 + dv3;
+    const field3 = `${block3.substr(0, 5)}.${block3.substr(5, 5)}${dv3}`;
 
-    return field1 + field2 + field3 + dv + factor + amount;
+    const field4 = dv;
+    const field5 = factor + amount;
+
+    return `${field1} ${field2} ${field3} ${field4} ${field5}`;
   }
 }

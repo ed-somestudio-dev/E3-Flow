@@ -1844,7 +1844,7 @@ function PayableForm({ item, categories, accounts, onSave }: {
               }
             } else if (isBarcode) {
               const parsed = parseBoleto(scannedText);
-              setBarcode(parsed.cleanBarcode || scannedText);
+              setBarcode(scannedText);
 
               if (parsed.amount && !amount) {
                 setAmount(parsed.amount.toFixed(2));
