@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { detectScannedType } from '@/lib/scanner-utils';
 import { Camera } from '@capacitor/camera';
 import { Capacitor } from '@capacitor/core';
+import { BarcodeScanner, BarcodeFormat, LensFacing } from '@capacitor-mlkit/barcode-scanning';
 
 interface CameraScannerModalProps {
   open: boolean;
@@ -15,23 +16,57 @@ interface CameraScannerModalProps {
   expectedType?: 'pix' | 'barcode' | 'auto';
 }
 
+// ─── Helper: ML Kit formats por modo ─────────────────────────────────────────
+function getMlKitFormats(expectedType: 'pix' | 'barcode' | 'auto'): BarcodeFormat[] {
+  if (expectedType === 'barcode') {
+    return [
+      BarcodeFormat.Code128,
+      BarcodeFormat.Itf,
+      BarcodeFormat.Ean13,
+      BarcodeFormat.Ean8,
+      BarcodeFormat.UpcA,
+      BarcodeFormat.Code39,
+      BarcodeFormat.Codabar,
+    ];
+  }
+  if (expectedType === 'pix') {
+    return [BarcodeFormat.QrCode];
+  }
+  // auto: tudo
+  return [
+    BarcodeFormat.QrCode,
+    BarcodeFormat.Code128,
+    BarcodeFormat.Itf,
+    BarcodeFormat.Ean13,
+    BarcodeFormat.Ean8,
+    BarcodeFormat.UpcA,
+    BarcodeFormat.Code39,
+    BarcodeFormat.Codabar,
+    BarcodeFormat.DataMatrix,
+  ];
+}
+
 export function CameraScannerModal({
   open,
   onOpenChange,
   onScan,
   expectedType = 'auto',
 }: CameraScannerModalProps) {
+  const isNative = Capacitor.isNativePlatform();
+
+  // ─── Estado ───────────────────────────────────────────────────────────────
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const hasScannedRef = useRef<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   // Rastreia a promise de cleanup para aguardar liberação da câmera antes de reiniciar
   const cleanupPromiseRef = useRef<Promise<void>>(Promise.resolve());
+  const mlkitActiveRef = useRef<boolean>(false);
   const [isScanning, setIsScanning] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [torchAvailable, setTorchAvailable] = useState(false);
   const [torchOn, setTorchOn] = useState(false);
 
-  // Animação da linha de scan (para modo boleto)
+  // Animação da linha de scan (para modo boleto no PWA)
   const [scanLineX, setScanLineX] = useState(5);
   const scanAnimRef = useRef<number | null>(null);
   const scanDirRef = useRef<1 | -1>(1);
@@ -39,9 +74,9 @@ export function CameraScannerModal({
   const regionId = 'html5-qrcode-scanner-region';
   const isBarcode = expectedType === 'barcode';
 
-  // Anima a linha de scan horizontal no modo boleto
+  // Anima a linha de scan no modo boleto (PWA)
   useEffect(() => {
-    if (!isBarcode || !isScanning) {
+    if (isNative || !isBarcode || !isScanning) {
       if (scanAnimRef.current) cancelAnimationFrame(scanAnimRef.current);
       return;
     }
@@ -61,8 +96,9 @@ export function CameraScannerModal({
       running = false;
       if (scanAnimRef.current) cancelAnimationFrame(scanAnimRef.current);
     };
-  }, [isBarcode, isScanning]);
+  }, [isNative, isBarcode, isScanning]);
 
+  // ─── Handler de resultado (PWA) ───────────────────────────────────────────
   const handleResult = useCallback(async (
     decodedText: string,
     scanner: Html5Qrcode | null,
@@ -94,7 +130,7 @@ export function CameraScannerModal({
     onOpenChange(false);
   }, [expectedType, onScan, onOpenChange]);
 
-  // Galeria: abre seletor de imagem
+  // ─── Galeria (PWA) ────────────────────────────────────────────────────────
   const handleGallery = () => fileInputRef.current?.click();
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -111,7 +147,21 @@ export function CameraScannerModal({
     }
   };
 
+  // ─── Lanterna (PWA) ───────────────────────────────────────────────────────
   const toggleTorch = async () => {
+    if (isNative) {
+      try {
+        if (torchOn) {
+          await BarcodeScanner.disableTorch();
+        } else {
+          await BarcodeScanner.enableTorch();
+        }
+        setTorchOn(t => !t);
+      } catch {
+        toast.info('Lanterna não disponível');
+      }
+      return;
+    }
     if (!scannerRef.current) return;
     try {
       const caps = scannerRef.current.getRunningTrackCapabilities() as any;
@@ -127,24 +177,148 @@ export function CameraScannerModal({
     }
   };
 
-  // ─── Inicializa / para scanner ─────────────────────────────────────────────
+  // ─── ML Kit — scanner nativo ──────────────────────────────────────────────
   useEffect(() => {
+    if (!isNative) return;
+
+    if (!open) {
+      // Para o scanner nativo se estiver ativo
+      if (mlkitActiveRef.current) {
+        mlkitActiveRef.current = false;
+        BarcodeScanner.stopScan().catch(() => {});
+        document.querySelector('body')?.classList.remove('barcode-scanner-active');
+      }
+      setIsScanning(false);
+      setCameraError(null);
+      hasScannedRef.current = false;
+      return;
+    }
+
+    let cancelled = false;
+    hasScannedRef.current = false;
+    setCameraError(null);
+    setIsScanning(false);
+    setTorchOn(false);
+    setTorchAvailable(true); // ML Kit sempre suporta lanterna
+
+    const startNativeScanner = async () => {
+      // 1. Permissão
+      try {
+        const status = await Camera.checkPermissions();
+        if (status.camera === 'denied') {
+          if (!cancelled) setCameraError('Permissão de câmera negada. Acesse Configurações > Aplicativos > E3 Flow > Permissões e habilite a Câmera.');
+          return;
+        }
+        if (status.camera !== 'granted') {
+          const result = await Camera.requestPermissions({ permissions: ['camera'] });
+          if (result.camera !== 'granted') {
+            if (!cancelled) setCameraError('Permissão de câmera negada.');
+            return;
+          }
+        }
+      } catch { /* ignora */ }
+
+      if (cancelled) return;
+
+      // 2. Verifica disponibilidade do ML Kit
+      try {
+        const { available } = await BarcodeScanner.isGoogleBarcodeScannerModuleAvailable();
+        if (!available) {
+          await BarcodeScanner.installGoogleBarcodeScannerModule();
+          // Aguarda instalação
+          await new Promise(r => setTimeout(r, 2000));
+        }
+      } catch { /* ignora — tenta mesmo assim */ }
+
+      if (cancelled) return;
+
+      // 3. Inicia scan nativo com listener
+      try {
+        mlkitActiveRef.current = true;
+        document.querySelector('body')?.classList.add('barcode-scanner-active');
+
+        const formats = getMlKitFormats(expectedType);
+
+        await BarcodeScanner.startScan({ formats, lensFacing: LensFacing.Back });
+
+        if (cancelled) {
+          BarcodeScanner.stopScan().catch(() => {});
+          document.querySelector('body')?.classList.remove('barcode-scanner-active');
+          return;
+        }
+
+        setIsScanning(true);
+
+        // Listener de resultados
+        await BarcodeScanner.addListener('barcodeScanned', async (event) => {
+          if (hasScannedRef.current || cancelled) return;
+          hasScannedRef.current = true;
+
+          const rawValue = event.barcode.rawValue ?? '';
+          if (!rawValue) return;
+
+          mlkitActiveRef.current = false;
+          await BarcodeScanner.stopScan().catch(() => {});
+          document.querySelector('body')?.classList.remove('barcode-scanner-active');
+
+          try { navigator.vibrate?.([100, 50, 100]); } catch {}
+
+          const detected  = detectScannedType(rawValue);
+          const finalType = expectedType !== 'auto' ? expectedType : detected;
+
+          toast.success(
+            finalType === 'pix'     ? 'QR Code PIX lido com sucesso!'     :
+            finalType === 'barcode' ? 'Código de barras lido com sucesso!' :
+                                      'Código lido com sucesso!',
+          );
+
+          onScan(rawValue.trim(), finalType);
+          onOpenChange(false);
+        });
+      } catch (err: any) {
+        if (!cancelled) {
+          document.querySelector('body')?.classList.remove('barcode-scanner-active');
+          mlkitActiveRef.current = false;
+          const msg = err?.message ?? '';
+          if (msg.includes('permission') || msg.includes('denied')) {
+            setCameraError('Permissão de câmera negada. Acesse Configurações > Aplicativos > E3 Flow > Permissões.');
+          } else {
+            setCameraError(`Não foi possível abrir a câmera: ${msg || 'erro desconhecido'}`);
+          }
+        }
+      }
+    };
+
+    startNativeScanner();
+
+    return () => {
+      cancelled = true;
+      if (mlkitActiveRef.current) {
+        mlkitActiveRef.current = false;
+        BarcodeScanner.stopScan().catch(() => {});
+        BarcodeScanner.removeAllListeners().catch(() => {});
+        document.querySelector('body')?.classList.remove('barcode-scanner-active');
+      }
+    };
+  }, [open, isNative, expectedType, onScan, onOpenChange]);
+
+  // ─── Html5Qrcode — scanner PWA ────────────────────────────────────────────
+  useEffect(() => {
+    if (isNative) return; // nativo usa ML Kit acima
+
     let scanner: Html5Qrcode | null = null;
     let cancelled = false;
 
     if (!open) {
-      // Fecha o scanner quando o modal fecha — sempre limpa, mesmo sem ter iniciado
       const s = scannerRef.current;
       scannerRef.current = null;
       setIsScanning(false);
       if (s) {
-        // Salva a promise para que o próximo open possa aguardá-la
         cleanupPromiseRef.current = (s.isScanning ? s.stop().catch(() => {}) : Promise.resolve())
           .finally(() => {
             try { s.clear(); } catch {}
-            // Limpa resíduos do DOM para evitar crash na próxima abertura
             try {
-              const el = document.getElementById('html5-qrcode-scanner-region');
+              const el = document.getElementById(regionId);
               if (el) el.innerHTML = '';
             } catch {}
           }) as Promise<void>;
@@ -154,7 +328,6 @@ export function CameraScannerModal({
       return;
     }
 
-    // ── Reset de estado ────────────────────────────────────────────────────────
     setCameraError(null);
     setIsScanning(false);
     setTorchOn(false);
@@ -184,41 +357,17 @@ export function CameraScannerModal({
           Html5QrcodeSupportedFormats.DATA_MATRIX,
         ];
 
-    // ── Função principal de inicialização ────────────────────────────────────
     const initScanner = async () => {
-      // ── 1. Permissão nativa (APK Android/iOS) ────────────────────────────
-      if (Capacitor.isNativePlatform()) {
-        try {
-          const status = await Camera.checkPermissions();
-          if (status.camera === 'denied') {
-            if (!cancelled) setCameraError(
-              'Permissão de câmera negada. Acesse Configurações > Aplicativos > E3 Flow > Permissões e habilite a Câmera.',
-            );
-            return;
-          }
-          if (status.camera !== 'granted') {
-            const result = await Camera.requestPermissions({ permissions: ['camera'] });
-            if (result.camera !== 'granted') {
-              if (!cancelled) setCameraError('Permissão de câmera negada.');
-              return;
-            }
-          }
-        } catch { /* ignora — prossegue */ }
-      }
-
-      // ── 2. Aguarda cleanup anterior + DOM estar pronto ────────────────────
+      // Aguarda cleanup anterior + buffer para liberar stream
       await cleanupPromiseRef.current;
       if (cancelled) return;
-      // Pequeno buffer extra para garantir liberação do stream no browser
       await new Promise(r => setTimeout(r, 150));
       if (cancelled) return;
 
-      // ── 4. Config de scan ─────────────────────────────────────────────────
       const scanConfig = {
         fps: 15,
         qrbox: (vw: number, vh: number) => {
           if (isBarcode) {
-            // Ocupa quase toda a largura e altura generosa para barras finas
             return { width: Math.floor(vw * 0.96), height: Math.floor(Math.min(vh * 0.45, 300)) };
           }
           const side = Math.floor(Math.min(vw, vh) * 0.72);
@@ -229,42 +378,21 @@ export function CameraScannerModal({
       const onSuccess = async (text: string) => { await handleResult(text, scanner); };
       const onError   = () => {};
 
-      // ── 5. Constraints com retry progressivo ──────────────────────────────
-      // APK nativo boleto: solicita landscape (maior resolução horizontal)
-      // PWA/browser: usa apenas facingMode para máxima compatibilidade —
-      //   constraints de resolução causam falha e corrompem a instância,
-      //   impedindo os fallbacks de funcionar.
-      const constraintsList: MediaTrackConstraints[] = Capacitor.isNativePlatform()
-        ? isBarcode
-          ? [
-              // Landscape HD → 720p → sem restrição
-              { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } },
-              { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
-              { facingMode: 'environment' },
-            ]
-          : [
-              { facingMode: 'environment', width: { ideal: 720 }, height: { ideal: 1280 } },
-              { facingMode: 'environment' },
-            ]
-        : [
-            // PWA: sem width/height — compatível com todos os browsers Android/iOS
-            { facingMode: 'environment' },
-            { facingMode: { ideal: 'environment' } },
-          ];
+      // PWA: sem width/height — compatível com todos os browsers Android/iOS
+      const constraintsList: MediaTrackConstraints[] = [
+        { facingMode: 'environment' },
+        { facingMode: { ideal: 'environment' } },
+      ];
 
       let started = false;
       let lastError: any = null;
 
-      // IMPORTANTE: cada tentativa cria uma instância nova do Html5Qrcode.
-      // Se start() falha, a instância fica em estado corrompido e tentativas
-      // subsequentes na mesma instância também falham.
+      // IMPORTANTE: cada tentativa cria instância nova — start() falho corrompe a instância
       for (const constraints of constraintsList) {
         if (cancelled || started) break;
 
-        // Cria instância limpa para esta tentativa
         try {
           if (scanner) { try { scanner.clear(); } catch {} }
-          // Garante DOM limpo para o novo Html5Qrcode
           try {
             const el = document.getElementById(regionId);
             if (el) el.innerHTML = '';
@@ -283,11 +411,7 @@ export function CameraScannerModal({
           lastError = err;
           const name: string = err?.name ?? String(err);
           console.warn('Scanner start attempt failed:', name, constraints);
-
-          // Erros fatais — não adianta tentar outras constraints
           if (name === 'NotAllowedError' || name === 'NotFoundError') break;
-
-          // OverconstrainedError / NotReadableError / outros → tenta próximas constraints
           await new Promise(r => setTimeout(r, 200));
         }
       }
@@ -303,7 +427,6 @@ export function CameraScannerModal({
         return;
       }
 
-      // ── 6. Todos os attempts falharam ─────────────────────────────────────
       const errName: string = lastError?.name ?? '';
       if (errName === 'NotAllowedError') {
         setCameraError('Permissão de câmera negada. Toque no cadeado 🔒 na barra de endereços e habilite a Câmera.');
@@ -327,16 +450,34 @@ export function CameraScannerModal({
           .finally(() => {
             try { scanner?.clear(); } catch {}
             try {
-              const el = document.getElementById('html5-qrcode-scanner-region');
+              const el = document.getElementById(regionId);
               if (el) el.innerHTML = '';
             } catch {}
           });
       }
     };
-  }, [open, isBarcode, expectedType, handleResult]);
+  }, [open, isNative, isBarcode, expectedType, handleResult]);
 
+  // ─── No modo nativo, a UI da câmera é gerenciada pelo ML Kit (Activity nativa) ─
+  // Só mostramos a UI personalizada no PWA ou em caso de erro no nativo
   if (!open) return null;
 
+  // Nativo com erro: mostra tela de erro
+  if (isNative && cameraError) {
+    return (
+      <div className="fixed inset-0 z-[9999] bg-black flex flex-col items-center justify-center gap-4 p-8 text-center">
+        <AlertCircle className="h-12 w-12 text-red-400" />
+        <p className="text-white text-sm font-medium">{cameraError}</p>
+        <Button size="sm" variant="outline" onClick={() => onOpenChange(false)}>Fechar</Button>
+      </div>
+    );
+  }
+
+  // Nativo sem erro: ML Kit gerencia a câmera em Activity nativa,
+  // retornamos null para não mostrar UI sobreposta
+  if (isNative) return null;
+
+  // ─── UI PWA ───────────────────────────────────────────────────────────────
   const titleText = isBarcode
     ? 'Enquadre o código de barras dentro dos marcadores'
     : expectedType === 'pix'
@@ -393,7 +534,7 @@ export function CameraScannerModal({
 
         ) : isBarcode ? (
           // ══════════════════════════════════════════════════
-          //  MODO BOLETO — janela alta, linha animada horizontal
+          //  MODO BOLETO — janela alta, linha animada
           // ══════════════════════════════════════════════════
           <div className="absolute inset-0 pointer-events-none z-10">
             <div
