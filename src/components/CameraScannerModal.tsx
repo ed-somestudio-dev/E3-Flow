@@ -249,7 +249,12 @@ export function CameraScannerModal({
                                       'Código lido com sucesso!',
           );
 
-          onScan(rawValue.trim(), finalType);
+          let finalText = rawValue.trim();
+          if (finalType === 'barcode') {
+            finalText = formatBarcodeToLinhaDigitavel(finalText);
+          }
+
+          onScan(finalText, finalType);
           onOpenChange(false);
         });
       } catch (err: any) {
