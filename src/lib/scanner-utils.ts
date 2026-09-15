@@ -178,3 +178,73 @@ export function parseBoleto(text: string): ParsedBoletoData {
 
   return result;
 }
+
+// ── Funções Auxiliares para Converter Código Físico (44) em Linha Digitável ──
+
+function mod10(block: string): number {
+  let sum = 0;
+  let multiplier = 2;
+  for (let i = block.length - 1; i >= 0; i--) {
+    let prod = parseInt(block[i], 10) * multiplier;
+    sum += Math.floor(prod / 10) + (prod % 10);
+    multiplier = multiplier === 2 ? 1 : 2;
+  }
+  let rem = sum % 10;
+  return rem === 0 ? 0 : 10 - rem;
+}
+
+function mod11Arrecadacao(block: string): number {
+  let sum = 0;
+  let multiplier = 2;
+  for (let i = block.length - 1; i >= 0; i--) {
+    sum += parseInt(block[i], 10) * multiplier;
+    multiplier++;
+    if (multiplier > 9) multiplier = 2;
+  }
+  let rem = sum % 11;
+  if (rem === 0 || rem === 1) return 0;
+  return 11 - rem;
+}
+
+/**
+ * Converte um código de barras físico (44 dígitos) para a linha digitável correspondente
+ * (47 dígitos para boletos de cobrança, 48 dígitos para guias de arrecadação).
+ */
+export function formatBarcodeToLinhaDigitavel(barcode: string): string {
+  const clean = barcode.replace(/\D/g, '');
+  if (clean.length !== 44) return barcode; // Só converte se for o código físico original
+
+  if (clean[0] === '8') {
+    // Guia de Arrecadação (48 dígitos)
+    const isMod10 = clean[2] === '6' || clean[2] === '7';
+    let linha = '';
+    for (let i = 0; i < 4; i++) {
+      const block = clean.substr(i * 11, 11);
+      const digit = isMod10 ? mod10(block) : mod11Arrecadacao(block);
+      linha += block + digit;
+    }
+    return linha;
+  } else {
+    // Boleto de Cobrança (47 dígitos)
+    const bank = clean.substr(0, 3);
+    const currency = clean.substr(3, 1);
+    const dv = clean.substr(4, 1);
+    const factor = clean.substr(5, 4);
+    const amount = clean.substr(9, 10);
+    const freeField = clean.substr(19, 25);
+
+    const block1 = bank + currency + freeField.substr(0, 5);
+    const dv1 = mod10(block1);
+    const field1 = block1 + dv1;
+
+    const block2 = freeField.substr(5, 10);
+    const dv2 = mod10(block2);
+    const field2 = block2 + dv2;
+
+    const block3 = freeField.substr(15, 10);
+    const dv3 = mod10(block3);
+    const field3 = block3 + dv3;
+
+    return field1 + field2 + field3 + dv + factor + amount;
+  }
+}

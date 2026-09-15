@@ -3,7 +3,7 @@ import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Image as ImageIcon, Keyboard, Zap, ZapOff, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
-import { detectScannedType } from '@/lib/scanner-utils';
+import { detectScannedType, formatBarcodeToLinhaDigitavel } from '@/lib/scanner-utils';
 import { Camera } from '@capacitor/camera';
 import { Capacitor } from '@capacitor/core';
 import { BarcodeScanner, BarcodeFormat, LensFacing } from '@capacitor-mlkit/barcode-scanning';
@@ -98,7 +98,12 @@ export function CameraScannerModal({
                                 'Código lido com sucesso!',
     );
 
-    onScan(decodedText.trim(), finalType);
+    let finalText = decodedText.trim();
+    if (finalType === 'barcode') {
+      finalText = formatBarcodeToLinhaDigitavel(finalText);
+    }
+
+    onScan(finalText, finalType);
     onOpenChange(false);
   }, [expectedType, onScan, onOpenChange]);
 
