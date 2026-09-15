@@ -218,8 +218,8 @@ export function CameraScannerModal({
         fps: 15,
         qrbox: (vw: number, vh: number) => {
           if (isBarcode) {
-            // Usa quase toda a largura e altura moderada para barras finas
-            return { width: Math.floor(vw * 0.96), height: Math.floor(Math.min(vh * 0.38, 220)) };
+            // Ocupa quase toda a largura e altura generosa para barras finas
+            return { width: Math.floor(vw * 0.96), height: Math.floor(Math.min(vh * 0.45, 300)) };
           }
           const side = Math.floor(Math.min(vw, vh) * 0.72);
           return { width: side, height: side };
@@ -370,14 +370,18 @@ export function CameraScannerModal({
 
       {/* ── Área de câmera ── */}
       <div className="relative flex-1 bg-black overflow-hidden">
+        {/* pointer-events:none impede que overlays internos do Html5Qrcode bloqueiem os botões */}
         <div
           id={regionId}
           className="absolute inset-0 w-full h-full"
+          style={{ pointerEvents: 'none' }}
         />
-        {/* Esconde a UI padrão do html5-qrcode via CSS */}
+        {/* Esconde a UI padrão do html5-qrcode via CSS e garante que só o vídeo recebe events */}
         <style>{`
-          #${regionId} > div:not(:has(video)) { display: none !important; }
-          #${regionId} video { width: 100% !important; height: 100% !important; object-fit: cover !important; }
+          #${regionId} > div { display: none !important; }
+          #${regionId} > div:has(video) { display: block !important; pointer-events: none !important; }
+          #${regionId} video { width: 100% !important; height: 100% !important; object-fit: cover !important; pointer-events: none !important; }
+          #${regionId} canvas { pointer-events: none !important; }
         `}</style>
 
         {cameraError ? (
