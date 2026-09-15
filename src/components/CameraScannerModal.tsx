@@ -66,37 +66,9 @@ export function CameraScannerModal({
   const [torchAvailable, setTorchAvailable] = useState(false);
   const [torchOn, setTorchOn] = useState(false);
 
-  // Animação da linha de scan (para modo boleto no PWA)
-  const [scanLineX, setScanLineX] = useState(5);
-  const scanAnimRef = useRef<number | null>(null);
-  const scanDirRef = useRef<1 | -1>(1);
-
+  // Sem estado de animação JS — linha animada por CSS puro (zero re-renders)
   const regionId = 'html5-qrcode-scanner-region';
   const isBarcode = expectedType === 'barcode';
-
-  // Anima a linha de scan no modo boleto (PWA)
-  useEffect(() => {
-    if (isNative || !isBarcode || !isScanning) {
-      if (scanAnimRef.current) cancelAnimationFrame(scanAnimRef.current);
-      return;
-    }
-    let running = true;
-    const animate = () => {
-      if (!running) return;
-      setScanLineX(prev => {
-        const next = prev + scanDirRef.current * 0.4;
-        if (next >= 95) scanDirRef.current = -1;
-        if (next <= 5)  scanDirRef.current = 1;
-        return next;
-      });
-      scanAnimRef.current = requestAnimationFrame(animate);
-    };
-    scanAnimRef.current = requestAnimationFrame(animate);
-    return () => {
-      running = false;
-      if (scanAnimRef.current) cancelAnimationFrame(scanAnimRef.current);
-    };
-  }, [isNative, isBarcode, isScanning]);
 
   // ─── Handler de resultado (PWA) ───────────────────────────────────────────
   const handleResult = useCallback(async (
@@ -304,10 +276,13 @@ export function CameraScannerModal({
 
   // ─── Html5Qrcode — scanner PWA ────────────────────────────────────────────
   useEffect(() => {
-    if (isNative) return; // nativo usa ML Kit acima
+    if (isNative) return;
 
-    let scanner: Html5Qrcode | null = null;
     let cancelled = false;
+    // Ref local para o stream de BarcodeDetector (se usado)
+    let bdStream: MediaStream | null = null;
+    let bdAnimFrame: number | null = null;
+    let h5scanner: Html5Qrcode | null = null;
 
     if (!open) {
       const s = scannerRef.current;
@@ -333,36 +308,109 @@ export function CameraScannerModal({
     setTorchOn(false);
     setTorchAvailable(false);
     hasScannedRef.current = false;
-    setScanLineX(5);
-    scanDirRef.current = 1;
 
-    const formats = isBarcode
-      ? [
-          Html5QrcodeSupportedFormats.CODE_128,
-          Html5QrcodeSupportedFormats.ITF,
-          Html5QrcodeSupportedFormats.EAN_13,
-          Html5QrcodeSupportedFormats.EAN_8,
-          Html5QrcodeSupportedFormats.UPC_A,
-          Html5QrcodeSupportedFormats.CODE_39,
-        ]
-      : expectedType === 'pix'
-      ? [Html5QrcodeSupportedFormats.QR_CODE]
-      : [
-          Html5QrcodeSupportedFormats.QR_CODE,
-          Html5QrcodeSupportedFormats.CODE_128,
-          Html5QrcodeSupportedFormats.ITF,
-          Html5QrcodeSupportedFormats.EAN_13,
-          Html5QrcodeSupportedFormats.EAN_8,
-          Html5QrcodeSupportedFormats.UPC_A,
-          Html5QrcodeSupportedFormats.DATA_MATRIX,
-        ];
+    const handleDetected = (rawValue: string) => {
+      if (!rawValue || hasScannedRef.current) return;
+      hasScannedRef.current = true;
 
-    const initScanner = async () => {
-      // Aguarda cleanup anterior + buffer para liberar stream
+      // Para o stream de BarcodeDetector
+      if (bdAnimFrame) { cancelAnimationFrame(bdAnimFrame); bdAnimFrame = null; }
+      if (bdStream) { bdStream.getTracks().forEach(t => t.stop()); bdStream = null; }
+
+      try { navigator.vibrate?.([100, 50, 100]); } catch {}
+      const detected  = detectScannedType(rawValue);
+      const finalType = expectedType !== 'auto' ? expectedType : detected;
+      toast.success(
+        finalType === 'pix'     ? 'QR Code PIX lido com sucesso!'     :
+        finalType === 'barcode' ? 'Código de barras lido com sucesso!' :
+                                  'Código lido com sucesso!',
+      );
+      onScan(rawValue.trim(), finalType);
+      onOpenChange(false);
+    };
+
+    // ── Tenta BarcodeDetector nativo (Chrome Android 83+, hardware-accelerated) ──
+    const tryBarcodeDetector = async (): Promise<boolean> => {
+      if (typeof (window as any).BarcodeDetector === 'undefined') return false;
+      try {
+        const supported: string[] = await (window as any).BarcodeDetector.getSupportedFormats();
+        const need = isBarcode
+          ? ['code_128', 'itf', 'ean_13', 'ean_8', 'upc_a', 'code_39', 'codabar']
+          : expectedType === 'pix'
+          ? ['qr_code']
+          : ['qr_code', 'code_128', 'itf', 'ean_13', 'ean_8'];
+        const formats = need.filter(f => supported.includes(f));
+        if (formats.length === 0) return false;
+
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment' },
+        });
+        if (cancelled) { stream.getTracks().forEach(t => t.stop()); return false; }
+        bdStream = stream;
+
+        // Encontra a <video> que já está no DOM (ou cria uma temporária)
+        let video = document.getElementById('bd-video') as HTMLVideoElement | null;
+        if (!video) {
+          video = document.createElement('video');
+          video.id = 'bd-video';
+          video.setAttribute('playsinline', 'true');
+          video.muted = true;
+          video.autoplay = true;
+          video.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;pointer-events:none;z-index:0';
+          document.getElementById('bd-container')?.appendChild(video);
+        }
+        video.srcObject = stream;
+        await video.play().catch(() => {});
+        if (cancelled) { stream.getTracks().forEach(t => t.stop()); return false; }
+
+        setIsScanning(true);
+
+        const detector = new (window as any).BarcodeDetector({ formats });
+        const scan = async () => {
+          if (cancelled || hasScannedRef.current) return;
+          try {
+            const results = await detector.detect(video);
+            if (results.length > 0) {
+              handleDetected(results[0].rawValue);
+              return;
+            }
+          } catch {}
+          bdAnimFrame = requestAnimationFrame(scan);
+        };
+        bdAnimFrame = requestAnimationFrame(scan);
+        return true;
+      } catch {
+        return false;
+      }
+    };
+
+    // ── Fallback: Html5Qrcode ──────────────────────────────────────────────────
+    const tryHtml5Qrcode = async () => {
       await cleanupPromiseRef.current;
       if (cancelled) return;
       await new Promise(r => setTimeout(r, 150));
       if (cancelled) return;
+
+      const formats = isBarcode
+        ? [
+            Html5QrcodeSupportedFormats.CODE_128,
+            Html5QrcodeSupportedFormats.ITF,
+            Html5QrcodeSupportedFormats.EAN_13,
+            Html5QrcodeSupportedFormats.EAN_8,
+            Html5QrcodeSupportedFormats.UPC_A,
+            Html5QrcodeSupportedFormats.CODE_39,
+          ]
+        : expectedType === 'pix'
+        ? [Html5QrcodeSupportedFormats.QR_CODE]
+        : [
+            Html5QrcodeSupportedFormats.QR_CODE,
+            Html5QrcodeSupportedFormats.CODE_128,
+            Html5QrcodeSupportedFormats.ITF,
+            Html5QrcodeSupportedFormats.EAN_13,
+            Html5QrcodeSupportedFormats.EAN_8,
+            Html5QrcodeSupportedFormats.UPC_A,
+            Html5QrcodeSupportedFormats.DATA_MATRIX,
+          ];
 
       const scanConfig = {
         fps: 15,
@@ -375,10 +423,8 @@ export function CameraScannerModal({
         },
       };
 
-      const onSuccess = async (text: string) => { await handleResult(text, scanner); };
+      const onSuccess = async (text: string) => { handleDetected(text); };
       const onError   = () => {};
-
-      // PWA: sem width/height — compatível com todos os browsers Android/iOS
       const constraintsList: MediaTrackConstraints[] = [
         { facingMode: 'environment' },
         { facingMode: { ideal: 'environment' } },
@@ -387,45 +433,31 @@ export function CameraScannerModal({
       let started = false;
       let lastError: any = null;
 
-      // IMPORTANTE: cada tentativa cria instância nova — start() falho corrompe a instância
       for (const constraints of constraintsList) {
         if (cancelled || started) break;
-
         try {
-          if (scanner) { try { scanner.clear(); } catch {} }
+          if (h5scanner) { try { h5scanner.clear(); } catch {} }
           try {
             const el = document.getElementById(regionId);
             if (el) el.innerHTML = '';
           } catch {}
-          scanner = new Html5Qrcode(regionId, { formatsToSupport: formats, verbose: false });
-          scannerRef.current = scanner;
-        } catch (initErr) {
-          console.error('Html5Qrcode init error on retry:', initErr);
-          break;
-        }
+          h5scanner = new Html5Qrcode(regionId, { formatsToSupport: formats, verbose: false });
+          scannerRef.current = h5scanner;
+        } catch { break; }
 
         try {
-          await scanner!.start(constraints, scanConfig, onSuccess, onError);
+          await h5scanner!.start(constraints, scanConfig, onSuccess, onError);
           started = true;
         } catch (err: any) {
           lastError = err;
           const name: string = err?.name ?? String(err);
-          console.warn('Scanner start attempt failed:', name, constraints);
           if (name === 'NotAllowedError' || name === 'NotFoundError') break;
           await new Promise(r => setTimeout(r, 200));
         }
       }
 
       if (cancelled) return;
-
-      if (started) {
-        setIsScanning(true);
-        try {
-          const caps = scanner?.getRunningTrackCapabilities() as any;
-          if (caps?.torch !== undefined) setTorchAvailable(true);
-        } catch {}
-        return;
-      }
+      if (started) { setIsScanning(true); return; }
 
       const errName: string = lastError?.name ?? '';
       if (errName === 'NotAllowedError') {
@@ -435,20 +467,24 @@ export function CameraScannerModal({
       } else if (errName === 'NotReadableError') {
         setCameraError('A câmera está sendo usada por outro aplicativo. Feche-o e tente novamente.');
       } else {
-        setCameraError(
-          `Não foi possível abrir a câmera (${errName || 'erro desconhecido'}). Tente recarregar a página.`,
-        );
+        setCameraError(`Não foi possível abrir a câmera (${errName || 'erro desconhecido'}). Tente recarregar a página.`);
       }
     };
 
-    initScanner();
+    const init = async () => {
+      const usedBD = await tryBarcodeDetector();
+      if (!cancelled && !usedBD) await tryHtml5Qrcode();
+    };
+    init();
 
     return () => {
       cancelled = true;
-      if (scanner) {
-        (scanner.isScanning ? scanner.stop().catch(() => {}) : Promise.resolve())
+      if (bdAnimFrame) cancelAnimationFrame(bdAnimFrame);
+      if (bdStream) { bdStream.getTracks().forEach(t => t.stop()); bdStream = null; }
+      if (h5scanner) {
+        (h5scanner.isScanning ? h5scanner.stop().catch(() => {}) : Promise.resolve())
           .finally(() => {
-            try { scanner?.clear(); } catch {}
+            try { h5scanner?.clear(); } catch {}
             try {
               const el = document.getElementById(regionId);
               if (el) el.innerHTML = '';
@@ -456,7 +492,7 @@ export function CameraScannerModal({
           });
       }
     };
-  }, [open, isNative, isBarcode, expectedType, handleResult]);
+  }, [open, isNative, isBarcode, expectedType, onScan, onOpenChange]);
 
   // ─── No modo nativo, a UI da câmera é gerenciada pelo ML Kit (Activity nativa) ─
   // Só mostramos a UI personalizada no PWA ou em caso de erro no nativo
@@ -511,18 +547,26 @@ export function CameraScannerModal({
 
       {/* ── Área de câmera ── */}
       <div className="relative flex-1 bg-black overflow-hidden">
-        {/* pointer-events:none impede que overlays internos do Html5Qrcode bloqueiem os botões */}
-        <div
-          id={regionId}
-          className="absolute inset-0 w-full h-full"
-          style={{ pointerEvents: 'none' }}
-        />
-        {/* Esconde a UI padrão do html5-qrcode via CSS e garante que só o vídeo recebe events */}
+        {/* Container do BarcodeDetector (video gerenciado por JS) */}
+        <div id="bd-container" className="absolute inset-0 w-full h-full" style={{ pointerEvents: 'none' }} />
+
+        {/* Container do Html5Qrcode (fallback) — wrapper com pointer-events:none que Html5Qrcode NÃO gerencia */}
+        <div className="absolute inset-0 w-full h-full" style={{ pointerEvents: 'none' }}>
+          <div id={regionId} className="w-full h-full" />
+        </div>
+
+        {/* CSS: suprime TODOS os elementos filhos do scanner — ! garante override de estilos inline do Html5Qrcode */}
         <style>{`
+          #bd-container, #bd-container * { pointer-events: none !important; }
+          #${regionId}, #${regionId} * { pointer-events: none !important; }
           #${regionId} > div { display: none !important; }
-          #${regionId} > div:has(video) { display: block !important; pointer-events: none !important; }
-          #${regionId} video { width: 100% !important; height: 100% !important; object-fit: cover !important; pointer-events: none !important; }
-          #${regionId} canvas { pointer-events: none !important; }
+          #${regionId} > div:has(video) { display: block !important; }
+          #${regionId} video { width: 100% !important; height: 100% !important; object-fit: cover !important; }
+          @keyframes scanner-sweep {
+            0%   { left: 4%; }
+            50%  { left: 92%; }
+            100% { left: 4%; }
+          }
         `}</style>
 
         {cameraError ? (
@@ -561,12 +605,13 @@ export function CameraScannerModal({
               <div className="absolute bottom-0 left-0  w-7 h-7 border-b-[3px] border-l-[3px] border-yellow-400" />
               <div className="absolute bottom-0 right-0 w-7 h-7 border-b-[3px] border-r-[3px] border-yellow-400" />
 
+              {/* Linha animada via CSS — zero re-renders React */}
               <div
                 className="absolute top-0 bottom-0 w-[2px] bg-yellow-400"
                 style={{
-                  left: `${scanLineX}%`,
+                  left: '4%',
                   boxShadow: '0 0 10px 3px rgba(250,204,21,0.75)',
-                  transition: 'left 16ms linear',
+                  animation: 'scanner-sweep 2s ease-in-out infinite',
                 }}
               />
             </div>
