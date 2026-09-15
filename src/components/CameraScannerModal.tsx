@@ -131,14 +131,21 @@ export function CameraScannerModal({
     let cancelled = false;
 
     if (!open) {
-      // Fecha o scanner quando o modal fecha
-      if (scannerRef.current?.isScanning) {
-        scannerRef.current.stop().catch(() => {}).finally(() => {
-          try { scannerRef.current?.clear(); } catch {}
-          scannerRef.current = null;
-        });
-      }
+      // Fecha o scanner quando o modal fecha — sempre limpa, mesmo sem ter iniciado
+      const s = scannerRef.current;
+      scannerRef.current = null;
       setIsScanning(false);
+      if (s) {
+        (s.isScanning ? s.stop().catch(() => {}) : Promise.resolve())
+          .finally(() => {
+            try { s.clear(); } catch {}
+            // Limpa resíduos do DOM para evitar crash na próxima abertura
+            try {
+              const el = document.getElementById('html5-qrcode-scanner-region');
+              if (el) el.innerHTML = '';
+            } catch {}
+          });
+      }
       return;
     }
 
@@ -210,10 +217,11 @@ export function CameraScannerModal({
 
       // ── 4. Config de scan ─────────────────────────────────────────────────
       const scanConfig = {
-        fps: 10,
+        fps: 15,
         qrbox: (vw: number, vh: number) => {
           if (isBarcode) {
-            return { width: Math.floor(vw * 0.92), height: Math.floor(vh * 0.50) };
+            // Usa quase toda a largura e altura moderada para barras finas
+            return { width: Math.floor(vw * 0.96), height: Math.floor(Math.min(vh * 0.38, 220)) };
           }
           const side = Math.floor(Math.min(vw, vh) * 0.72);
           return { width: side, height: side };
@@ -224,17 +232,32 @@ export function CameraScannerModal({
       const onError   = () => {};
 
       // ── 5. Constraints com retry progressivo ──────────────────────────────
+      // Modo boleto: pede resolução LANDSCAPE para aproveitar a largura máxima
       // APK nativo: alta resolução → fallback simples
       // PWA/browser: SEM width/height (causa OverconstrainedError em muitos Android)
       const constraintsList: MediaTrackConstraints[] = Capacitor.isNativePlatform()
-        ? [
-            { facingMode: 'environment', width: { ideal: 720 }, height: { ideal: 1280 } },
-            { facingMode: 'environment' },
-          ]
-        : [
-            { facingMode: 'environment' },
-            { facingMode: { ideal: 'environment' } },
-          ];
+        ? isBarcode
+          ? [
+              // Landscape HD → fallback sem restrição
+              { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } },
+              { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+              { facingMode: 'environment' },
+            ]
+          : [
+              { facingMode: 'environment', width: { ideal: 720 }, height: { ideal: 1280 } },
+              { facingMode: 'environment' },
+            ]
+        : isBarcode
+          ? [
+              // PWA/browser: tenta landscape, cai para sem restrição se o browser rejeitar
+              { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+              { facingMode: 'environment' },
+              { facingMode: { ideal: 'environment' } },
+            ]
+          : [
+              { facingMode: 'environment' },
+              { facingMode: { ideal: 'environment' } },
+            ];
 
       let started = false;
       let lastError: any = null;
@@ -287,10 +310,15 @@ export function CameraScannerModal({
 
     return () => {
       cancelled = true;
-      if (scanner?.isScanning) {
-        scanner.stop().catch(() => {}).finally(() => {
-          try { scanner?.clear(); } catch {}
-        });
+      if (scanner) {
+        (scanner.isScanning ? scanner.stop().catch(() => {}) : Promise.resolve())
+          .finally(() => {
+            try { scanner?.clear(); } catch {}
+            try {
+              const el = document.getElementById('html5-qrcode-scanner-region');
+              if (el) el.innerHTML = '';
+            } catch {}
+          });
       }
     };
   }, [open, isBarcode, expectedType, handleResult]);
