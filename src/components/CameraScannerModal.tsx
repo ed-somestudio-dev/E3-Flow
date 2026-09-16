@@ -227,12 +227,10 @@ export function CameraScannerModal({
         setIsScanning(true);
 
         // Listener de resultados
-        await BarcodeScanner.addListener('barcodeScanned', async (event) => {
-          if (hasScannedRef.current || cancelled) return;
+        await BarcodeScanner.addListener('barcodesScanned', async (event) => {
+          const rawValue = event.barcodes?.[0]?.rawValue ?? '';
+          if (!rawValue || hasScannedRef.current || cancelled) return;
           hasScannedRef.current = true;
-
-          const rawValue = event.barcode.rawValue ?? '';
-          if (!rawValue) return;
 
           mlkitActiveRef.current = false;
           await BarcodeScanner.stopScan().catch(() => {});
@@ -295,21 +293,7 @@ export function CameraScannerModal({
     let h5scanner: Html5Qrcode | null = null;
 
     if (!open) {
-      const s = scannerRef.current;
-      scannerRef.current = null;
       setIsScanning(false);
-      if (s) {
-        cleanupPromiseRef.current = (s.isScanning ? s.stop().catch(() => {}) : Promise.resolve())
-          .finally(() => {
-            try { s.clear(); } catch {}
-            try {
-              const el = document.getElementById(regionId);
-              if (el) el.innerHTML = '';
-            } catch {}
-          }) as Promise<void>;
-      } else {
-        cleanupPromiseRef.current = Promise.resolve();
-      }
       return;
     }
 
@@ -509,14 +493,20 @@ export function CameraScannerModal({
       if (bdAnimFrame) cancelAnimationFrame(bdAnimFrame);
       if (bdStream) { bdStream.getTracks().forEach(t => t.stop()); bdStream = null; }
       if (h5scanner) {
-        (h5scanner.isScanning ? h5scanner.stop().catch(() => {}) : Promise.resolve())
-          .finally(() => {
+        scannerRef.current = null;
+        try {
+          const promise = (h5scanner.isScanning ? h5scanner.stop().catch(() => {}) : Promise.resolve());
+          cleanupPromiseRef.current = promise.finally(() => {
             try { h5scanner?.clear(); } catch {}
             try {
               const el = document.getElementById(regionId);
               if (el) el.innerHTML = '';
             } catch {}
-          });
+          }) as Promise<void>;
+        } catch (err) {
+          // Ignore synchronous errors during stop
+          cleanupPromiseRef.current = Promise.resolve();
+        }
       }
     };
   }, [open, isNative, isBarcode, expectedType, onScan, onOpenChange]);

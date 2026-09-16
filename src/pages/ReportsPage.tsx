@@ -205,7 +205,7 @@ export default function ReportsPage() {
   const forecastPayables = useMemo(() => {
     const fromStr = forecastDateFrom ? fmtFn(forecastDateFrom, 'yyyy-MM-dd') : undefined;
     const toStr = forecastDateTo ? fmtFn(forecastDateTo, 'yyyy-MM-dd') : undefined;
-    return data.payables
+    return consolidated
       .filter(p => {
         if (p.status === 'paid') return false;
         const isPastOverdue = p.status === 'overdue' && fromStr && p.dueDate < fromStr;
@@ -216,7 +216,7 @@ export default function ReportsPage() {
         return true;
       })
       .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
-  }, [data.payables, forecastDateFrom, forecastDateTo, showPastOverdueForecast]);
+  }, [consolidated, forecastDateFrom, forecastDateTo, showPastOverdueForecast]);
 
   // Filtered receivables for forecast list
   const forecastReceivables = useMemo(() => {
@@ -737,7 +737,10 @@ export default function ReportsPage() {
                   {forecastPayables.map(p => (
                     <div key={p.id} className="flex items-center justify-between text-sm py-1.5 border-b border-border last:border-0">
                       <div>
-                        <span className="font-medium">{p.description}</span>
+                        <span className="font-medium">
+                          {p.description}
+                          {p.isInvoice && <span className="ml-1 text-xs text-muted-foreground">({p.itemCount} itens)</span>}
+                        </span>
                         <span className="text-xs text-muted-foreground ml-2">{fmtDate(p.dueDate)}</span>
                       </div>
                       <span className="mono text-destructive font-semibold">{fmt(p.amount)}</span>

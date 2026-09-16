@@ -156,9 +156,9 @@ export default function DashboardPage() {
   ) > 0;
 
   const cashFlowData = useMemo(() => {
-    const months: { name: string; receitas: number; despesas: number; saldo: number }[] = [];
+    const months: { name: string; net: number; receitas: number; despesas: number; saldo: number }[] = [];
     const now = new Date();
-    let runningBalance = 0;
+    
     for (let i = 5; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -166,11 +166,18 @@ export default function DashboardPage() {
       const txs = data.transactions.filter(t => t.date.startsWith(key));
       const income = txs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
       const expense = txs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
-      runningBalance += income - expense;
-      months.push({ name: label, receitas: income, despesas: expense, saldo: runningBalance });
+      months.push({ name: label, net: income - expense, receitas: income, despesas: expense, saldo: 0 });
     }
+    
+    // Calculate backwards from the current balance
+    const currentBalance = data.accounts.reduce((s, a) => s + a.balance, 0);
+    months[5].saldo = currentBalance;
+    for (let i = 4; i >= 0; i--) {
+      months[i].saldo = months[i + 1].saldo - months[i + 1].net;
+    }
+    
     return months;
-  }, [data.transactions]);
+  }, [data.transactions, data.accounts]);
 
   const expenseByCategory = useMemo(() => {
     const map: Record<string, number> = {};
@@ -186,16 +193,24 @@ export default function DashboardPage() {
 
   // Daily balance for area chart (last 30 days)
   const dailyBalance = useMemo(() => {
-    const days: { date: string; saldo: number }[] = [];
+    const days: { date: string; net: number; saldo: number }[] = [];
     const now = new Date();
+    
     for (let i = 29; i >= 0; i--) {
       const d = new Date(now); d.setDate(d.getDate() - i);
       const key = d.toISOString().split('T')[0];
       const dayTx = data.transactions.filter(t => t.date === key);
       const net = dayTx.reduce((s, t) => s + (t.type === 'income' ? t.amount : -t.amount), 0);
-      const prev = days.length > 0 ? days[days.length - 1].saldo : data.accounts.reduce((s, a) => s + a.balance, 0);
-      days.push({ date: `${d.getDate()}/${d.getMonth() + 1}`, saldo: prev + net });
+      days.push({ date: `${d.getDate()}/${d.getMonth() + 1}`, net, saldo: 0 });
     }
+    
+    // Calculate backwards from the current balance
+    const currentBalance = data.accounts.reduce((s, a) => s + a.balance, 0);
+    days[29].saldo = currentBalance;
+    for (let i = 28; i >= 0; i--) {
+      days[i].saldo = days[i + 1].saldo - days[i + 1].net;
+    }
+    
     return days;
   }, [data.transactions, data.accounts]);
 
