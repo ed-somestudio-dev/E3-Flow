@@ -31,7 +31,7 @@ import { SAFE_LABELS } from '@/lib/safe-labels';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn, removeAccents, formatTruncatedCode } from '@/lib/utils';
-import { parsePixEMV, parseBoleto } from '@/lib/scanner-utils';
+import { parsePixEMV, parseBoleto, formatBarcodeToLinhaDigitavel } from '@/lib/scanner-utils';
 import { toast } from 'sonner';
 
 const statusLabels: Record<PayableStatus, string> = { pending: 'Pendente', paid: 'Pago', overdue: 'Vencida' };
@@ -1816,7 +1816,15 @@ function PayableForm({ item, categories, accounts, onSave }: {
           </div>
           <Input
             value={barcode}
-            onChange={e => setBarcode(e.target.value)}
+            onChange={e => {
+              let val = e.target.value;
+              const clean = val.replace(/\D/g, '');
+              // Se foi colado/bipado exatamente o código físico de 44 dígitos, auto-completa para a linha digitável (47 ou 48)
+              if (clean.length === 44) {
+                val = formatBarcodeToLinhaDigitavel(clean);
+              }
+              setBarcode(val);
+            }}
             placeholder="Cole o código de barras ou linha digitável do boleto"
           />
         </div>
