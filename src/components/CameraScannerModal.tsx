@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Image as ImageIcon, Keyboard, Zap, ZapOff, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Image as ImageIcon, FileText, Keyboard, Zap, ZapOff, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { detectScannedType, formatBarcodeToLinhaDigitavel } from '@/lib/scanner-utils';
+import { processPdfForScanner } from '@/lib/pdf-utils';
 import { Camera } from '@capacitor/camera';
 import { Capacitor } from '@capacitor/core';
 import { BarcodeScanner, BarcodeFormat, LensFacing } from '@capacitor-mlkit/barcode-scanning';
@@ -58,6 +59,7 @@ export function CameraScannerModal({
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const hasScannedRef = useRef<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const pdfInputRef = useRef<HTMLInputElement>(null);
   // Rastreia a promise de cleanup para aguardar liberação da câmera antes de reiniciar
   const cleanupPromiseRef = useRef<Promise<void>>(Promise.resolve());
   const mlkitActiveRef = useRef<boolean>(false);
@@ -112,20 +114,93 @@ export function CameraScannerModal({
     onOpenChange(false);
   }, [expectedType, onScan, onOpenChange]);
 
-  // ─── Galeria (PWA) ────────────────────────────────────────────────────────
+  // ─── Galeria e PDF (PWA) ──────────────────────────────────────────────────
   const handleGallery = () => fileInputRef.current?.click();
+  const handlePdfClick = () => pdfInputRef.current?.click();
+
+  const getHtml5Formats = () => {
+    if (expectedType === 'barcode') {
+      return [
+        Html5QrcodeSupportedFormats.CODE_128,
+        Html5QrcodeSupportedFormats.ITF,
+        Html5QrcodeSupportedFormats.EAN_13,
+        Html5QrcodeSupportedFormats.EAN_8,
+        Html5QrcodeSupportedFormats.UPC_A,
+        Html5QrcodeSupportedFormats.CODE_39,
+      ];
+    }
+    if (expectedType === 'pix') {
+      return [Html5QrcodeSupportedFormats.QR_CODE];
+    }
+    return [
+      Html5QrcodeSupportedFormats.QR_CODE,
+      Html5QrcodeSupportedFormats.CODE_128,
+      Html5QrcodeSupportedFormats.ITF,
+      Html5QrcodeSupportedFormats.EAN_13,
+      Html5QrcodeSupportedFormats.EAN_8,
+      Html5QrcodeSupportedFormats.UPC_A,
+      Html5QrcodeSupportedFormats.DATA_MATRIX,
+    ];
+  };
+
+  const processImageFile = async (file: File) => {
+    try {
+      const formats = getHtml5Formats();
+      const tmp = new Html5Qrcode('gallery-reader', { verbose: false, formatsToSupport: formats });
+      const result = await tmp.scanFile(file, true);
+      await tmp.clear();
+      if (result) await handleResult(result, null);
+    } catch {
+      toast.error('Nenhum código encontrado. Tente novamente ou use a câmera.');
+    }
+  };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     e.target.value = '';
-    try {
-      const tmp = new Html5Qrcode('gallery-reader', { verbose: false });
-      const result = await tmp.scanFile(file, true);
-      await tmp.clear();
-      if (result) await handleResult(result, null);
-    } catch {
-      toast.error('Nenhum código encontrado na imagem. Tente outra foto ou use a câmera.');
+    await processImageFile(file);
+  };
+
+  const handlePdfChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    
+    toast.info('Lendo PDF...', { id: 'pdf-toast' });
+    const result = await processPdfForScanner(file, expectedType);
+    toast.dismiss('pdf-toast');
+
+    if (result?.error) {
+      toast.error(`Erro ao ler PDF: ${result.error}`);
+      return;
+    }
+
+    let scannedVisually = false;
+
+    if (result?.imageFiles && result.imageFiles.length > 0) {
+      const formats = getHtml5Formats();
+      const tmp = new Html5Qrcode('gallery-reader', { verbose: false, formatsToSupport: formats });
+      for (const imgFile of result.imageFiles) {
+        try {
+          const scanResult = await tmp.scanFile(imgFile, true);
+          if (scanResult) {
+            await handleResult(scanResult, null);
+            scannedVisually = true;
+            break;
+          }
+        } catch {
+          // Ignora erro de não encontrar código e tenta a próxima página
+        }
+      }
+      try { await tmp.clear(); } catch {}
+    }
+
+    if (!scannedVisually && result?.fallbackText) {
+      // Usa o texto extraído caso as imagens falhem
+      await handleResult(result.fallbackText, null);
+    } else if (!scannedVisually && !result?.fallbackText) {
+      toast.error('Nenhum código encontrado no PDF.');
     }
   };
 
@@ -334,7 +409,11 @@ export function CameraScannerModal({
         finalType === 'barcode' ? 'Código de barras lido com sucesso!' :
                                   'Código lido com sucesso!',
       );
-      onScan(rawValue.trim(), finalType);
+      let finalText = rawValue.trim();
+      if (finalType === 'barcode') {
+        finalText = formatBarcodeToLinhaDigitavel(finalText);
+      }
+      onScan(finalText, finalType);
       onOpenChange(false);
     };
 
@@ -554,8 +633,9 @@ export function CameraScannerModal({
 
   return (
     <div className="fixed inset-0 z-[9999] bg-black flex flex-col overflow-hidden">
-      {/* Input oculto para galeria */}
+      {/* Inputs ocultos para galeria e PDF */}
       <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+      <input ref={pdfInputRef} type="file" accept="application/pdf" className="hidden" onChange={handlePdfChange} />
       <div id="gallery-reader" className="hidden" />
 
       {/* ── Barra superior ── */}
@@ -648,15 +728,27 @@ export function CameraScannerModal({
           {titleText}
         </p>
 
-        <button
-          onClick={handleGallery}
-          className="flex flex-col items-center gap-1.5 text-white opacity-90 active:opacity-60 transition-opacity pointer-events-auto"
-        >
-          <div className="h-12 w-12 rounded-full bg-white/20 backdrop-blur-sm border border-white/30 flex items-center justify-center pointer-events-none">
-            <ImageIcon className="h-6 w-6 text-white" />
-          </div>
-          <span className="text-[11px] text-white/80 font-medium pointer-events-none">Galeria</span>
-        </button>
+        <div className="flex items-center gap-8 pointer-events-auto">
+          <button
+            onClick={handleGallery}
+            className="flex flex-col items-center gap-1.5 text-white opacity-90 active:opacity-60 transition-opacity"
+          >
+            <div className="h-12 w-12 rounded-full bg-white/20 backdrop-blur-sm border border-white/30 flex items-center justify-center pointer-events-none">
+              <ImageIcon className="h-6 w-6 text-white" />
+            </div>
+            <span className="text-[11px] text-white/80 font-medium pointer-events-none">Galeria</span>
+          </button>
+          
+          <button
+            onClick={handlePdfClick}
+            className="flex flex-col items-center gap-1.5 text-white opacity-90 active:opacity-60 transition-opacity"
+          >
+            <div className="h-12 w-12 rounded-full bg-white/20 backdrop-blur-sm border border-white/30 flex items-center justify-center pointer-events-none">
+              <FileText className="h-6 w-6 text-white" />
+            </div>
+            <span className="text-[11px] text-white/80 font-medium pointer-events-none">PDF</span>
+          </button>
+        </div>
       </div>
 
       {/* ── Botão lateral esquerdo (modo boleto) ── */}

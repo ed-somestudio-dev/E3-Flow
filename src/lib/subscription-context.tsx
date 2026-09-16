@@ -254,7 +254,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
   }, [fetchSubscription, user]);
 
   const createSubscription = useCallback(async (
-    plan: 'monthly' | 'yearly',
+    plan: 'monthly' | 'yearly' | 'lifetime',
     customerData: { name: string; cpfCnpj: string; phone?: string }
   ): Promise<{ invoiceUrl?: string }> => {
     if (!user || !user.email) {
