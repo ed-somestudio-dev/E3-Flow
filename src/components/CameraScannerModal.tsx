@@ -75,7 +75,12 @@ export function CameraScannerModal({
     decodedText: string,
     scanner: Html5Qrcode | null,
   ) => {
-    if (!decodedText || hasScannedRef.current) return;
+    if (!decodedText) return;
+    if (expectedType === 'barcode') {
+      const digits = decodedText.replace(/\D/g, '');
+      if (digits.length < 44) return;
+    }
+    if (hasScannedRef.current) return;
     hasScannedRef.current = true;
 
     try {
@@ -229,7 +234,12 @@ export function CameraScannerModal({
         // Listener de resultados
         await BarcodeScanner.addListener('barcodesScanned', async (event) => {
           const rawValue = event.barcodes?.[0]?.rawValue ?? '';
-          if (!rawValue || hasScannedRef.current || cancelled) return;
+          if (!rawValue || cancelled) return;
+          if (expectedType === 'barcode') {
+            const digits = rawValue.replace(/\D/g, '');
+            if (digits.length < 44) return;
+          }
+          if (hasScannedRef.current) return;
           hasScannedRef.current = true;
 
           mlkitActiveRef.current = false;
@@ -304,7 +314,12 @@ export function CameraScannerModal({
     hasScannedRef.current = false;
 
     const handleDetected = (rawValue: string) => {
-      if (!rawValue || hasScannedRef.current) return;
+      if (!rawValue || cancelled) return;
+      if (expectedType === 'barcode') {
+        const digits = rawValue.replace(/\D/g, '');
+        if (digits.length < 44) return;
+      }
+      if (hasScannedRef.current) return;
       hasScannedRef.current = true;
 
       // Para o stream de BarcodeDetector

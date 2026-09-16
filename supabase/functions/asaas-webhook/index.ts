@@ -27,8 +27,8 @@ serve(async (req: Request) => {
     const event = payload.event;
     const payment = payload.payment;
     
-    if (!payment || !payment.subscription) {
-      console.log("Not a subscription payment event, ignoring");
+    if (!payment || (!payment.subscription && !payment.id)) {
+      console.log("Not a valid payment event, ignoring");
       return new Response("OK", { status: 200 });
     }
 
@@ -36,11 +36,23 @@ serve(async (req: Request) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const subscriptionId = payment.subscription;
+    const subscriptionId = payment.subscription || payment.id;
+
+    // Check if this payment/subscription is in our database
+    const { data: subRecord, error: subError } = await supabase
+      .from("subscriptions")
+      .select("*")
+      .eq("asaas_subscription_id", subscriptionId)
+      .maybeSingle();
+
+    if (subError || !subRecord) {
+      console.log(`Subscription or Payment ${subscriptionId} not found in database, ignoring`);
+      return new Response("OK", { status: 200 });
+    }
 
     let newStatus = null;
-    let dueDate = payment.dueDate; // Use payment due date as a reference or next due date?
-    // In Asaas, payment events usually tell us about a specific charge.
+    let dueDate = payment.dueDate; 
+
     
     // Mapeamento de status
     if (event === "PAYMENT_RECEIVED" || event === "PAYMENT_CONFIRMED") {
@@ -54,8 +66,10 @@ serve(async (req: Request) => {
     }
 
     if (newStatus) {
-      // Buscar a data do próximo vencimento atualizada direto do Asaas
-      if (subscriptionId) {
+      // Buscar a data do próximo vencimento atualizada direto do Asaas (somente para assinaturas recorrentes)
+      if (subRecord.subscription_cycle === 'LIFETIME') {
+        dueDate = '2099-12-31';
+      } else if (payment.subscription) {
         try {
           const asaasApiUrl = Deno.env.get("ASAAS_API_URL") || "https://api.asaas.com/v3";
           const asaasApiKey = Deno.env.get("ASAAS_API_KEY");

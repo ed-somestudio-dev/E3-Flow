@@ -32,7 +32,7 @@ import {
 export default function SubscriptionPage() {
   const { user } = useAuth();
   const { createSubscription, updateSubscription, cancelSubscription, loading, subscription, isInTrial, trialDaysRemaining, isTimeTampered } = useSubscription();
-  const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'yearly'>('monthly');
+  const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'yearly' | 'lifetime'>('monthly');
   const [creating, setCreating] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [canceling, setCanceling] = useState(false);
@@ -45,7 +45,7 @@ export default function SubscriptionPage() {
   useEffect(() => {
     if (subscription?.subscription_plan) {
       setSelectedPlan(
-        Object.entries(PLANS).find(([, p]) => p.name === subscription.subscription_plan || p.planId === subscription.subscription_plan)?.[0] as 'monthly' | 'yearly' || 'monthly'
+        Object.entries(PLANS).find(([, p]) => p.name === subscription.subscription_plan || p.planId === subscription.subscription_plan)?.[0] as 'monthly' | 'yearly' | 'lifetime' || 'monthly'
       );
     }
   }, [subscription?.subscription_plan]);
@@ -82,9 +82,15 @@ export default function SubscriptionPage() {
   const handleUpdatePlan = async () => {
     setUpdating(true);
     try {
-      await updateSubscription(selectedPlan);
+      const result = await updateSubscription(selectedPlan);
       setIsUpdateModalOpen(false);
-      toast.success('Plano alterado com sucesso!');
+      
+      if (result && result.invoiceUrl) {
+        toast.info('Redirecionando para o pagamento...');
+        window.location.href = result.invoiceUrl;
+      } else {
+        toast.success('Plano alterado com sucesso!');
+      }
     } catch (err: any) {
       alert("Erro ao alterar plano: " + (err.message || "Erro desconhecido"));
     } finally {
@@ -168,7 +174,7 @@ export default function SubscriptionPage() {
             {(isLifetimeAdmin || subscription?.subscription_due_date) && (
               <div>
                 <p className="text-sm text-muted-foreground">Próximo vencimento</p>
-                <p className="font-medium">{isLifetimeAdmin ? 'INDETERMINADO' : new Date(subscription!.subscription_due_date + 'T12:00:00').toLocaleDateString('pt-BR')}</p>
+                <p className="font-medium">{isLifetimeAdmin || subscription?.subscription_cycle === 'LIFETIME' ? 'INDETERMINADO (Vitalício)' : new Date(subscription!.subscription_due_date + 'T12:00:00').toLocaleDateString('pt-BR')}</p>
               </div>
             )}
             <div>
@@ -190,15 +196,16 @@ export default function SubscriptionPage() {
                        </DialogDescription>
                      </DialogHeader>
                      
-                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
                       {Object.entries(PLANS).map(([key, plan]) => {
                         const isYearly = key === 'yearly';
+                        const isLifetime = key === 'lifetime';
                         const isSelected = selectedPlan === key;
                         return (
                           <Card
                             key={key}
                             className={`cursor-pointer transition-all ${isSelected ? 'border-primary ring-2 ring-primary' : 'hover:border-primary/50'}`}
-                            onClick={() => setSelectedPlan(key as 'monthly' | 'yearly')}
+                            onClick={() => setSelectedPlan(key as 'monthly' | 'yearly' | 'lifetime')}
                           >
                             <CardHeader>
                               <div className="flex items-center justify-between">
@@ -210,7 +217,7 @@ export default function SubscriptionPage() {
                               <CardDescription className="text-xl font-bold">
                                 {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(plan.value)}
                                 <span className="text-sm font-normal text-muted-foreground">
-                                  {isYearly ? '/ano' : '/mês'}
+                                  {isYearly ? '/ano' : isLifetime ? ' único' : '/mês'}
                                 </span>
                               </CardDescription>
                             </CardHeader>
@@ -300,16 +307,17 @@ export default function SubscriptionPage() {
         )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-3xl mx-auto">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
         {Object.entries(PLANS).map(([key, plan]) => {
           const isYearly = key === 'yearly';
+          const isLifetime = key === 'lifetime';
           const isSelected = selectedPlan === key;
           const monthlyEquivalent = isYearly ? plan.value / 12 : plan.value;
           return (
             <Card
               key={key}
               className={`cursor-pointer transition-all ${isSelected ? 'border-primary ring-2 ring-primary' : 'hover:border-primary/50'}`}
-              onClick={() => setSelectedPlan(key as 'monthly' | 'yearly')}
+              onClick={() => setSelectedPlan(key as 'monthly' | 'yearly' | 'lifetime')}
             >
               <CardHeader>
                 <div className="flex items-center justify-between">
@@ -326,7 +334,7 @@ export default function SubscriptionPage() {
                 <CardDescription className="text-2xl font-bold">
                   {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(plan.value)}
                   <span className="text-sm font-normal text-muted-foreground">
-                    {isYearly ? '/ano' : '/mês'}
+                    {isYearly ? '/ano' : isLifetime ? ' único' : '/mês'}
                   </span>
                 </CardDescription>
                 {isYearly && (
@@ -397,12 +405,12 @@ export default function SubscriptionPage() {
               Processando...
             </>
           ) : (
-            isInTrial ? `Começar assinatura (Restam ${trialDaysRemaining} dias grátis)` : 'Assinar Plano'
+            (isInTrial && selectedPlan !== 'lifetime') ? `Começar assinatura (Restam ${trialDaysRemaining} dias grátis)` : 'Assinar Plano'
           )}
         </Button>
         <p className="text-xs text-center text-muted-foreground mt-2">
           Você será redirecionado para o ambiente seguro do Asaas para escolher Pix, Cartão ou Boleto.
-          {isInTrial ? ' A primeira cobrança só ocorrerá após o período de teste.' : ''}
+          {(isInTrial && selectedPlan !== 'lifetime') ? ' A primeira cobrança só ocorrerá após o período de teste.' : ''}
         </p>
 
         <div className="pt-4 border-t border-border mt-6">

@@ -11,10 +11,11 @@ const corsHeaders = {
 const PLANS = {
   monthly: { name: 'Mensal', value: 7.90, cycle: 'MONTHLY' as const },
   yearly:  { name: 'Anual',  value: 59.90, cycle: 'YEARLY' as const },
+  lifetime: { name: 'Vitalício', value: 179.90, cycle: 'LIFETIME' as const },
 } as const;
 
 interface ReqPayload {
-  planId?: 'monthly' | 'yearly';
+  planId?: 'monthly' | 'yearly' | 'lifetime';
   trialDays?: number;
   trialEndDate?: string;
   userName: string;
@@ -120,79 +121,110 @@ serve(async (req) => {
       }
     }
 
-    const subRes = await fetch(`${asaasApiUrl}/subscriptions`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "access_token": ASAAS_API_KEY,
-      },
-      body: JSON.stringify({
-        customer: asaasCustomerId,
-        billingType: "UNDEFINED",
-        value: price,
-        nextDueDate: resolvedTrialEndDate,
-        cycle,
-        description: `Assinatura E3 Flow - ${planName} (trial de ${trialDays} dias)`,
-      }),
-    });
+    let asaasReferenceId = "";
+    let checkoutUrl = "";
 
-    const subData = await subRes.json();
-    if (!subRes.ok) {
-      console.error("Erro Asaas Subscription:", subData);
-      throw new Error(subData.errors?.[0]?.description || "Erro ao criar assinatura no Asaas");
+    if (cycle === 'LIFETIME') {
+      const payRes = await fetch(`${asaasApiUrl}/payments`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "access_token": ASAAS_API_KEY,
+        },
+        body: JSON.stringify({
+          customer: asaasCustomerId,
+          billingType: "UNDEFINED",
+          value: price,
+          dueDate: resolvedTrialEndDate,
+          description: `Assinatura E3 Flow - ${planName} (Pagamento Único)`,
+        }),
+      });
+
+      const payData = await payRes.json();
+      if (!payRes.ok) {
+        console.error("Erro Asaas Payment:", payData);
+        throw new Error(payData.errors?.[0]?.description || "Erro ao criar pagamento no Asaas");
+      }
+      
+      asaasReferenceId = payData.id;
+      checkoutUrl = payData.invoiceUrl;
+      
+    } else {
+      const subRes = await fetch(`${asaasApiUrl}/subscriptions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "access_token": ASAAS_API_KEY,
+        },
+        body: JSON.stringify({
+          customer: asaasCustomerId,
+          billingType: "UNDEFINED",
+          value: price,
+          nextDueDate: resolvedTrialEndDate,
+          cycle,
+          description: `Assinatura E3 Flow - ${planName} (trial de ${trialDays} dias)`,
+        }),
+      });
+
+      const subData = await subRes.json();
+      if (!subRes.ok) {
+        console.error("Erro Asaas Subscription:", subData);
+        throw new Error(subData.errors?.[0]?.description || "Erro ao criar assinatura no Asaas");
+      }
+      
+      asaasReferenceId = subData.id;
+
+      // Buscar a primeira cobrança gerada para a assinatura para obter a invoiceUrl real do Asaas
+      try {
+        const paymentsRes = await fetch(`${asaasApiUrl}/subscriptions/${subData.id}/payments?limit=1`, {
+          method: "GET",
+          headers: {
+            "access_token": ASAAS_API_KEY,
+          },
+        });
+
+        if (paymentsRes.ok) {
+          const paymentsData = await paymentsRes.json();
+          const firstPayment = paymentsData.data?.[0];
+          if (firstPayment?.invoiceUrl) {
+            checkoutUrl = firstPayment.invoiceUrl;
+            console.log("Invoice URL obtida com sucesso:", checkoutUrl);
+          } else {
+            console.warn("Nenhuma cobrança encontrada para a assinatura:", subData.id);
+          }
+        } else {
+          const errText = await paymentsRes.text();
+          console.error("Erro ao buscar cobranças do Asaas:", errText);
+        }
+      } catch (err) {
+        console.error("Erro ao fazer requisição de cobranças:", err);
+      }
+
+      // Fallback caso a busca de cobranças falhe ou não tenha gerado a fatura a tempo
+      if (!checkoutUrl) {
+        const isSandbox = asaasApiUrl.includes('sandbox');
+        checkoutUrl = isSandbox
+          ? `https://sandbox.asaas.com/checkout/${subData.id}`
+          : `https://www.asaas.com/checkout/${subData.id}`;
+        console.log("Usando URL de fallback para checkout:", checkoutUrl);
+      }
     }
 
-await supabase
+    await supabase
       .from("subscriptions")
       .update({
-        asaas_subscription_id: subData.id,
+        asaas_subscription_id: asaasReferenceId,
         subscription_plan: planName,
         subscription_cycle: cycle,
-        subscription_status: "TRIAL",
+        subscription_status: cycle === 'LIFETIME' ? "PENDING" : "TRIAL",
         trial_end_date: resolvedTrialEndDate,
         subscription_due_date: resolvedTrialEndDate,
       })
       .eq("user_id", user.id);
 
-    // Buscar a primeira cobrança gerada para a assinatura para obter a invoiceUrl real do Asaas
-    let checkoutUrl = "";
-    try {
-      const paymentsRes = await fetch(`${asaasApiUrl}/subscriptions/${subData.id}/payments?limit=1`, {
-        method: "GET",
-        headers: {
-          "access_token": ASAAS_API_KEY,
-        },
-      });
-
-      if (paymentsRes.ok) {
-        const paymentsData = await paymentsRes.json();
-        const firstPayment = paymentsData.data?.[0];
-        if (firstPayment?.invoiceUrl) {
-          checkoutUrl = firstPayment.invoiceUrl;
-          console.log("Invoice URL obtida com sucesso:", checkoutUrl);
-        } else {
-          console.warn("Nenhuma cobrança encontrada para a assinatura:", subData.id);
-        }
-      } else {
-        const errText = await paymentsRes.text();
-        console.error("Erro ao buscar cobranças do Asaas:", errText);
-      }
-    } catch (err) {
-      console.error("Erro ao fazer requisição de cobranças:", err);
-    }
-
-    // Fallback caso a busca de cobranças falhe ou não tenha gerado a fatura a tempo
-    if (!checkoutUrl) {
-      const isSandbox = asaasApiUrl.includes('sandbox');
-      checkoutUrl = isSandbox
-        ? `https://sandbox.asaas.com/checkout/${subData.id}`
-        : `https://www.asaas.com/checkout/${subData.id}`;
-      console.log("Usando URL de fallback para checkout:", checkoutUrl);
-    }
-
     return new Response(JSON.stringify({
       invoiceUrl: checkoutUrl,
-      subscriptionId: subData.id,
+      subscriptionId: asaasReferenceId,
       trialEndDate: resolvedTrialEndDate,
       cycle,
     }), {

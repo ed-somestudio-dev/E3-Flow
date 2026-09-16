@@ -221,10 +221,10 @@ export function formatBarcodeToLinhaDigitavel(barcode: string): string {
     for (let i = 0; i < 4; i++) {
       const block = clean.substr(i * 11, 11);
       const digit = isMod10 ? mod10(block) : mod11Arrecadacao(block);
-      // Ex: 85850000005-3
-      formatted += `${block}-${digit} `;
+      // Retorna os números diretos, sem espaços e traços, para o copia/cola funcionar perfeitamente nos apps de banco
+      formatted += `${block}${digit}`;
     }
-    return formatted.trim();
+    return formatted;
   } else {
     // Boleto de Cobrança (47 dígitos)
     const bank = clean.substr(0, 3);
@@ -236,19 +236,20 @@ export function formatBarcodeToLinhaDigitavel(barcode: string): string {
 
     const block1 = bank + currency + freeField.substr(0, 5);
     const dv1 = mod10(block1);
-    const field1 = `${block1.substr(0, 5)}.${block1.substr(5, 4)}${dv1}`;
+    const field1 = `${block1.substr(0, 5)}${block1.substr(5, 4)}${dv1}`;
 
     const block2 = freeField.substr(5, 10);
     const dv2 = mod10(block2);
-    const field2 = `${block2.substr(0, 5)}.${block2.substr(5, 5)}${dv2}`;
+    const field2 = `${block2.substr(0, 5)}${block2.substr(5, 5)}${dv2}`;
 
     const block3 = freeField.substr(15, 10);
     const dv3 = mod10(block3);
-    const field3 = `${block3.substr(0, 5)}.${block3.substr(5, 5)}${dv3}`;
+    const field3 = `${block3.substr(0, 5)}${block3.substr(5, 5)}${dv3}`;
 
     const field4 = dv;
     const field5 = factor + amount;
 
-    return `${field1} ${field2} ${field3} ${field4} ${field5}`;
+    // Retorna string limpa, sem pontos e espaços
+    return `${field1}${field2}${field3}${field4}${field5}`;
   }
 }

@@ -371,7 +371,7 @@ export default function SettingsPage() {
               )}
               {subscription?.subscription_due_date && (
                 <p className="text-xs text-muted-foreground mt-1">
-                  Vencimento: <strong>{new Date(subscription.subscription_due_date + 'T12:00:00').toLocaleDateString('pt-BR')}</strong>
+                  Vencimento: <strong>{subscription.subscription_cycle === 'LIFETIME' ? 'Vitalício (Sem vencimento)' : new Date(subscription.subscription_due_date + 'T12:00:00').toLocaleDateString('pt-BR')}</strong>
                 </p>
               )}
             </div>

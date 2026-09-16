@@ -14,7 +14,7 @@ export interface Subscription {
   subscription_status: SubscriptionStatus;
   subscription_due_date: string;
   subscription_plan: string;
-  subscription_cycle?: 'MONTHLY' | 'YEARLY' | 'QUARTERLY' | null;
+  subscription_cycle?: 'MONTHLY' | 'YEARLY' | 'QUARTERLY' | 'LIFETIME' | null;
   trial_end_date?: string | null;
   created_at: string;
   updated_at: string;
@@ -29,12 +29,12 @@ interface SubscriptionContextType {
   daysUntilDue: number | null;
   isAdmin: boolean;
   isTimeTampered: boolean;
-  createSubscription: (plan: 'monthly' | 'yearly', customerData: {
+  createSubscription: (plan: 'monthly' | 'yearly' | 'lifetime', customerData: {
     name: string;
     cpfCnpj: string;
     phone?: string;
   }) => Promise<{ invoiceUrl?: string }>;
-  updateSubscription: (plan: 'monthly' | 'yearly') => Promise<void>;
+  updateSubscription: (plan: 'monthly' | 'yearly' | 'lifetime') => Promise<{ invoiceUrl?: string } | void>;
   cancelSubscription: () => Promise<void>;
   refreshSubscription: () => Promise<void>;
 }
@@ -56,6 +56,12 @@ export const PLANS = {
     planId: 'yearly',
     cycle: 'YEARLY' as const,
   },
+  lifetime: {
+    name: 'Vitalício',
+    value: 179.90,
+    planId: 'lifetime',
+    cycle: 'LIFETIME' as const,
+  }
 };
 
 export function SubscriptionProvider({ children }: { children: React.ReactNode }) {
@@ -261,7 +267,10 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
       let trialDaysToPass = TRIAL_DAYS;
       let trialEndDateStr: string | undefined = undefined;
 
-      if (effectiveSubscription?.trial_end_date) {
+      if (plan === 'lifetime') {
+        trialDaysToPass = 0;
+        trialEndDateStr = new Date().toISOString().split('T')[0];
+      } else if (effectiveSubscription?.trial_end_date) {
         const remaining = Math.ceil((new Date(effectiveSubscription.trial_end_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
         if (remaining > 0) {
           trialDaysToPass = remaining;
@@ -307,7 +316,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
     }
   }, [user, fetchSubscription]);
 
-  const updateSubscription = useCallback(async (plan: 'monthly' | 'yearly') => {
+  const updateSubscription = useCallback(async (plan: 'monthly' | 'yearly' | 'lifetime') => {
     if (!user) throw new Error('Usuário não autenticado');
     try {
       const { data, error } = await supabase.functions.invoke('asaas-update-subscription', {
@@ -317,6 +326,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
       if (data?.error) throw new Error(data.error);
       
       await fetchSubscription();
+      return data as { invoiceUrl?: string };
     } catch (err: any) {
       console.error('[SubscriptionProvider] Erro ao atualizar assinatura:', err);
       throw err;

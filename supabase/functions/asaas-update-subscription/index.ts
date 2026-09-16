@@ -10,6 +10,7 @@ const corsHeaders = {
 const PLANS = {
   monthly: { name: 'Mensal', value: 7.90, cycle: 'MONTHLY' as const },
   yearly:  { name: 'Anual',  value: 59.90, cycle: 'YEARLY' as const },
+  lifetime: { name: 'Vitalício', value: 179.90, cycle: 'LIFETIME' as const },
 } as const;
 
 serve(async (req: Request) => {
@@ -51,31 +52,70 @@ serve(async (req: Request) => {
       throw new Error("Assinatura não encontrada");
     }
 
+    let checkoutUrl = undefined;
+    let newAsaasId = subRecord.asaas_subscription_id;
+    let newStatus = subRecord.subscription_status;
+
     // Se tem asaas_subscription_id, atualiza no Asaas
     if (subRecord.asaas_subscription_id) {
       const ASAAS_API_KEY = Deno.env.get("ASAAS_API_KEY");
       if (!ASAAS_API_KEY) throw new Error("ASAAS_API_KEY is not set");
       const asaasApiUrl = Deno.env.get("ASAAS_API_URL") || "https://sandbox.asaas.com/api/v3";
 
-      // Usando POST conforme doc legado / comum do Asaas (ou PUT dependendo da versão)
-      const subRes = await fetch(`${asaasApiUrl}/subscriptions/${subRecord.asaas_subscription_id}`, {
-        method: "POST", 
-        headers: {
-          "Content-Type": "application/json",
-          "access_token": ASAAS_API_KEY,
-        },
-        body: JSON.stringify({
-          value: price,
-          cycle: cycle,
-          description: `Assinatura E3 Flow - ${planName} (${cycle})`,
-          updatePendingPayments: true
-        }),
-      });
+      if (cycle === 'LIFETIME') {
+        // Se mudou para vitalício, cancelar a assinatura recorrente antiga
+        if (subRecord.asaas_subscription_id.startsWith('sub_')) {
+          await fetch(`${asaasApiUrl}/subscriptions/${subRecord.asaas_subscription_id}`, {
+            method: "DELETE",
+            headers: { "access_token": ASAAS_API_KEY }
+          });
+        }
+        
+        // E gerar uma cobrança única
+        const resolvedTrialEndDate = new Date().toISOString().split("T")[0]; // vencimento imediato
+        const payRes = await fetch(`${asaasApiUrl}/payments`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "access_token": ASAAS_API_KEY,
+          },
+          body: JSON.stringify({
+            customer: subRecord.asaas_customer_id,
+            billingType: "UNDEFINED",
+            value: price,
+            dueDate: resolvedTrialEndDate,
+            description: `Assinatura E3 Flow - ${planName} (Pagamento Único)`,
+          }),
+        });
 
-      const subData = await subRes.json();
-      if (!subRes.ok) {
-        console.error("Erro ao atualizar Asaas Subscription:", subData);
-        throw new Error(subData.errors?.[0]?.description || "Erro ao atualizar assinatura no Asaas");
+        const payData = await payRes.json();
+        if (!payRes.ok) throw new Error(payData.errors?.[0]?.description || "Erro ao criar cobrança vitalícia");
+        
+        newAsaasId = payData.id;
+        checkoutUrl = payData.invoiceUrl;
+        newStatus = "PENDING";
+        
+      } else {
+        // Atualiza a assinatura recorrente existente
+        const subRes = await fetch(`${asaasApiUrl}/subscriptions/${subRecord.asaas_subscription_id}`, {
+          method: "POST", 
+          headers: {
+            "Content-Type": "application/json",
+            "access_token": ASAAS_API_KEY,
+          },
+          body: JSON.stringify({
+            value: price,
+            cycle: cycle,
+            description: `Assinatura E3 Flow - ${planName} (${cycle})`,
+            updatePendingPayments: true
+          }),
+        });
+
+        const subData = await subRes.json();
+        if (!subRes.ok) {
+          console.error("Erro ao atualizar Asaas Subscription:", subData);
+          throw new Error(subData.errors?.[0]?.description || "Erro ao atualizar assinatura no Asaas");
+        }
       }
     }
 
@@ -85,12 +125,15 @@ serve(async (req: Request) => {
       .update({
         subscription_plan: planName,
         subscription_cycle: cycle,
+        asaas_subscription_id: newAsaasId,
+        subscription_status: newStatus,
+        ...(cycle === 'LIFETIME' ? { subscription_due_date: new Date().toISOString().split("T")[0] } : {})
       })
       .eq("id", subRecord.id);
 
     if (updateError) throw updateError;
 
-    return new Response(JSON.stringify({ success: true, plan: planName, cycle }), {
+    return new Response(JSON.stringify({ success: true, plan: planName, cycle, invoiceUrl: checkoutUrl }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
     });
