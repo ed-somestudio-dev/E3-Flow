@@ -541,7 +541,7 @@ export default function PayablesPage() {
   const confirmPay = async () => {
     if (payingIds.length > 0 && payAccountId) {
       const itemsToPay = payingIds.map(id => data.payables.find(x => x.id === id)).filter(Boolean) as Payable[];
-      const isInvoice = itemsToPay.length > 0 && itemsToPay.every(p => p.supplier?.startsWith('cartao:'));
+      const isInvoice = itemsToPay.length > 0 && itemsToPay.every(p => isCreditPayable(p));
       
       const baseTotal = itemsToPay.reduce((sum, p) => sum + p.amount, 0);
       const discountAmount = payDiscountType === 'PERCENT'
@@ -559,7 +559,8 @@ export default function PayablesPage() {
         totalActuallyPaid = amt;
 
         if (payingIds.length === 1) {
-          await markPayablePaidPartial(payingIds[0], payAccountId, amt, isInvoice, interestAmount, discountAmount);
+          const item = itemsToPay[0];
+          await markPayablePaidPartial(payingIds[0], isInvoice ? item.accountId! : payAccountId, amt, isInvoice, interestAmount, discountAmount);
         } else {
           // FIFO: paga itens mais antigos primeiro até esgotar o valor
           const items = itemsToPay.sort((a, b) => a.dueDate.localeCompare(b.dueDate));
@@ -569,7 +570,7 @@ export default function PayablesPage() {
           if (amt >= totalDue) {
             for (const p of items) {
               const pRatio = baseTotal > 0 ? p.amount / baseTotal : 0;
-              await markPayablePaid(p.id, payAccountId, isInvoice, interestAmount * pRatio, discountAmount * pRatio);
+              await markPayablePaid(p.id, isInvoice ? p.accountId! : payAccountId, isInvoice, interestAmount * pRatio, discountAmount * pRatio);
             }
           } else {
             let remaining = amt;
@@ -582,18 +583,18 @@ export default function PayablesPage() {
               
               if (remaining >= pTotalDue - 0.005) {
                 // quita integralmente este item
-                await markPayablePaid(p.id, payAccountId, isInvoice, pInterest, pDiscount);
+                await markPayablePaid(p.id, isInvoice ? p.accountId! : payAccountId, isInvoice, pInterest, pDiscount);
                 remaining = Math.round((remaining - pTotalDue) * 100) / 100;
               } else {
                 // pagamento parcial deste item — gera saldo restante individual
-                await markPayablePaidPartial(p.id, payAccountId, Math.round(remaining * 100) / 100, isInvoice, pInterest, pDiscount);
+                await markPayablePaidPartial(p.id, isInvoice ? p.accountId! : payAccountId, Math.round(remaining * 100) / 100, isInvoice, pInterest, pDiscount);
                 remaining = 0;
               }
             }
           }
         }
       } else {
-        totalActuallyPaid = itemsToPay.reduce((s, p) => s + p.amount, 0);
+        totalActuallyPaid = baseTotal + interestAmount - discountAmount;
 
         for (const id of payingIds) {
           const p = data.payables.find(x => x.id === id);
@@ -601,12 +602,14 @@ export default function PayablesPage() {
           const ratio = baseTotal > 0 ? p.amount / baseTotal : 0;
           const itemInterest = interestAmount * ratio;
           const itemDiscount = discountAmount * ratio;
-          await markPayablePaid(id, payAccountId, isInvoice, itemInterest, itemDiscount);
+          await markPayablePaid(id, isInvoice ? p.accountId! : payAccountId, isInvoice, itemInterest, itemDiscount);
         }
       }
 
       if (isInvoice && totalActuallyPaid > 0) {
-        const creditCardAccountId = itemsToPay[0].supplier.replace('cartao:', '');
+        const creditCardAccountId = itemsToPay[0].supplier?.startsWith('cartao:') 
+          ? itemsToPay[0].supplier.replace('cartao:', '') 
+          : itemsToPay[0].accountId!;
         const cardName = getAccountName(creditCardAccountId) || 'Cartão de Crédito';
         
         await insertGroupedTransaction({

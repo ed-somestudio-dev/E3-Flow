@@ -184,6 +184,17 @@ export default function DashboardPage() {
     const now = new Date();
     const monthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     data.transactions.filter(t => t.type === 'expense' && t.date.startsWith(monthStr)).forEach(t => {
+      if (t.description.startsWith('Fatura ')) {
+        const paidItems = data.payables.filter(p => p.status === 'paid' && p.paymentDate === t.date && (p.purchaseDate || p.supplier?.startsWith('cartao:')));
+        if (paidItems.length > 0) {
+          const totalPaid = paidItems.reduce((s, p) => s + p.amount, 0);
+          paidItems.forEach(p => {
+            const ratio = totalPaid > 0 ? p.amount / totalPaid : 0;
+            map[p.categoryId] = (map[p.categoryId] || 0) + (t.amount * ratio);
+          });
+          return;
+        }
+      }
       map[t.categoryId] = (map[t.categoryId] || 0) + t.amount;
     });
     return Object.entries(map).map(([catId, value]) => ({
@@ -494,7 +505,9 @@ export default function DashboardPage() {
             <div key={tx.id} className="flex items-center justify-between py-2 border-b border-border last:border-0">
               <div>
                 <p className="text-sm font-medium">{tx.description}</p>
-                <p className="text-xs text-muted-foreground">{getCategoryName(tx.categoryId)} · {fmtDate(tx.date)}</p>
+                <p className="text-xs text-muted-foreground">
+                  {tx.description.startsWith('Fatura ') ? 'Múltiplas' : getCategoryName(tx.categoryId)} · {fmtDate(tx.date)}
+                </p>
               </div>
               <span className={`mono text-sm font-semibold ${tx.type === 'income' ? 'text-success' : 'text-destructive'}`}>
                 {tx.type === 'income' ? '+' : '-'}{fmt(tx.amount)}

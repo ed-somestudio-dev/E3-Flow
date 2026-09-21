@@ -90,6 +90,17 @@ export default function ReportsPage() {
   const expenseByCategory = useMemo(() => {
     const map: Record<string, number> = {};
     periodTransactions.filter(t => t.type === 'expense').forEach(t => {
+      if (t.description.startsWith('Fatura ')) {
+        const paidItems = data.payables.filter(p => p.status === 'paid' && p.paymentDate === t.date && (p.purchaseDate || p.supplier?.startsWith('cartao:')));
+        if (paidItems.length > 0) {
+          const totalPaid = paidItems.reduce((s, p) => s + p.amount, 0);
+          paidItems.forEach(p => {
+            const ratio = totalPaid > 0 ? p.amount / totalPaid : 0;
+            map[p.categoryId] = (map[p.categoryId] || 0) + (t.amount * ratio);
+          });
+          return;
+        }
+      }
       map[t.categoryId] = (map[t.categoryId] || 0) + t.amount;
     });
     return Object.entries(map).map(([catId, value]) => ({

@@ -165,7 +165,9 @@ export default function TransactionsPage() {
                   <td className="py-3 px-4 font-medium">
                     {tx.description}
                   </td>
-                  <td className="py-3 px-4 text-muted-foreground">{getCategoryName(tx.categoryId)}</td>
+                  <td className="py-3 px-4 text-muted-foreground">
+                    {tx.description.startsWith('Fatura ') ? 'Múltiplas' : getCategoryName(tx.categoryId)}
+                  </td>
                   <td className="py-3 px-4 text-muted-foreground">{getAccountName(tx.accountId)}</td>
                   <td className={`py-3 px-4 text-right mono font-semibold ${tx.type === 'income' ? 'text-success' : 'text-destructive'}`}>
                     {tx.type === 'income' ? '+' : '-'}{fmt(tx.amount)}
