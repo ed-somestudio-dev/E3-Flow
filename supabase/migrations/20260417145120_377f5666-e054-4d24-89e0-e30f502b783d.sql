@@ -19,3 +19,7 @@ CREATE TRIGGER update_user_settings_updated_at
 BEFORE UPDATE ON public.user_settings
 FOR EACH ROW
 EXECUTE FUNCTION public.update_updated_at_column();
+-- Auto-generated grants for user_settings
+GRANT SELECT ON public.user_settings TO anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.user_settings TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.user_settings TO service_role;

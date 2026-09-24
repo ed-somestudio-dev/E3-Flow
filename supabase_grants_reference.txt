@@ -1,0 +1,14 @@
+ATENÇÃO: Mudança nas políticas da Supabase (a partir de 30 de Outubro de 2026)
+
+Qualquer nova tabela criada no esquema 'public' (via painel da Supabase ou migrações) precisará ter as permissões declaradas explicitamente para que a API (seu aplicativo) consiga acessá-la.
+
+Sempre que criar uma NOVA TABELA, execute o código SQL abaixo, substituindo "sua_tabela_aqui" pelo nome real da sua tabela:
+
+-- Conceder permissão de leitura para usuários anônimos (sem login)
+GRANT SELECT ON public.sua_tabela_aqui TO anon;
+
+-- Conceder permissão total (CRUD) para usuários autenticados
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.sua_tabela_aqui TO authenticated;
+
+-- Conceder permissão total para a service_role (uso interno via backend/functions)
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.sua_tabela_aqui TO service_role;

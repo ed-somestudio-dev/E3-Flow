@@ -42,3 +42,13 @@ BEFORE UPDATE ON public.subscriptions
 FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
 -- Edge functions will need service role to insert/update subscriptions, so RLS doesn't block them.
+
+-- Auto-generated grants for user_roles
+GRANT SELECT ON public.user_roles TO anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.user_roles TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.user_roles TO service_role;
+
+-- Auto-generated grants for subscriptions
+GRANT SELECT ON public.subscriptions TO anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.subscriptions TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.subscriptions TO service_role;

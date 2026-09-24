@@ -24,3 +24,7 @@ CREATE TRIGGER update_contacts_updated_at
 BEFORE UPDATE ON public.contacts
 FOR EACH ROW
 EXECUTE FUNCTION public.update_updated_at_column();
+-- Auto-generated grants for contacts
+GRANT SELECT ON public.contacts TO anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.contacts TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.contacts TO service_role;

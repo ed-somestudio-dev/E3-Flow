@@ -290,3 +290,23 @@ CREATE INDEX IF NOT EXISTS idx_unsubscribe_tokens_token ON public.email_unsubscr
 --    If conditions are met, it calls the process-email-queue Edge Function
 --    via net.http_post using the vault-stored service_role key.
 --    To revert: SELECT cron.unschedule('process-email-queue');
+
+-- Auto-generated grants for email_send_log
+GRANT SELECT ON public.email_send_log TO anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.email_send_log TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.email_send_log TO service_role;
+
+-- Auto-generated grants for email_send_state
+GRANT SELECT ON public.email_send_state TO anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.email_send_state TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.email_send_state TO service_role;
+
+-- Auto-generated grants for suppressed_emails
+GRANT SELECT ON public.suppressed_emails TO anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.suppressed_emails TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.suppressed_emails TO service_role;
+
+-- Auto-generated grants for email_unsubscribe_tokens
+GRANT SELECT ON public.email_unsubscribe_tokens TO anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.email_unsubscribe_tokens TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.email_unsubscribe_tokens TO service_role;

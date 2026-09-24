@@ -114,3 +114,8 @@ CREATE POLICY "Users manage own sale items" ON public.sale_items
   WITH CHECK (
     EXISTS (SELECT 1 FROM public.sales WHERE sales.id = sale_items.sale_id AND sales.user_id = public.get_tenant_id())
   );
+
+-- Auto-generated grants for family_members
+GRANT SELECT ON public.family_members TO anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.family_members TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.family_members TO service_role;

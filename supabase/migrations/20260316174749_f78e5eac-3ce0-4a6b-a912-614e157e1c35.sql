@@ -124,3 +124,33 @@ CREATE TABLE public.budgets (
 ALTER TABLE public.budgets ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can manage own budgets" ON public.budgets FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 CREATE TRIGGER update_budgets_updated_at BEFORE UPDATE ON public.budgets FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+-- Auto-generated grants for categories
+GRANT SELECT ON public.categories TO anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.categories TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.categories TO service_role;
+
+-- Auto-generated grants for financial_accounts
+GRANT SELECT ON public.financial_accounts TO anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.financial_accounts TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.financial_accounts TO service_role;
+
+-- Auto-generated grants for transactions
+GRANT SELECT ON public.transactions TO anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.transactions TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.transactions TO service_role;
+
+-- Auto-generated grants for payables
+GRANT SELECT ON public.payables TO anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.payables TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.payables TO service_role;
+
+-- Auto-generated grants for receivables
+GRANT SELECT ON public.receivables TO anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.receivables TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.receivables TO service_role;
+
+-- Auto-generated grants for budgets
+GRANT SELECT ON public.budgets TO anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.budgets TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.budgets TO service_role;

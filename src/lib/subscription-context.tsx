@@ -280,9 +280,17 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
           trialEndDateStr = new Date().toISOString().split('T')[0]; // cobrar hoje
         }
       } else {
-        const trialEndDate = new Date();
-        trialEndDate.setDate(trialEndDate.getDate() + TRIAL_DAYS);
-        trialEndDateStr = trialEndDate.toISOString().split('T')[0];
+        // Fallback robusto: se não tiver data de trial na assinatura, usa a data de criação da conta
+        const regDate = user.created_at ? new Date(user.created_at) : new Date();
+        const fallbackTrialEndDate = new Date(regDate.getTime() + TRIAL_DAYS * 24 * 60 * 60 * 1000);
+        
+        if (fallbackTrialEndDate.getTime() > new Date().getTime()) {
+          trialDaysToPass = Math.ceil((fallbackTrialEndDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+          trialEndDateStr = fallbackTrialEndDate.toISOString().split('T')[0];
+        } else {
+          trialDaysToPass = 0;
+          trialEndDateStr = new Date().toISOString().split('T')[0]; // cobrar hoje
+        }
       }
 
       const { data, error } = await supabase.functions.invoke('asaas-checkout', {

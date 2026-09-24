@@ -46,3 +46,13 @@ ALTER TABLE public.goal_transactions ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Users can manage own goal transactions" ON public.goal_transactions;
 CREATE POLICY "Users can manage own goal transactions" ON public.goal_transactions
   FOR ALL USING (public.get_tenant_id() = user_id) WITH CHECK (public.get_tenant_id() = user_id);
+
+-- Auto-generated grants for goals
+GRANT SELECT ON public.goals TO anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.goals TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.goals TO service_role;
+
+-- Auto-generated grants for goal_transactions
+GRANT SELECT ON public.goal_transactions TO anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.goal_transactions TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.goal_transactions TO service_role;
