@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { Input } from '@/components/ui/input';
+import { VoiceSearchInput } from '@/components/ui/VoiceSearchInput';
 import { Search, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -42,7 +42,6 @@ export function SearchAutocomplete({
     const term = removeAccents(value.trim().toLowerCase());
     const seen = new Set<string>();
     const result: string[] = [];
-
     for (const rawOpt of options) {
       const name = rawOpt?.trim();
       if (!name) continue;
@@ -68,7 +67,7 @@ export function SearchAutocomplete({
   return (
     <div ref={wrapperRef} className={cn('relative', className)}>
       <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none z-10" />
-      <Input
+      <VoiceSearchInput
         value={value}
         onChange={e => { onChange(e.target.value); setOpen(true); setHighlight(0); }}
         onFocus={() => setOpen(true)}

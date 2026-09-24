@@ -18,6 +18,7 @@ import { ptBR } from 'date-fns/locale';
 import { cn, removeAccents } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import { fmt, fmtDate } from '@/lib/format';
+import { VoiceSearchInput } from '@/components/ui/VoiceSearchInput';
 
 export default function TransactionsPage() {
   const { data, addTransaction, updateTransaction, deleteTransaction, getCategoryName, getAccountName } = useFinance();
@@ -66,8 +67,8 @@ export default function TransactionsPage() {
       </div>
       <div className="flex items-center gap-3 flex-wrap">
         <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Buscar transações..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground z-10" />
+          <VoiceSearchInput placeholder="Buscar transações..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
         </div>
         <Select value={typeFilter} onValueChange={setTypeFilter}>
           <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>

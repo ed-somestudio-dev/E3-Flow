@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from '@/components/ui/label';
 import { motion } from 'framer-motion';
 import { removeAccents } from '@/lib/utils';
+import { VoiceSearchInput } from '@/components/ui/VoiceSearchInput';
 
 const typeLabels: Record<TransactionType, string> = { income: 'Receita', expense: 'Despesa' };
 
@@ -54,8 +55,8 @@ export default function CategoriesPage() {
 
       <div className="flex items-center gap-3 flex-wrap">
         <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Buscar categorias..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground z-10" />
+          <VoiceSearchInput placeholder="Buscar categorias..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
         </div>
         <Select value={typeFilter} onValueChange={setTypeFilter}>
           <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>

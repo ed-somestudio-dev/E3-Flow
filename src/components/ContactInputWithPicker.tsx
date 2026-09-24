@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { Input } from '@/components/ui/input';
+import { VoiceSearchInput } from '@/components/ui/VoiceSearchInput';
 import { Button } from '@/components/ui/button';
 import { Users } from 'lucide-react';
 import { useContacts, Contact } from '@/lib/contacts-context';
@@ -76,7 +77,7 @@ export function ContactInputWithPicker({ value, onChange, placeholder = 'Nome do
     <div className="relative">
       <div className="flex gap-1.5">
         <div className="relative flex-1">
-          <Input
+          <VoiceSearchInput
             ref={inputRef}
             value={value}
             onChange={e => onChange(e.target.value)}
@@ -119,7 +120,7 @@ export function ContactInputWithPicker({ value, onChange, placeholder = 'Nome do
           <DialogHeader>
             <DialogTitle>Selecionar Contato</DialogTitle>
           </DialogHeader>
-          <Input
+          <VoiceSearchInput
             placeholder="Buscar contato..."
             value={search}
             onChange={e => setSearch(e.target.value)}

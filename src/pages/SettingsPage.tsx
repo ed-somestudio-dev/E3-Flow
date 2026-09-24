@@ -4,19 +4,26 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { QrCode, Save, Stamp, Upload, Trash2, Bell, ShoppingCart, Crown, MessageCircle, AlertTriangle } from 'lucide-react';
+import { QrCode, Save, Stamp, Upload, Trash2, Bell, ShoppingCart, Crown, MessageCircle, AlertTriangle, Mic } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import { useSubscription } from '@/lib/subscription-context';
+import { useFinance } from '@/lib/finance-context';
 import { Link } from 'react-router-dom';
 
 export default function SettingsPage() {
   const { settings, save, loaded, uploadStamp, removeStamp } = usePixSettings();
   const { subscription, isInTrial, trialDaysRemaining, isAdmin } = useSubscription();
+  const { data } = useFinance();
+  
   const [form, setForm] = useState<PixSettingsRow>(settings);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  
+  const [voiceAccount, setVoiceAccount] = useState(localStorage.getItem('defaultVoiceAccount') || 'auto');
+  const [voiceExpCat, setVoiceExpCat] = useState(localStorage.getItem('defaultVoiceExpenseCat') || 'auto');
+  const [voiceIncCat, setVoiceIncCat] = useState(localStorage.getItem('defaultVoiceIncomeCat') || 'auto');
 
   useEffect(() => { setForm(settings); }, [settings]);
 
@@ -343,8 +350,65 @@ export default function SettingsPage() {
             As vendas concluídas atualizam automaticamente o estoque dos produtos.
           </div>
         )}
+      </div>
 
-        {/* Botão de salvar removido - salvamento automático */}
+      {/* Comandos de Voz */}
+      <div className="finance-card p-6 space-y-4">
+        <div className="flex items-center gap-2 pb-2 border-b border-border">
+          <Mic className="h-5 w-5 text-primary" />
+          <h2 className="font-semibold">Comandos de Voz</h2>
+        </div>
+
+        <p className="text-sm text-muted-foreground">
+          Configure as opções padrão que serão pré-selecionadas ao registrar um lançamento por voz.
+        </p>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-2">
+          <div className="space-y-2">
+            <Label>Conta Padrão</Label>
+            <Select 
+              value={voiceAccount} 
+              onValueChange={v => { setVoiceAccount(v); localStorage.setItem('defaultVoiceAccount', v); toast.success('Conta padrão salva'); }}
+            >
+              <SelectTrigger><SelectValue placeholder="Automático" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="auto">Automático (Primeira da lista)</SelectItem>
+                <SelectItem value="none">Deixar em branco (Escolher na hora)</SelectItem>
+                {data?.accounts?.map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          
+          <div className="space-y-2">
+            <Label>Categoria (Despesas)</Label>
+            <Select 
+              value={voiceExpCat} 
+              onValueChange={v => { setVoiceExpCat(v); localStorage.setItem('defaultVoiceExpenseCat', v); toast.success('Categoria salva'); }}
+            >
+              <SelectTrigger><SelectValue placeholder="Automático" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="auto">Automático (Primeira da lista)</SelectItem>
+                <SelectItem value="none">Deixar em branco (Escolher na hora)</SelectItem>
+                {data?.categories?.filter(c => c.type === 'expense').map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          
+          <div className="space-y-2">
+            <Label>Categoria (Receitas)</Label>
+            <Select 
+              value={voiceIncCat} 
+              onValueChange={v => { setVoiceIncCat(v); localStorage.setItem('defaultVoiceIncomeCat', v); toast.success('Categoria salva'); }}
+            >
+              <SelectTrigger><SelectValue placeholder="Automático" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="auto">Automático (Primeira da lista)</SelectItem>
+                <SelectItem value="none">Deixar em branco (Escolher na hora)</SelectItem>
+                {data?.categories?.filter(c => c.type === 'income').map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
       </div>
 
       {/* Assinatura */}

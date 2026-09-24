@@ -15,6 +15,7 @@ import { Plus, Search, Package, Pencil, Trash2, AlertCircle, Camera, Image as Im
 import { fmt } from '@/lib/format';
 import { toast } from 'sonner';
 import { removeAccents } from '@/lib/utils';
+import { VoiceSearchInput } from '@/components/ui/VoiceSearchInput';
 import Cropper from 'react-easy-crop';
 import { getCroppedImg } from '@/lib/cropImage';
 import { Camera as CapacitorCamera, CameraResultType, CameraSource } from '@capacitor/camera';
@@ -233,8 +234,8 @@ export default function ProductsPage() {
 
       {/* Search */}
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground z-10" />
+        <VoiceSearchInput
           className="pl-9"
           placeholder="Buscar produto..."
           value={search}

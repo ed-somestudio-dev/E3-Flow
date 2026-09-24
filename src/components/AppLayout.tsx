@@ -8,6 +8,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/hooks/use-toast';
 import { useEffect } from 'react';
+import { VoiceCommandFAB } from '@/components/VoiceCommandFAB';
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   // Recarrega a página quando volta de background há mais de 60s
@@ -39,7 +40,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     <SidebarProvider>
       <div className="min-h-screen flex w-full">
         <AppSidebar />
-        <div className="flex-1 flex flex-col min-w-0">
+        <div className="flex-1 flex flex-col min-w-0 relative">
           <header className="h-14 flex items-center justify-between border-b border-border px-4 bg-card shrink-0">
             <SidebarTrigger className="mr-4" />
             <div className="flex items-center gap-2">
@@ -63,12 +64,13 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             </div>
           )}
 
-          <main className="flex-1 overflow-auto p-4 md:p-6">
+          <main className="flex-1 overflow-auto p-4 md:p-6 pb-24">
             {children}
           </main>
+          
+          <VoiceCommandFAB />
         </div>
       </div>
     </SidebarProvider>
   );
 }
-

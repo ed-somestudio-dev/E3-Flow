@@ -36,6 +36,7 @@ import {
 } from '@/lib/documents';
 import { fmt, fmtDate } from '@/lib/format';
 import { toast } from 'sonner';
+import { VoiceSearchInput } from '@/components/ui/VoiceSearchInput';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 const STATUS_MAP: Record<SaleStatus, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
@@ -775,8 +776,8 @@ export default function SalesPage() {
         </div>
 
         <div className="relative w-full">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground z-10" />
+          <VoiceSearchInput
             ref={searchRef}
             className="pl-9"
             placeholder="Buscar por cliente..."
@@ -985,8 +986,8 @@ export default function SalesPage() {
             <div className="space-y-2">
               <Label>Adicionar Produtos</Label>
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input className="pl-9" placeholder="Buscar produto..." value={productSearch} onChange={e => setProductSearch(e.target.value)} />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground z-10" />
+                <VoiceSearchInput className="pl-9" placeholder="Buscar produto..." value={productSearch} onChange={e => setProductSearch(e.target.value)} />
               </div>
               {filteredProducts.length === 0 ? (
                 <p className="text-xs text-muted-foreground text-center py-4">

@@ -15,6 +15,7 @@ import { Contacts as CapacitorContacts } from '@capacitor-community/contacts';
 import { Checkbox } from '@/components/ui/checkbox';
 import { removeAccents, formatTruncatedCode } from '@/lib/utils';
 import { parsePixEMV } from '@/lib/scanner-utils';
+import { VoiceSearchInput } from '@/components/ui/VoiceSearchInput';
 
 // Chrome Android Contact Picker API
 declare global {
@@ -200,8 +201,8 @@ export default function ContactsPage() {
       </div>
 
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input placeholder="Buscar por nome, telefone ou e-mail..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground z-10" />
+        <VoiceSearchInput placeholder="Buscar por nome, telefone ou e-mail..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
       </div>
 
       {!supportsNative && (
@@ -328,8 +329,8 @@ export default function ContactsPage() {
           </DialogHeader>
           <div className="p-4 border-b border-border">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Buscar contatos no aparelho..." value={deviceSearch} onChange={e => setDeviceSearch(e.target.value)} className="pl-9 h-9" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground z-10" />
+              <VoiceSearchInput placeholder="Buscar contatos no aparelho..." value={deviceSearch} onChange={e => setDeviceSearch(e.target.value)} className="pl-9 h-9" />
             </div>
           </div>
           <div className="flex-1 overflow-y-auto px-4 py-2 space-y-2 max-h-[50vh]">
