@@ -374,11 +374,13 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
   const isPaidStatusBase = effectiveSubscription?.subscription_status === 'RECEIVED' || effectiveSubscription?.subscription_status === 'CONFIRMED';
   
   let isPaidStatus = isPaidStatusBase;
-  if (isPaidStatusBase && effectiveSubscription?.subscription_due_date) {
-    const dueDate = new Date(effectiveSubscription.subscription_due_date + 'T23:59:59').getTime();
-    const gracePeriodEnd = dueDate + (14 * 24 * 60 * 60 * 1000); // 14 days
-    if (new Date().getTime() > gracePeriodEnd) {
-      isPaidStatus = false;
+  if (isPaidStatusBase && effectiveSubscription?.subscription_plan !== 'lifetime' && effectiveSubscription?.subscription_cycle !== 'LIFETIME') {
+    if (effectiveSubscription?.subscription_due_date) {
+      const dueDate = new Date(effectiveSubscription.subscription_due_date + 'T23:59:59').getTime();
+      const gracePeriodEnd = dueDate + (15 * 24 * 60 * 60 * 1000); // 15 days
+      if (new Date().getTime() > gracePeriodEnd) {
+        isPaidStatus = false;
+      }
     }
   }
 

@@ -144,9 +144,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (offlineDataStr && !assertOnline()) {
              try {
                const offlineData = JSON.parse(offlineDataStr);
-               const isWithin30Days = (Date.now() - offlineData.timestamp) < 30 * 24 * 60 * 60 * 1000;
+               const isWithin30Days = true; // Controle de bloqueio delegado ao subscription-context
                if (isWithin30Days) {
-                 console.log('[AuthContext] Usando fallback offline estendido (30 dias) para o usuário:', offlineData.user.email);
+                 console.log('[AuthContext] Usando fallback offline para o usuário:', offlineData.user.email);
                  finalSession = {
                    user: offlineData.user,
                    access_token: 'offline_token',
@@ -154,8 +154,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                    expires_in: 86400 * 30, // 30 days
                    token_type: 'bearer'
                  } as Session;
-               } else {
-                 console.warn('[AuthContext] Fallback offline expirou (mais de 30 dias).');
                }
              } catch(e) { console.error('Erro no fallback offline', e); }
           }

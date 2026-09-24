@@ -1359,7 +1359,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     const insertPayload = {
       id: newPayableId,
       user_id: effectiveUserId,
-      description: `${payable.description} (Saldo restante)`,
+      description: payable.description.includes('(Saldo restante)') ? payable.description : `${payable.description} (Saldo restante)`,
       supplier: payable.supplier,
       category_id: payable.categoryId,
       account_id: payable.accountId || null,
@@ -2015,7 +2015,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       id: newReceivableId,
       user_id: effectiveUserId,
       client_name: receivable.clientName,
-      description: `${receivable.description} (Saldo restante)`,
+      description: receivable.description.includes('(Saldo restante)') ? receivable.description : `${receivable.description} (Saldo restante)`,
       category_id: receivable.categoryId,
       account_id: receivable.accountId || null,
       amount: remaining,
