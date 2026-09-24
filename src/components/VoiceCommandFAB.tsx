@@ -8,6 +8,10 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 
+import { TransactionForm } from '@/pages/TransactionsPage';
+import { ReceivableForm } from '@/pages/ReceivablesPage';
+import { PayableForm } from '@/pages/PayablesPage';
+
 declare global {
   interface Window {
     SpeechRecognition: any;
@@ -85,7 +89,7 @@ export function VoiceCommandFAB() {
     const recognition = new SpeechRecognition();
     recognition.lang = 'pt-BR';
     recognition.continuous = true;
-    recognition.interimResults = false;
+    recognition.interimResults = true;
     
     finalTranscriptRef.current = '';
 
@@ -293,6 +297,10 @@ export function VoiceCommandFAB() {
            : (data?.categories?.find(c => c.type === 'expense')?.id || '');
     }
 
+    sessionStorage.removeItem('e3flow_dialog_draft_transactions-form-new');
+    sessionStorage.removeItem('e3flow_dialog_draft_payables-form-new');
+    sessionStorage.removeItem('e3flow_dialog_draft_receivables-form-new');
+
     setParsedData({ 
       type, 
       amount, 
@@ -300,73 +308,9 @@ export function VoiceCommandFAB() {
       date,
       categoryId: defaultCat,
       accountId: defaultAccount,
-      contact: 'Fornecedor ou Cliente não informado'
+      contact: ''
     });
     setShowConfirm(true);
-  };
-
-  const handleConfirm = async () => {
-    if (!parsedData) return;
-    
-    try {
-      if (parsedData.type === 'payable') {
-        await addPayable({
-          description: parsedData.description,
-          supplier: parsedData.contact,
-          amount: parsedData.amount,
-          dueDate: parsedData.date,
-          status: 'pending',
-          categoryId: parsedData.categoryId,
-          accountId: parsedData.accountId
-        } as any);
-        toast.success('Conta a pagar adicionada!');
-      } else if (parsedData.type === 'receivable') {
-        await addReceivable({
-          description: parsedData.description,
-          clientName: parsedData.contact,
-          amount: parsedData.amount,
-          dueDate: parsedData.date,
-          status: 'pending',
-          categoryId: parsedData.categoryId,
-          accountId: parsedData.accountId
-        } as any);
-        toast.success('Conta a receber adicionada!');
-      } else if (parsedData.type === 'expense') {
-        if (!parsedData.accountId) {
-          toast.error('Selecione uma conta bancária.');
-          return;
-        }
-        await addTransaction({
-          type: 'expense',
-          description: parsedData.description,
-          amount: parsedData.amount,
-          date: parsedData.date,
-          categoryId: parsedData.categoryId,
-          accountId: parsedData.accountId,
-        } as any);
-        toast.success('Despesa (Transação) registrada!');
-      } else if (parsedData.type === 'income') {
-        if (!parsedData.accountId) {
-          toast.error('Selecione uma conta bancária.');
-          return;
-        }
-        await addTransaction({
-          type: 'income',
-          description: parsedData.description,
-          amount: parsedData.amount,
-          date: parsedData.date,
-          categoryId: parsedData.categoryId,
-          accountId: parsedData.accountId,
-        } as any);
-        toast.success('Receita (Transação) registrada!');
-      }
-      
-      setShowConfirm(false);
-      setParsedData(null);
-    } catch (error) {
-      console.error('Erro ao salvar comando de voz:', error);
-      toast.error('Erro ao salvar. Verifique se os dados estão preenchidos.');
-    }
   };
 
   return (
@@ -392,10 +336,13 @@ export function VoiceCommandFAB() {
           {parsedData && (
             <div className="py-4 space-y-4">
               <div className="space-y-2">
-                <Label>Tipo</Label>
+                <Label>Classificação Identificada</Label>
                 <Select
                   value={parsedData.type}
                   onValueChange={(val: CommandType) => {
+                    sessionStorage.removeItem('e3flow_dialog_draft_transactions-form-new');
+                    sessionStorage.removeItem('e3flow_dialog_draft_payables-form-new');
+                    sessionStorage.removeItem('e3flow_dialog_draft_receivables-form-new');
                     const isIncome = val === 'income' || val === 'receivable';
                     const newCat = data?.categories?.find(c => c.type === (isIncome ? 'income' : 'expense'))?.id || parsedData.categoryId;
                     setParsedData({ ...parsedData, type: val, categoryId: newCat });
@@ -412,127 +359,82 @@ export function VoiceCommandFAB() {
                   </SelectContent>
                 </Select>
               </div>
-              
-              <div className="space-y-2">
-                <Label>Descrição</Label>
-                <Input 
-                  value={parsedData.description} 
-                  onChange={e => setParsedData({ ...parsedData, description: e.target.value })}
+
+              {parsedData.type === 'expense' || parsedData.type === 'income' ? (
+                <TransactionForm
+                  tx={null}
+                  initialData={{
+                    type: parsedData.type as 'expense' | 'income',
+                    description: parsedData.description,
+                    categoryId: parsedData.categoryId,
+                    accountId: parsedData.accountId,
+                    amount: parsedData.amount,
+                    date: parsedData.date,
+                  }}
+                  categories={data.categories}
+                  accounts={data.accounts}
+                  onSave={async (tx) => {
+                    try {
+                      await addTransaction(tx as any);
+                      toast.success('Transação registrada!');
+                      setShowConfirm(false);
+                      setParsedData(null);
+                    } catch (e) {
+                      toast.error('Erro ao salvar transação.');
+                    }
+                  }}
                 />
-              </div>
-
-              <div className="space-y-2 relative">
-                <Label>{(parsedData.type === 'receivable' || parsedData.type === 'income') ? 'Cliente' : 'Fornecedor'}</Label>
-                <div className="relative flex items-center">
-                  <Input 
-                    value={parsedData.contact} 
-                    onChange={e => setParsedData({ ...parsedData, contact: e.target.value })}
-                    onFocus={() => setIsContactFocused(true)}
-                    onBlur={() => setTimeout(() => setIsContactFocused(false), 200)}
-                    placeholder="Nome do cliente ou fornecedor"
-                    className="pr-10"
-                  />
-                  <button 
-                    type="button"
-                    onClick={isListeningContact ? () => contactRecognitionRef.current?.stop() : startListeningContact}
-                    className={`absolute right-2 p-1 rounded-full transition-colors ${isListeningContact ? 'text-destructive' : 'text-muted-foreground hover:text-primary'}`}
-                  >
-                    {isListeningContact ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mic className="h-4 w-4" />}
-                  </button>
-                </div>
-                
-                {isContactFocused && data?.contacts && (
-                  <div className="absolute z-[100] top-[60px] left-0 w-full max-h-48 overflow-y-auto bg-popover text-popover-foreground border rounded-md shadow-md">
-                    {data.contacts
-                      .filter(c => c.name.toLowerCase().includes(parsedData.contact.toLowerCase()))
-                      .slice(0, 10) // Show max 10 to not overwhelm UI
-                      .map(contact => (
-                        <div 
-                          key={contact.id} 
-                          onClick={() => {
-                            setParsedData({ ...parsedData, contact: contact.name });
-                            setIsContactFocused(false);
-                          }}
-                          className="px-3 py-2 text-sm hover:bg-muted cursor-pointer"
-                        >
-                          {contact.name}
-                        </div>
-                    ))}
-                    {data.contacts.filter(c => c.name.toLowerCase().includes(parsedData.contact.toLowerCase())).length === 0 && (
-                      <div className="px-3 py-2 text-sm text-muted-foreground italic">Nenhum contato encontrado. Será usado o texto digitado.</div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Valor (R$)</Label>
-                  <Input 
-                    type="number" 
-                    step="0.01"
-                    value={parsedData.amount} 
-                    onChange={e => setParsedData({ ...parsedData, amount: parseFloat(e.target.value) || 0 })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>{parsedData.type === 'expense' || parsedData.type === 'income' ? 'Data' : 'Vencimento'}</Label>
-                  <Input 
-                    type="date" 
-                    value={parsedData.date} 
-                    onChange={e => setParsedData({ ...parsedData, date: e.target.value })}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Categoria</Label>
-                <Select
-                  value={parsedData.categoryId}
-                  onValueChange={(val) => setParsedData({ ...parsedData, categoryId: val })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {data?.categories
-                      ?.filter(c => c.type === (parsedData.type === 'income' || parsedData.type === 'receivable' ? 'income' : 'expense'))
-                      .map(cat => (
-                        <SelectItem key={cat.id} value={cat.id}>
-                          {cat.name}
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Conta / Carteira</Label>
-                <Select
-                  value={parsedData.accountId}
-                  onValueChange={(val) => setParsedData({ ...parsedData, accountId: val })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {data?.accounts?.map(acc => (
-                      <SelectItem key={acc.id} value={acc.id}>
-                        {acc.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
+              ) : parsedData.type === 'payable' ? (
+                <PayableForm
+                  item={null}
+                  initialData={{
+                    supplier: parsedData.contact,
+                    description: parsedData.description,
+                    categoryId: parsedData.categoryId,
+                    accountId: parsedData.accountId,
+                    amount: parsedData.amount,
+                    dueDate: parsedData.date,
+                  }}
+                  categories={data.categories.filter(c => c.type === 'expense')}
+                  accounts={data.accounts}
+                  onSave={async (p) => {
+                    try {
+                      await addPayable(p as any);
+                      toast.success('Conta a pagar adicionada!');
+                      setShowConfirm(false);
+                      setParsedData(null);
+                    } catch (e) {
+                      toast.error('Erro ao salvar conta.');
+                    }
+                  }}
+                />
+              ) : (
+                <ReceivableForm
+                  item={null}
+                  initialData={{
+                    clientName: parsedData.contact,
+                    description: parsedData.description,
+                    categoryId: parsedData.categoryId,
+                    accountId: parsedData.accountId,
+                    amount: parsedData.amount,
+                    dueDate: parsedData.date,
+                  }}
+                  categories={data.categories.filter(c => c.type === 'income')}
+                  accounts={data.accounts}
+                  onSave={async (r) => {
+                    try {
+                      await addReceivable(r as any);
+                      toast.success('Conta a receber adicionada!');
+                      setShowConfirm(false);
+                      setParsedData(null);
+                    } catch (e) {
+                      toast.error('Erro ao salvar recebível.');
+                    }
+                  }}
+                />
+              )}
             </div>
           )}
-          <DialogFooter className="flex gap-2 sm:justify-end">
-            <Button variant="outline" onClick={() => setShowConfirm(false)}>Cancelar</Button>
-            <Button onClick={handleConfirm} className="gap-2">
-              <Check className="h-4 w-4" /> Salvar
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
     </>

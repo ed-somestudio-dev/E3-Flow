@@ -54,7 +54,15 @@ export default function TransactionsPage() {
           <h1 className="text-2xl font-bold">Transações</h1>
           <p className="text-muted-foreground text-sm">Registre receitas e despesas</p>
         </div>
-        <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) setEditingTx(null); }}>
+        <Dialog open={dialogOpen} onOpenChange={(o) => { 
+          setDialogOpen(o); 
+          if (!o) {
+            try {
+              sessionStorage.removeItem(`e3flow_dialog_draft_transactions-form-${editingTx?.id || 'new'}`);
+            } catch {}
+            setEditingTx(null);
+          }
+        }}>
           <DialogTrigger asChild>
             <Button onClick={() => setEditingTx(null)}><Plus className="h-4 w-4 mr-2" />Nova Transação</Button>
           </DialogTrigger>
@@ -193,18 +201,18 @@ export default function TransactionsPage() {
   );
 }
 
-function TransactionForm({ tx, categories, accounts, onSave }: {
-  tx: Transaction | null; categories: { id: string; name: string; type: TransactionType }[];
-  accounts: { id: string; name: string; type?: string }[]; onSave: (t: Omit<Transaction, 'id'>) => void;
+export function TransactionForm({ tx, initialData, categories, accounts, onSave, onCancel }: {
+  tx: Transaction | null; initialData?: Partial<Omit<Transaction, 'id'>>; categories: { id: string; name: string; type: TransactionType }[];
+  accounts: { id: string; name: string; type?: string }[]; onSave: (t: Omit<Transaction, 'id'>) => void; onCancel?: () => void;
 }) {
   const initialDraft = {
-    type: (tx?.type || 'expense') as TransactionType,
-    description: tx?.description || '',
-    categoryId: tx?.categoryId || '',
-    amount: tx?.amount?.toString() || '',
-    date: tx?.date || new Date().toISOString().split('T')[0],
-    accountId: tx?.accountId || accounts[0]?.id || '',
-    notes: tx?.notes || '',
+    type: (tx?.type || initialData?.type || 'expense') as TransactionType,
+    description: tx?.description || initialData?.description || '',
+    categoryId: tx?.categoryId || initialData?.categoryId || '',
+    amount: tx?.amount?.toString() || initialData?.amount?.toString() || '',
+    date: tx?.date || initialData?.date || new Date().toISOString().split('T')[0],
+    accountId: tx?.accountId || initialData?.accountId || accounts[0]?.id || '',
+    notes: tx?.notes || initialData?.notes || '',
   };
   const [draft, setDraft, clearDraft] = usePersistedFormDraft(`transactions-form-${tx?.id || 'new'}`, true, initialDraft);
   const { type, description, categoryId, amount, date, accountId, notes } = draft;

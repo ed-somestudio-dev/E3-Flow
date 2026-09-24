@@ -659,7 +659,15 @@ export default function PayablesPage() {
           <h1 className="text-2xl font-bold">{SAFE_LABELS.payables}</h1>
           <p className="text-muted-foreground text-sm">Gerencie suas despesas e contas</p>
         </div>
-        <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) setEditingItem(null); }}>
+        <Dialog open={dialogOpen} onOpenChange={(o) => { 
+          setDialogOpen(o); 
+          if (!o) {
+            try {
+              sessionStorage.removeItem(`e3flow_dialog_draft_payables-form-${editingItem?.id || 'new'}`);
+            } catch {}
+            setEditingItem(null);
+          }
+        }}>
           <DialogTrigger asChild>
             <Button onClick={() => setEditingItem(null)}><Plus className="h-4 w-4 mr-2" />Nova Conta</Button>
           </DialogTrigger>
@@ -1409,30 +1417,31 @@ export default function PayablesPage() {
   );
 }
 
-function PayableForm({ item, categories, accounts, onSave }: {
-  item: Payable | null; categories: { id: string; name: string }[];
+export function PayableForm({ item, initialData, categories, accounts, onSave, onCancel }: {
+  item: Payable | null; initialData?: Partial<Omit<Payable, 'id'>>; categories: { id: string; name: string }[];
   accounts: { id: string; name: string; type?: string; billingCloseDay?: number; dueDay?: number }[];
   onSave: (p: Omit<Payable, 'id'> & { installments?: number; isCredit?: boolean; recurrence?: { frequency: RecurrenceFrequency; occurrences: number } }) => void;
+  onCancel?: () => void;
 }) {
   const { data } = useFinance();
   const initialDraft = {
-    supplier: item?.supplier?.startsWith('cartao:') ? '' : (item?.supplier || ''),
-    description: item?.description || '',
-    categoryId: item?.categoryId || '',
-    accountId: item?.accountId || '',
-    amount: item?.amount?.toString() || '',
-    dueDate: item?.dueDate || '',
-    purchaseDate: item?.purchaseDate || new Date().toISOString().split('T')[0],
-    notes: item?.notes || '',
+    supplier: item?.supplier?.startsWith('cartao:') ? '' : (item?.supplier || initialData?.supplier || ''),
+    description: item?.description || initialData?.description || '',
+    categoryId: item?.categoryId || initialData?.categoryId || '',
+    accountId: item?.accountId || initialData?.accountId || '',
+    amount: item?.amount?.toString() || initialData?.amount?.toString() || '',
+    dueDate: item?.dueDate || initialData?.dueDate || '',
+    purchaseDate: item?.purchaseDate || initialData?.purchaseDate || new Date().toISOString().split('T')[0],
+    notes: item?.notes || initialData?.notes || '',
     useInstallments: false,
     installments: 2,
     inputMode: 'total' as 'total' | 'installment',
     installmentValue: '',
-    recurring: item?.recurring || false,
-    recurrenceFrequency: (item?.recurrenceFrequency || 'monthly') as RecurrenceFrequency,
+    recurring: item?.recurring || initialData?.recurring || false,
+    recurrenceFrequency: (item?.recurrenceFrequency || initialData?.recurrenceFrequency || 'monthly') as RecurrenceFrequency,
     occurrences: '',
-    pixKey: item?.pixKey || '',
-    barcode: item?.barcode || '',
+    pixKey: item?.pixKey || initialData?.pixKey || '',
+    barcode: item?.barcode || initialData?.barcode || '',
   };
   const [draft, setDraft, clearDraft] = usePersistedFormDraft(`payables-form-${item?.id || 'new'}`, true, initialDraft);
   const { supplier, description, categoryId, accountId, amount, dueDate, purchaseDate, notes, useInstallments, installments, inputMode, installmentValue, recurring, recurrenceFrequency, occurrences, pixKey, barcode } = draft;
@@ -1679,8 +1688,8 @@ function PayableForm({ item, categories, accounts, onSave }: {
         </div>
       )}
 
-      {/* Non-credit-card installment option */}
-      {!isCreditCard && (
+      {/* Non-credit-card installment option (or debit mode on hybrid) */}
+      {(!isCreditCard || paymentMode === 'debit') && (
         <div className="space-y-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
           <div className="flex items-center gap-2">
             <Checkbox id="useInstallments" checked={useInstallments} onCheckedChange={(c) => { setUseInstallments(c === true); if (!c) setInstallments(1); }} />

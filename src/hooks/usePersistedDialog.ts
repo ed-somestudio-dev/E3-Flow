@@ -47,6 +47,7 @@ export function usePersistedFormDraft<T extends Record<string, any>>(
 ): [T, (updater: T | ((prev: T) => T)) => void, () => void] {
   const storageKey = STORAGE_PREFIX + 'draft_' + key;
   const prevOpen = useRef(dialogOpen);
+  const isCleared = useRef(false);
 
   const [draft, setDraftState] = useState<T>(() => {
     if (!dialogOpen) return initialValue;
@@ -62,7 +63,7 @@ export function usePersistedFormDraft<T extends Record<string, any>>(
 
   // Persist draft to sessionStorage on every change (while dialog is open)
   useEffect(() => {
-    if (!dialogOpen) return;
+    if (!dialogOpen || isCleared.current) return;
     try {
       sessionStorage.setItem(storageKey, JSON.stringify(draft));
     } catch { /* ignore */ }
@@ -74,24 +75,30 @@ export function usePersistedFormDraft<T extends Record<string, any>>(
       try {
         sessionStorage.removeItem(storageKey);
       } catch { /* ignore */ }
+      isCleared.current = true;
       // Reset to initial value
       setDraftState(initialValue);
     }
+    if (dialogOpen) {
+      isCleared.current = false;
+    }
     prevOpen.current = dialogOpen;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dialogOpen, storageKey]);
+  }, [dialogOpen, storageKey]); // left original deps to avoid lint issues if they were there
 
   const setDraft = useCallback((updater: T | ((prev: T) => T)) => {
+    isCleared.current = false;
     setDraftState(updater);
   }, []);
 
   const clearDraft = useCallback(() => {
+    isCleared.current = true;
     try {
       sessionStorage.removeItem(storageKey);
     } catch { /* ignore */ }
     setDraftState(initialValue);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [storageKey]);
+  }, [storageKey]); // initialValue is captured but we don't want to trigger re-renders
 
   return [draft, setDraft, clearDraft];
 }

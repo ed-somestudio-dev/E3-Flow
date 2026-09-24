@@ -725,7 +725,15 @@ export default function ReceivablesPage() {
             <Upload className="h-4 w-4 mr-2 text-primary" />Conciliar OFX
           </Button>
 
-          <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) setEditingItem(null); }}>
+          <Dialog open={dialogOpen} onOpenChange={(o) => { 
+          setDialogOpen(o); 
+          if (!o) {
+            try {
+              sessionStorage.removeItem(`e3flow_dialog_draft_receivables-form-${editingItem?.id || 'new'}`);
+            } catch {}
+            setEditingItem(null);
+          }
+        }}>
             <DialogTrigger asChild>
               <Button onClick={() => setEditingItem(null)}><Plus className="h-4 w-4 mr-2" />Novo Recebível</Button>
             </DialogTrigger>
@@ -736,7 +744,7 @@ export default function ReceivablesPage() {
           >
             <DialogHeader><DialogTitle>{editingItem ? 'Editar' : 'Novo'} Recebível</DialogTitle></DialogHeader>
               <ReceivableForm key={editingItem?.id || 'new'} item={editingItem} categories={data.categories.filter(c => c.type === 'income')} accounts={data.accounts}
-                onSave={(r) => {
+                onSave={async (r) => {
                   const { installments, recurrence, ...receivable } = r;
                   if (editingItem) {
                     const stripSuffix = (s: string) => s.replace(/\s*\(\d+\/\d+\)\s*$/, '').trim().toLowerCase();
@@ -753,12 +761,57 @@ export default function ReceivablesPage() {
                           x.status !== 'received'
                         )
                       : [];
+
                     if (linkedFuture.length > 0) {
                       setUpdateFuturePayload(receivable as Receivable);
                       setUpdateFutureTarget(editingItem);
                       setUpdateFutureCount(linkedFuture.length);
                       setDialogOpen(false);
                       setEditingItem(null);
+                    } else if (installments && installments > 1) {
+                      const installmentAmount = Math.round((receivable.amount / installments) * 100) / 100;
+                      const cleanDesc = stripSuffix(receivable.description);
+                      const firstDesc = `${cleanDesc} (1/${installments})`;
+
+                      await updateReceivable({
+                        ...receivable,
+                        id: editingItem.id,
+                        description: firstDesc,
+                        amount: installmentAmount,
+                      } as Receivable);
+
+                      await addReceivable(
+                        { ...receivable, description: cleanDesc, amount: receivable.amount },
+                        installments,
+                        undefined,
+                        true /* skipFirst */
+                      );
+
+                      setDialogOpen(false);
+                      setEditingItem(null);
+                      toast.success('Conta convertida em parcelamento!');
+                    } else if (recurrence && recurrence.occurrences > 1) {
+                      const cleanDesc = stripSuffix(receivable.description);
+                      const firstDesc = `${cleanDesc} (1/${recurrence.occurrences})`;
+
+                      await updateReceivable({
+                        ...receivable,
+                        id: editingItem.id,
+                        description: firstDesc,
+                        recurring: true,
+                        recurrenceFrequency: recurrence.frequency,
+                      } as Receivable);
+
+                      await addReceivable(
+                        { ...receivable, description: cleanDesc },
+                        undefined,
+                        recurrence,
+                        true /* skipFirst */
+                      );
+
+                      setDialogOpen(false);
+                      setEditingItem(null);
+                      toast.success('Conta convertida em recorrente!');
                     } else {
                       updateReceivable({ ...receivable, id: editingItem.id } as Receivable);
                       setDialogOpen(false);
@@ -1678,26 +1731,27 @@ export default function ReceivablesPage() {
   );
 }
 
-function ReceivableForm({ item, categories, accounts, onSave }: {
-  item: Receivable | null; categories: { id: string; name: string }[];
+export function ReceivableForm({ item, initialData, categories, accounts, onSave, onCancel }: {
+  item: Receivable | null; initialData?: Partial<Omit<Receivable, 'id'>>; categories: { id: string; name: string }[];
   accounts: { id: string; name: string }[];
   onSave: (r: Omit<Receivable, 'id'> & { installments?: number; recurrence?: { frequency: RecurrenceFrequency; occurrences: number } }) => void;
+  onCancel?: () => void;
 }) {
   const { data } = useFinance();
   const initialDraft = {
-    clientName: item?.clientName || '',
-    description: item?.description || '',
-    categoryId: item?.categoryId || '',
-    accountId: item?.accountId || '',
-    amount: item?.amount?.toString() || '',
-    dueDate: item?.dueDate || '',
-    notes: item?.notes || '',
+    clientName: item?.clientName || initialData?.clientName || '',
+    description: item?.description || initialData?.description || '',
+    categoryId: item?.categoryId || initialData?.categoryId || '',
+    accountId: item?.accountId || initialData?.accountId || '',
+    amount: item?.amount?.toString() || initialData?.amount?.toString() || '',
+    dueDate: item?.dueDate || initialData?.dueDate || '',
+    notes: item?.notes || initialData?.notes || '',
     useInstallments: false,
     installments: 2,
     inputMode: 'total' as 'total' | 'installment',
     installmentValue: '',
-    recurring: item?.recurring || false,
-    recurrenceFrequency: (item?.recurrenceFrequency || 'monthly') as RecurrenceFrequency,
+    recurring: item?.recurring || initialData?.recurring || false,
+    recurrenceFrequency: (item?.recurrenceFrequency || initialData?.recurrenceFrequency || 'monthly') as RecurrenceFrequency,
     occurrences: '',
   };
   const [draft, setDraft, clearDraft] = usePersistedFormDraft(`receivables-form-${item?.id || 'new'}`, true, initialDraft);
