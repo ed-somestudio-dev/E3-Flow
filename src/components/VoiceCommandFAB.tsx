@@ -102,14 +102,14 @@ export function VoiceCommandFAB() {
     };
 
     recognition.onresult = (event: any) => {
-      let chunk = '';
-      for (let i = event.resultIndex; i < event.results.length; ++i) {
+      let finalStr = '';
+      for (let i = 0; i < event.results.length; ++i) {
         if (event.results[i].isFinal) {
-          chunk += event.results[i][0].transcript + ' ';
+          finalStr += event.results[i][0].transcript + ' ';
         }
       }
-      if (chunk) {
-        finalTranscriptRef.current += chunk;
+      if (finalStr) {
+        finalTranscriptRef.current = finalStr;
       }
       resetStopTimeout();
     };
