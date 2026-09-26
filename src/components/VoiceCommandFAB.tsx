@@ -244,7 +244,13 @@ export function VoiceCommandFAB() {
        const centavosMatch = explicitCurrencyMatch[2] || explicitCurrencyMatch[4];
        const centavos = centavosMatch ? parseInt(centavosMatch.padEnd(2, '0'), 10) : 0;
        amount = reais + (centavos / 100);
-       remainingText = remainingText.replace(explicitCurrencyMatch[0], ' ');
+       
+       // Remove all occurrences of the full match and the numbers to avoid them leaking into description due to speech recognition duplicates
+       remainingText = remainingText.split(explicitCurrencyMatch[0]).join(' ');
+       const numPart = explicitCurrencyMatch[1] || explicitCurrencyMatch[3];
+       if (numPart) {
+         remainingText = remainingText.replace(new RegExp(`\\b${numPart}\\b`, 'g'), ' ');
+       }
     } else {
        // Se não tem "reais", pega o primeiro número que sobrou no texto (já que a data foi removida)
        const amountMatch = remainingText.match(/(\d+)(?:\s*(?:e|,|\.)\s*(\d{1,2}))?/);
@@ -253,7 +259,8 @@ export function VoiceCommandFAB() {
          const centavosMatch = amountMatch[2];
          const centavos = centavosMatch ? parseInt(centavosMatch.padEnd(2, '0'), 10) : 0;
          amount = reais + (centavos / 100);
-         remainingText = remainingText.replace(amountMatch[0], ' ');
+         remainingText = remainingText.split(amountMatch[0]).join(' ');
+         remainingText = remainingText.replace(new RegExp(`\\b${amountMatch[1]}\\b`, 'g'), ' ');
        }
     }
 
@@ -264,6 +271,9 @@ export function VoiceCommandFAB() {
       .replace(/\b(hoje|amanhã|depois de amanhã)\b/g, ' ')
       .replace(/\s+/g, ' ')
       .trim();
+    
+    // Remove palavras duplicadas consecutivas (comum em erros de reconhecimento de voz no Android)
+    desc = desc.split(/\s+/).filter((word, index, arr) => word !== arr[index - 1]).join(' ');
     
     // Fallbacks
     if (desc.length < 3) desc = text.substring(0, 30);
