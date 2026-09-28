@@ -318,126 +318,191 @@ export function VoiceCommandFAB() {
     lower = wordsToNumber(lower);
     console.log('[VoiceCommand] After number conversion:', lower);
 
-    // 1. Tipo
-    const isReceivableFuture = lower.includes('receber') || lower.includes('receita');
-    const isReceivableNow = lower.includes('recebi') || lower.includes('ganhei');
-    const isPayableNow = lower.includes('paguei') || lower.includes('gastei') || lower.includes('comprei');
+    // 1. Tipo — detect and REMOVE the verb from the text
+    const typePatterns: { pattern: RegExp; type: CommandType }[] = [
+      { pattern: /\b(recebi|ganhei|entrou)\b/, type: 'income' },
+      { pattern: /\b(receber|receita|vou receber|vai entrar)\b/, type: 'receivable' },
+      { pattern: /\b(paguei|gastei|comprei|saiu)\b/, type: 'expense' },
+      { pattern: /\b(pagar|conta|gastar|comprar|vou pagar|vou gastar|vou comprar)\b/, type: 'payable' },
+    ];
     
     let type: CommandType = 'payable';
-    if (isReceivableNow) type = 'income';
-    else if (isReceivableFuture) type = 'receivable';
-    else if (isPayableNow) type = 'expense';
+    for (const tp of typePatterns) {
+      if (tp.pattern.test(lower)) {
+        type = tp.type;
+        break;
+      }
+    }
 
-    let remainingText = lower;
+    // Build a working copy — we'll progressively strip matched tokens
+    let work = lower;
 
-    // 2. Data (Extrair e remover primeiro para não confundir com valor)
+    // 2. Data — extract date and strip the ENTIRE matched phrase from work text
     let date = new Date().toISOString().split('T')[0];
     const d = new Date();
-    
-    if (remainingText.includes('amanhã') && !remainingText.includes('depois de amanhã')) {
-      d.setDate(d.getDate() + 1);
-      date = d.toISOString().split('T')[0];
-      remainingText = remainingText.replace('amanhã', '');
-    } else if (remainingText.includes('depois de amanhã')) {
-      d.setDate(d.getDate() + 2);
-      date = d.toISOString().split('T')[0];
-      remainingText = remainingText.replace('depois de amanhã', '');
-    } else {
-      // Normalize speech recognition artifacts: "29/ 09" → "29/09", "29 / 09" → "29/09"
-      remainingText = remainingText.replace(/(\d{1,2})\s*\/\s*(\d{1,2})/g, '$1/$2');
 
-      // Regex rigoroso para Data: 
-      // 1: "dia 15"
-      // 2: "15 de setembro" ou "15 setembro"
-      // 5: "15/09/2026" ou "15/09"
-      const dateRegex = /(?:dia\s+(\d{1,2}))|(\d{1,2})\s+(?:de\s+)?(janeiro|fevereiro|março|marco|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)(?:\s+(?:de\s+)?(\d{4}))?|(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/;
-      const dateMatch = remainingText.match(dateRegex);
-      
-      if (dateMatch) {
-        const fullMatch = dateMatch[0];
-        const day = parseInt(dateMatch[1] || dateMatch[2] || dateMatch[5], 10);
-        const monthStr = dateMatch[3];
-        const monthNumStr = dateMatch[6];
-        const yearStr = dateMatch[4] || dateMatch[7];
-        
+    // Ordered from most specific to least specific
+    const dateExtractors: { pattern: RegExp; extract: (m: RegExpMatchArray) => Date | null }[] = [
+      // "depois de amanhã"
+      { pattern: /\b(?:para\s+)?depois\s+de\s+amanhã\b/, extract: () => { const x = new Date(); x.setDate(x.getDate() + 2); return x; } },
+      // "amanhã"
+      { pattern: /\b(?:para\s+|pra\s+)?amanhã\b/, extract: () => { const x = new Date(); x.setDate(x.getDate() + 1); return x; } },
+      // "ontem"
+      { pattern: /\bontem\b/, extract: () => { const x = new Date(); x.setDate(x.getDate() - 1); return x; } },
+      // "hoje"
+      { pattern: /\bhoje\b/, extract: () => new Date() },
+      // "semana que vem"
+      { pattern: /\b(?:na\s+)?semana\s+que\s+vem\b/, extract: () => { const x = new Date(); x.setDate(x.getDate() + 7); return x; } },
+      // "mês que vem"
+      { pattern: /\b(?:no\s+)?m[eê]s\s+que\s+vem\b/, extract: () => { const x = new Date(); x.setMonth(x.getMonth() + 1); return x; } },
+      // "15 de setembro de 2026" / "15 de setembro" / "15 setembro"
+      { pattern: /\b(\d{1,2})\s+(?:de\s+)?(janeiro|fevereiro|março|marco|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)(?:\s+(?:de\s+)?(\d{4}))?\b/, extract: (m) => {
+        const months = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+        const monthStr = m[2] === 'marco' ? 'março' : m[2];
+        const mi = months.indexOf(monthStr);
+        if (mi === -1) return null;
+        const day = parseInt(m[1], 10);
+        let year = m[3] ? parseInt(m[3], 10) : d.getFullYear();
+        if (year < 100) year += 2000;
+        return new Date(year, mi, day);
+      }},
+      // "dia 15"
+      { pattern: /\b(?:no\s+)?dia\s+(\d{1,2})\b/, extract: (m) => {
+        const day = parseInt(m[1], 10);
         let month = d.getMonth();
-        let year = d.getFullYear();
-        
-        if (monthStr) {
-           const months = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
-           const m = monthStr === 'marco' ? 'março' : monthStr;
-           const idx = months.findIndex(x => x === m);
-           if (idx !== -1) month = idx;
-        } else if (monthNumStr) {
-           month = parseInt(monthNumStr, 10) - 1;
-        } else {
-           // Só o dia ("dia 15")
-           if (day < d.getDate() - 3) {
-             month += 1; // Se o dia já passou há mais de 3 dias, joga pro mês que vem
-           }
-        }
-        
-        if (yearStr) {
-           let y = parseInt(yearStr, 10);
-           if (y < 100) y += 2000;
-           year = y;
-        }
-        
-        const parsedDate = new Date(year, month, day);
-        if (!isNaN(parsedDate.getTime())) {
-          date = parsedDate.toISOString().split('T')[0];
-          // Remove a data do texto para não confundir com dinheiro!
-          remainingText = remainingText.replace(fullMatch, ' ');
+        if (day < d.getDate() - 3) month += 1;
+        return new Date(d.getFullYear(), month, day);
+      }},
+      // "29/09/2026" or "29/09"  (after space normalization)
+      { pattern: /\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/, extract: (m) => {
+        const day = parseInt(m[1], 10);
+        const month = parseInt(m[2], 10) - 1;
+        let year = m[3] ? parseInt(m[3], 10) : d.getFullYear();
+        if (year < 100) year += 2000;
+        return new Date(year, month, day);
+      }},
+    ];
+
+    // Normalize slash spacing before date extraction: "29/ 09" → "29/09"
+    work = work.replace(/(\d{1,2})\s*\/\s*(\d{1,2})/g, '$1/$2');
+
+    for (const de of dateExtractors) {
+      const m = work.match(de.pattern);
+      if (m) {
+        const parsed = de.extract(m);
+        if (parsed && !isNaN(parsed.getTime())) {
+          date = parsed.toISOString().split('T')[0];
+          work = work.replace(m[0], ' ');
+          break;
         }
       }
     }
 
-    // 3. Valor (Extrair do texto que sobrou)
+    // 3. Valor — extract amount and strip the ENTIRE matched phrase
     let amount = 0;
-    // Tenta achar com identificador explícito primeiro (ex: "R$ 50", "50 reais")
-    const explicitCurrencyMatch = remainingText.match(/(?:r\$|reais|R\$)\s*(\d+)(?:\s*(?:e|,|\.)\s*(\d{1,2}))?|(\d+)(?:\s*(?:e|,|\.)\s*(\d{1,2}))?\s*(?:reais|r\$|conto|contos)/);
     
-    if (explicitCurrencyMatch) {
-       const reais = parseInt(explicitCurrencyMatch[1] || explicitCurrencyMatch[3], 10);
-       const centavosMatch = explicitCurrencyMatch[2] || explicitCurrencyMatch[4];
-       const centavos = centavosMatch ? parseInt(centavosMatch.padEnd(2, '0'), 10) : 0;
-       amount = reais + (centavos / 100);
-       
-       // Remove all occurrences of the full match and the numbers to avoid them leaking into description due to speech recognition duplicates
-       remainingText = remainingText.split(explicitCurrencyMatch[0]).join(' ');
-       const numPart = explicitCurrencyMatch[1] || explicitCurrencyMatch[3];
-       if (numPart) {
-         remainingText = remainingText.replace(new RegExp(`\\b${numPart}\\b`, 'g'), ' ');
-       }
-    } else {
-       // Se não tem "reais", pega o primeiro número que sobrou no texto (já que a data foi removida)
-       const amountMatch = remainingText.match(/(\d+)(?:\s*(?:e|,|\.)\s*(\d{1,2}))?/);
-       if (amountMatch) {
-         const reais = parseInt(amountMatch[1], 10);
-         const centavosMatch = amountMatch[2];
-         const centavos = centavosMatch ? parseInt(centavosMatch.padEnd(2, '0'), 10) : 0;
-         amount = reais + (centavos / 100);
-         remainingText = remainingText.split(amountMatch[0]).join(' ');
-         remainingText = remainingText.replace(new RegExp(`\\b${amountMatch[1]}\\b`, 'g'), ' ');
-       }
+    // Try explicit currency first: "R$ 400", "400 reais", "R$ 50,90", "50 e 90 centavos"
+    const currencyPatterns: RegExp[] = [
+      // "R$ 400" / "R$400" / "r$ 400,50"
+      /r\$\s*(\d+)(?:\s*(?:e|,|\.)\s*(\d{1,2}))?/,
+      // "400 reais" / "400 reais e 50 centavos" / "400,50 reais"
+      /(\d+)(?:\s*(?:e|,|\.)\s*(\d{1,2}))?\s*(?:reais|real|r\$|conto|contos)/,
+      // "reais 400" (sometimes speech puts currency first)
+      /(?:reais|real)\s*(\d+)(?:\s*(?:e|,|\.)\s*(\d{1,2}))?/,
+    ];
+
+    let amountExtracted = false;
+    for (const cp of currencyPatterns) {
+      const m = work.match(cp);
+      if (m) {
+        const reais = parseInt(m[1], 10);
+        const centStr = m[2];
+        const centavos = centStr ? parseInt(centStr.padEnd(2, '0'), 10) : 0;
+        amount = reais + (centavos / 100);
+        // Remove the full match AND any stray occurrences of the number
+        work = work.replace(m[0], ' ');
+        if (m[1]) work = work.replace(new RegExp(`\\b${m[1]}\\b`, 'g'), ' ');
+        amountExtracted = true;
+        break;
+      }
     }
 
-    // 4. Descrição (O que sobrou)
-    let desc = remainingText
-      .replace(/\b(criar|adicionar|conta|de|para|a|pagar|receber|recebi|ganhei|paguei|gastei|comprei|reais|conto|contos)\b/g, ' ')
-      .replace(/r\$/g, ' ')
-      .replace(/\b(hoje|amanhã|depois de amanhã)\b/g, ' ')
+    if (!amountExtracted) {
+      // Fallback: take first remaining number (date was already removed)
+      const numMatch = work.match(/(\d+)(?:\s*(?:e|,|\.)\s*(\d{1,2}))?/);
+      if (numMatch) {
+        const reais = parseInt(numMatch[1], 10);
+        const centStr = numMatch[2];
+        const centavos = centStr ? parseInt(centStr.padEnd(2, '0'), 10) : 0;
+        amount = reais + (centavos / 100);
+        work = work.replace(numMatch[0], ' ');
+        if (numMatch[1]) work = work.replace(new RegExp(`\\b${numMatch[1]}\\b`, 'g'), ' ');
+      }
+    }
+
+    // 4. Descrição — strip ALL noise words then clean up
+    // All words that should NEVER appear in the description
+    const noiseWords = [
+      // Command verbs
+      'criar', 'adicionar', 'lançar', 'lancar', 'registrar', 'anotar', 'marcar',
+      // Type verbs
+      'pagar', 'paguei', 'gastei', 'comprei', 'comprar', 'gastar',
+      'receber', 'recebi', 'ganhei', 'receita',
+      'vou', 'vai', 'entrou', 'saiu',
+      // Currency words
+      'reais', 'real', 'r\\$', 'conto', 'contos', 'centavos',
+      // Date words
+      'hoje', 'amanhã', 'amanha', 'ontem',
+      'depois', 'semana', 'mês', 'mes', 'vem',
+      'dia', 'janeiro', 'fevereiro', 'março', 'marco', 'abril', 'maio', 'junho',
+      'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro',
+      // Prepositions / articles / connectors
+      'de', 'do', 'da', 'dos', 'das',
+      'no', 'na', 'nos', 'nas',
+      'para', 'pra', 'pro', 'por',
+      'com', 'em', 'ao', 'à',
+      'o', 'a', 'os', 'as', 'um', 'uma', 'uns', 'umas',
+      'e', 'ou', 'que',
+      // Common noise
+      'conta', 'valor', 'total',
+    ];
+    
+    // Build a single regex to strip all noise words (whole words only)
+    const noiseRegex = new RegExp(`\\b(${noiseWords.join('|')})\\b`, 'gi');
+    let desc = work
+      .replace(noiseRegex, ' ')
+      .replace(/r\$/gi, ' ')
+      // Remove any remaining standalone numbers (leftover from imperfect extraction)
+      .replace(/\b\d+\b/g, ' ')
+      // Remove punctuation artifacts
+      .replace(/[,;:!?]/g, ' ')
+      // Remove slash artifacts (leftover from dates like "29/")
+      .replace(/\d*\s*\/\s*\d*/g, ' ')
+      // Collapse whitespace
       .replace(/\s+/g, ' ')
       .trim();
     
-    // Remove palavras duplicadas consecutivas (comum em erros de reconhecimento de voz no Android)
+    // Remove duplicate consecutive words (common in Android speech recognition)
     desc = desc.split(/\s+/).filter((word, index, arr) => word !== arr[index - 1]).join(' ');
     
-    // Remove leading/trailing single characters and commas
-    desc = desc.replace(/^[,\s]+|[,\s]+$/g, '').replace(/\s*,\s*/g, ' ').trim();
+    // Remove leading/trailing single characters, commas, prepositions
+    desc = desc.replace(/^[\s,.\-]+|[\s,.\-]+$/g, '').trim();
+    // If only 1-2 char words remain, try harder
+    if (desc.split(/\s+/).every(w => w.length <= 2)) desc = '';
     
-    // Fallbacks
-    if (desc.length < 3) desc = text.substring(0, 30);
+    // Fallback: if nothing useful remains, use the original text cleaned minimally
+    if (desc.length < 2) {
+      desc = text
+        .replace(/\b\d+\b/g, '')
+        .replace(/\b(pagar|receber|recebi|paguei|gastei|comprei|reais|amanhã|hoje|ontem)\b/gi, '')
+        .replace(/r\$/gi, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .substring(0, 40);
+    }
+    if (desc.length < 2) desc = text.substring(0, 30);
+    
+    // Capitalize first letter
     desc = desc.charAt(0).toUpperCase() + desc.slice(1);
 
     console.log('[VoiceCommand] Parsed:', { type, amount, date, desc });
