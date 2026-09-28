@@ -547,9 +547,28 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user, data.categories, data.payables]);
 
+  const checkBudgetExceeded = useCallback((categoryId: string, date: string, amount: number, excludeTxId?: string) => {
+    const month = date.substring(0, 7);
+    const budget = data.budgets.find(b => b.categoryId === categoryId && b.month === month);
+    if (budget) {
+      const spentSoFar = data.transactions
+        .filter(t => t.type === 'expense' && t.categoryId === categoryId && t.date.startsWith(month) && t.id !== excludeTxId)
+        .reduce((sum, t) => sum + t.amount, 0);
+      if (spentSoFar + amount > budget.amount) {
+        const catName = data.categories.find(c => c.id === categoryId)?.name || 'a categoria';
+        toast.warning(`Atenção: O orçamento de ${catName} para este mês foi excedido!`, {
+          duration: 6000,
+          position: 'top-center',
+          icon: '⚠️'
+        });
+      }
+    }
+  }, [data.budgets, data.transactions, data.categories]);
+
   // --- Transactions ---
   const addTransaction = useCallback(async (tx: Omit<Transaction, 'id'>) => {
     if (!user) return;
+    if (tx.type === 'expense') checkBudgetExceeded(tx.categoryId, tx.date, Number(tx.amount));
     const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
     const id = generateId();
     const payload = {
@@ -600,6 +619,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
   const updateTransaction = useCallback(async (tx: Transaction) => {
     if (!user) return;
+    if (tx.type === 'expense') checkBudgetExceeded(tx.categoryId, tx.date, Number(tx.amount), tx.id);
     const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
     const old = data.transactions.find(t => t.id === tx.id);
     
@@ -1255,6 +1275,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
       // Criar transação de despesa automaticamente
       if (!finalSkipTransaction) {
+        checkBudgetExceeded(payable.categoryId, today, finalAmount);
         const txId = generateId();
         const txPayload = {
           id: txId,
@@ -1446,6 +1467,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     }
 
     if (!skipTransaction) {
+      checkBudgetExceeded(payable.categoryId, today, paidAmount);
       const txId = generateId();
       const txPayload = {
         id: txId,
@@ -1482,6 +1504,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
   const insertGroupedTransaction = useCallback(async (tx: Omit<Transaction, 'id'>) => {
     if (!user) return;
+    if (tx.type === 'expense') checkBudgetExceeded(tx.categoryId, tx.date, Number(tx.amount));
     const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
     const txId = generateId();
     const txPayload = {
