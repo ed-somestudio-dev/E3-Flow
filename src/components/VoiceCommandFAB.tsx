@@ -88,7 +88,10 @@ export function VoiceCommandFAB() {
 
     const recognition = new SpeechRecognition();
     recognition.lang = 'pt-BR';
-    recognition.continuous = true;
+    // CRITICAL: continuous must be false on Android Chrome to prevent duplicate final results.
+    // With continuous:true, Android produces multiple isFinal results for the same utterance,
+    // causing text triplication like "gasolina gasolina gasolina".
+    recognition.continuous = false;
     recognition.interimResults = true;
     
     finalTranscriptRef.current = '';
@@ -102,14 +105,25 @@ export function VoiceCommandFAB() {
     };
 
     recognition.onresult = (event: any) => {
-      let finalStr = '';
+      // With continuous:false, there's typically only one result.
+      // We take the best (longest) final transcript available.
+      let bestFinal = '';
+      let hasInterim = false;
+      
       for (let i = 0; i < event.results.length; ++i) {
+        const transcript = event.results[i][0].transcript.trim();
         if (event.results[i].isFinal) {
-          finalStr += event.results[i][0].transcript + ' ';
+          // Keep the longest final result (in case Android still produces duplicates)
+          if (transcript.length > bestFinal.length) {
+            bestFinal = transcript;
+          }
+        } else {
+          hasInterim = true;
         }
       }
-      if (finalStr) {
-        finalTranscriptRef.current = finalStr;
+      
+      if (bestFinal) {
+        finalTranscriptRef.current = bestFinal;
       }
       resetStopTimeout();
     };
