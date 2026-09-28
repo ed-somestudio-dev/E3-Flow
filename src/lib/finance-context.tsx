@@ -554,7 +554,11 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       const spentSoFar = data.transactions
         .filter(t => t.type === 'expense' && t.categoryId === categoryId && t.date.startsWith(month) && t.id !== excludeTxId)
         .reduce((sum, t) => sum + t.amount, 0);
-      if (spentSoFar + amount > budget.amount) {
+      const pendingSoFar = data.payables
+        .filter(p => p.categoryId === categoryId && p.dueDate.startsWith(month) && p.status !== 'paid' && p.id !== excludeTxId)
+        .reduce((sum, p) => sum + p.amount, 0);
+        
+      if (spentSoFar + pendingSoFar + amount > budget.amount) {
         const catName = data.categories.find(c => c.id === categoryId)?.name || 'a categoria';
         toast.warning(`Atenção: O orçamento de ${catName} para este mês foi excedido!`, {
           duration: 6000,
@@ -563,7 +567,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
         });
       }
     }
-  }, [data.budgets, data.transactions, data.categories]);
+  }, [data.budgets, data.transactions, data.payables, data.categories]);
 
   // --- Transactions ---
   const addTransaction = useCallback(async (tx: Omit<Transaction, 'id'>) => {
@@ -726,6 +730,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   // --- Payables ---
   const addPayable = useCallback(async (p: Omit<Payable, 'id'>, installments?: number, isCredit?: boolean, recurrence?: { frequency: 'weekly' | 'monthly' | 'yearly'; occurrences: number }, skipFirst?: boolean) => {
     if (!user) return;
+    checkBudgetExceeded(p.categoryId, p.dueDate, Number(p.amount));
     const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
 
     // Recurring expansion (independent of installments) — generates N concrete records
@@ -958,6 +963,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
   const updatePayable = useCallback(async (p: Payable) => {
     if (!user) return;
+    checkBudgetExceeded(p.categoryId, p.dueDate, Number(p.amount), p.id);
     const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
 
     const today = new Date().toISOString().split('T')[0];
