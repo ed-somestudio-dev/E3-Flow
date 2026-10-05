@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { usePersistedDialog, usePersistedFormDraft } from '@/hooks/usePersistedDialog';
+import { suggestDueDateFromHistory } from '@/lib/suggest-due-date';
 import { useFinance } from '@/lib/finance-context';
 import { supabase } from '@/integrations/supabase/client';
 import { Payable, PayableStatus, RecurrenceFrequency, Contact } from '@/lib/types';
@@ -1469,40 +1470,14 @@ export function PayableForm({ item, initialData, categories, accounts, onSave, o
   const handleSupplierChange = (val: string) => {
     setSupplier(val);
     if (!item && val) {
-      const existing = data.payables
-        .filter(p => (p.supplier || '').toLowerCase() === val.toLowerCase())
-        .sort((a, b) => (b.dueDate || '').localeCompare(a.dueDate || ''))[0];
-
-      if (existing && existing.dueDate) {
-        const existingDate = new Date(existing.dueDate + 'T12:00:00');
-        const now = new Date();
-        now.setHours(0, 0, 0, 0);
-
-        if (existingDate >= now) {
-          // Se a última data de vencimento for hoje ou no futuro, usa ela exatamente (mesmo ciclo).
-          setDueDate(existing.dueDate);
-        } else {
-          // Se já passou, calcula a próxima ocorrência do mesmo dia do mês.
-          const existingDay = existingDate.getDate();
-          const currentDay = now.getDate();
-          let targetMonth = now.getMonth() + 1;
-          let targetYear = now.getFullYear();
-          
-          if (existingDay < currentDay) {
-            targetMonth += 1;
-            if (targetMonth > 12) {
-              targetMonth = 1;
-              targetYear += 1;
-            }
-          }
-          
-          const lastDayOfTargetMonth = new Date(targetYear, targetMonth, 0).getDate();
-          const finalDay = Math.min(existingDay, lastDayOfTargetMonth);
-          
-          const newDueDate = `${targetYear}-${String(targetMonth).padStart(2, '0')}-${String(finalDay).padStart(2, '0')}`;
-          setDueDate(newDueDate);
-        }
-      }
+      // Sugere o vencimento com base no histórico do fornecedor, limitado a no máximo 45 dias
+      // (evita sugerir a data de parcelas distantes, ex.: 12ª parcela daqui a 1 ano).
+      const suggested = suggestDueDateFromHistory(
+        data.payables
+          .filter(p => (p.supplier || '').toLowerCase() === val.toLowerCase())
+          .map(p => p.dueDate)
+      );
+      if (suggested) setDueDate(suggested);
     }
   };
   const [paymentMode, setPaymentMode] = useState<'credit' | 'debit'>(() => {
