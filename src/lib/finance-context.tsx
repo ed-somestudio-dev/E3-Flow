@@ -7,8 +7,53 @@ import { toast } from 'sonner';
 import { saveSnapshot, loadSnapshot, enqueueMutation } from './offline-store';
 import { assertOnline } from './online-guard';
 import { syncOfflineMutations } from './sync-engine';
-import { generateId, parseNotesMetadata, formatNotesMetadata } from './utils';
+import { generateId, deterministicId, isNetworkError, parseNotesMetadata, formatNotesMetadata } from './utils';
 import { Capacitor } from '@capacitor/core';
+
+/**
+ * Trava anti-reentrada por operação financeira (ex.: "receivable-partial:<id>").
+ * Impede que um duplo clique / reenvio com a conexão lenta execute a mesma baixa duas vezes
+ * enquanto a primeira ainda está em andamento (a segunda chamada é simplesmente ignorada).
+ */
+const inFlightOps = new Set<string>();
+async function withOpLock(key: string, fn: () => Promise<void>): Promise<void> {
+  if (inFlightOps.has(key)) {
+    console.warn(`[finance] Operação já em andamento, ignorando chamada duplicada: ${key}`);
+    return;
+  }
+  inFlightOps.add(key);
+  try {
+    await fn();
+  } finally {
+    inFlightOps.delete(key);
+  }
+}
+
+type StepStatus = 'ok' | 'duplicate' | 'queued' | 'failed';
+
+/**
+ * Executa um passo no servidor; se a conexão cair, enfileira o MESMO passo na fila offline
+ * (preservando a ordem). Um erro 23505 (chave duplicada) significa que o passo já foi
+ * aplicado antes e é tratado como 'duplicate' (idempotência), nunca como falha.
+ */
+async function runOrQueue(
+  online: boolean,
+  run: () => PromiseLike<{ error: any }>,
+  mutation: Parameters<typeof enqueueMutation>[0],
+): Promise<{ status: StepStatus; online: boolean; error?: any }> {
+  if (online) {
+    try {
+      const { error } = await run();
+      if (!error) return { status: 'ok', online: true };
+      if (error.code === '23505') return { status: 'duplicate', online: true };
+      if (!isNetworkError(error)) return { status: 'failed', online: true, error };
+    } catch (err) {
+      if (!isNetworkError(err)) return { status: 'failed', online: true, error: err };
+    }
+  }
+  await enqueueMutation(mutation);
+  return { status: 'queued', online: false };
+}
 
 
 
@@ -1161,7 +1206,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     return allIds.length;
   }, [user, data.payables, fetchAll]);
 
-  const markPayablePaid = useCallback(async (id: string, accountId?: string, skipTransaction?: boolean, interestAmount?: number, discountAmount?: number) => {
+  const markPayablePaid = useCallback((id: string, accountId?: string, skipTransaction?: boolean, interestAmount?: number, discountAmount?: number): Promise<void> => withOpLock(`payable-full:${id}`, async () => {
     if (!user) return;
     const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
     const payable = data.payables.find(x => x.id === id);
@@ -1318,20 +1363,21 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     } else {
       toast.success('Pagamento registrado com sucesso');
     }
-  }, [user, data, fetchAll]);
+  }), [user, data, fetchAll]);
 
-  const markPayablePaidPartial = useCallback(async (
+  const markPayablePaidPartial = useCallback((
     id: string, 
     accountId: string, 
     paidAmount: number, 
     skipTransaction?: boolean,
     interestAmount: number = 0,
     discountAmount: number = 0
-  ) => {
+  ): Promise<void> => withOpLock(`payable-partial:${id}`, async () => {
     if (!user) return;
-    const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
+    let online = assertOnline() && !user?.id?.startsWith('guest_');
     const payable = data.payables.find(x => x.id === id);
     if (!payable) { toast.error('Conta não encontrada'); return; }
+    if (payable.status === 'paid') return;
     if (paidAmount <= 0) { toast.error('Valor pago deve ser maior que zero'); return; }
     
     const totalDue = payable.amount + interestAmount - discountAmount;
@@ -1353,7 +1399,11 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       paid_base = 0;
     }
 
-    // 1) Marca o registro original como pago com o valor parcial
+    // IDs DETERMINÍSTICOS: tornam a operação idempotente (duplo clique / retry / replay da fila).
+    const newPayableId = deterministicId(`payable-remainder:${id}`);
+    const txId = deterministicId(`payable-partial-tx:${id}`);
+
+    // 1) Marca o registro original como pago com o valor parcial (idempotente)
     const updatePayload = {
       status: 'paid' as const,
       payment_date: today,
@@ -1364,24 +1414,19 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       notes: `${payable.notes ? payable.notes + ' | ' : ''}Pagamento parcial (original: ${payable.amount.toFixed(2)}, total devido: ${totalDue.toFixed(2)}, pago: ${paidAmount.toFixed(2)})`,
     };
 
-    if (isOnline) {
-      const { error: updErr } = await supabase.from('payables').update(updatePayload).eq('id', id).eq('user_id', effectiveUserId);
-      if (updErr) { console.error('partial payable update error:', updErr); toast.error('Erro ao registrar pagamento parcial'); return; }
-    } else {
-      await enqueueMutation({
-        userId: effectiveUserId,
-        type: 'UPDATE',
-        payload: { table: 'payables', data: updatePayload, match: { id } }
-      });
-      setData(prev => {
-        const fresh = { ...prev, payables: prev.payables.map(p => p.id === id ? { ...p, ...updatePayload, paymentDate: today, accountId } : p) };
-        saveSnapshot(effectiveUserId, fresh).catch(() => {});
-        return fresh;
-      });
+    const step1 = await runOrQueue(
+      online,
+      () => supabase.from('payables').update(updatePayload).eq('id', id).eq('user_id', effectiveUserId),
+      { userId: effectiveUserId, type: 'UPDATE', payload: { table: 'payables', data: updatePayload, match: { id } } }
+    );
+    if (step1.status === 'failed') {
+      console.error('partial payable update error:', step1.error);
+      toast.error('Erro ao registrar pagamento parcial');
+      return;
     }
+    online = step1.online;
 
     // 2) Cria novo registro pendente com o valor restante (mantém os demais dados)
-    const newPayableId = generateId();
     const cleanNotes = `${payable.notes ? payable.notes + ' | ' : ''}Saldo restante de pagamento parcial (original: ${payable.amount.toFixed(2)}, pago: ${paidAmount.toFixed(2)})`;
     const insertPayload = {
       id: newPayableId,
@@ -1399,114 +1444,91 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       discount_amount: 0,
     };
 
-    if (isOnline) {
-      const { error: insErr } = await supabase.from('payables').insert(insertPayload);
-      if (insErr) {
-        if (insErr.message?.includes('Failed to fetch')) {
-          await enqueueMutation({
-            userId: effectiveUserId,
-            type: 'INSERT',
-            payload: { table: 'payables', data: insertPayload }
-          });
-          const newPayable = mapPayable(insertPayload);
-          setData(prev => {
-            const fresh = { ...prev, payables: [...prev.payables, newPayable] };
-            saveSnapshot(effectiveUserId, fresh).catch(() => {});
-            return fresh;
-          });
-        } else {
-          console.error('partial payable insert error:', insErr);
-          toast.error('Erro ao criar saldo restante');
-          return;
-        }
-      }
-    } else {
-      await enqueueMutation({
-        userId: effectiveUserId,
-        type: 'INSERT',
-        payload: { table: 'payables', data: insertPayload }
-      });
-      const newPayable = mapPayable(insertPayload);
-      setData(prev => {
-        const fresh = { ...prev, payables: [...prev.payables, newPayable] };
-        saveSnapshot(effectiveUserId, fresh).catch(() => {});
-        return fresh;
-      });
+    const step2 = await runOrQueue(
+      online,
+      () => supabase.from('payables').insert(insertPayload),
+      { userId: effectiveUserId, type: 'INSERT', payload: { table: 'payables', data: insertPayload } }
+    );
+    if (step2.status === 'failed') {
+      console.error('partial payable insert error:', step2.error);
+      toast.error('Erro ao criar saldo restante');
     }
+    online = step2.online;
 
-    // 3) Ajusta saldo da conta de débito e cria transação
-    const acc = data.accounts.find(a => a.id === accountId);
-    if (acc) {
-      const debitsMainBalance = hasAccountType(acc, 'checking') || hasAccountType(acc, 'cash');
-      if (debitsMainBalance) {
-        if (isOnline) {
-          const { error: balErr } = await supabase.rpc('decrement_account_balance' as any, { p_account_id: accountId, p_amount: paidAmount });
-          if (balErr) {
-            if (balErr.message?.includes('Failed to fetch')) {
-              await enqueueMutation({
-                userId: effectiveUserId,
-                type: 'RPC',
-                payload: { rpc: 'decrement_account_balance', args: { p_account_id: accountId, p_amount: paidAmount } }
-              });
-              setData(prev => {
-                const fresh = { ...prev, accounts: prev.accounts.map(a => a.id === accountId ? { ...a, balance: a.balance - paidAmount } : a) };
-                saveSnapshot(effectiveUserId, fresh).catch(() => {});
-                return fresh;
-              });
-            } else {
-              console.error('decrement balance error:', balErr);
-            }
-          }
-        } else {
-          await enqueueMutation({
-            userId: effectiveUserId,
-            type: 'RPC',
-            payload: { rpc: 'decrement_account_balance', args: { p_account_id: accountId, p_amount: paidAmount } }
-          });
-          setData(prev => {
-            const fresh = { ...prev, accounts: prev.accounts.map(a => a.id === accountId ? { ...a, balance: a.balance - paidAmount } : a) };
-            saveSnapshot(effectiveUserId, fresh).catch(() => {});
-            return fresh;
-          });
-        }
-      }
-    }
-
+    // 3) Cria a transação (ANTES de debitar o saldo: ela serve de trava de idempotência)
+    let txStatus: 'ok' | 'duplicate' | 'queued' | 'failed' | null = null;
+    const txPayload = {
+      id: txId,
+      user_id: effectiveUserId,
+      type: 'expense',
+      description: payable.description,
+      category_id: payable.categoryId,
+      amount: paidAmount,
+      date: today,
+      account_id: accountId,
+      notes: `Pagamento parcial: ${payable.supplier || ''}`.trim(),
+    };
     if (!skipTransaction) {
-      checkBudgetExceeded(payable.categoryId, today, paidAmount);
-      const txId = generateId();
-      const txPayload = {
-        id: txId,
-        user_id: effectiveUserId,
-        type: 'expense',
-        description: payable.description,
-        category_id: payable.categoryId,
-        amount: paidAmount,
-        date: today,
-        account_id: accountId,
-        notes: `Pagamento parcial: ${payable.supplier || ''}`.trim(),
-      };
-
-      if (isOnline) {
-        await supabase.from('transactions').insert(txPayload);
-      } else {
-        await enqueueMutation({
-          userId: effectiveUserId,
-          type: 'INSERT',
-          payload: { table: 'transactions', data: txPayload }
-        });
-        const newTx = mapTransaction(txPayload);
-        setData(prev => {
-          const fresh = { ...prev, transactions: [newTx, ...prev.transactions] };
-          saveSnapshot(effectiveUserId, fresh).catch(() => {});
-          return fresh;
-        });
+      const step3 = await runOrQueue(
+        online,
+        () => supabase.from('transactions').insert(txPayload),
+        { userId: effectiveUserId, type: 'INSERT', payload: { table: 'transactions', data: txPayload } }
+      );
+      txStatus = step3.status;
+      online = step3.online;
+      if (step3.status === 'failed') {
+        console.error('partial payable transaction error:', step3.error);
+        toast.error('Erro ao registrar a transação do pagamento');
+      } else if (step3.status !== 'duplicate') {
+        checkBudgetExceeded(payable.categoryId, today, paidAmount);
       }
     }
+
+    // 4) Debita a conta SOMENTE se esta execução é a "primeira" (duplicata => já debitado antes)
+    const acc = data.accounts.find(a => a.id === accountId);
+    const debitsMainBalance = !!acc && (hasAccountType(acc, 'checking') || hasAccountType(acc, 'cash'));
+    const alreadyDone = txStatus !== null ? txStatus === 'duplicate' : step2.status === 'duplicate';
+    let debited = false;
+    if (debitsMainBalance && txStatus !== 'failed' && !alreadyDone) {
+      const step4 = await runOrQueue(
+        online,
+        () => supabase.rpc('decrement_account_balance' as any, { p_account_id: accountId, p_amount: paidAmount }),
+        { userId: effectiveUserId, type: 'RPC', payload: { rpc: 'decrement_account_balance', args: { p_account_id: accountId, p_amount: paidAmount } } }
+      );
+      if (step4.status === 'failed') console.error('decrement balance error:', step4.error);
+      else debited = true;
+      online = step4.online;
+    }
+
+    // Estado local imediato (o fetchAll abaixo reconcilia com o servidor quando online)
+    setData(prev => {
+      const hasRemainder = prev.payables.some(p => p.id === newPayableId);
+      const hasTx = prev.transactions.some(t => t.id === txId);
+      const addTx = !skipTransaction && !hasTx && txStatus !== 'failed' && txStatus !== 'duplicate';
+      const fresh = {
+        ...prev,
+        payables: [
+          ...prev.payables.map(p => p.id === id ? {
+            ...p,
+            status: 'paid' as const,
+            paymentDate: today,
+            accountId,
+            amount: updatePayload.amount,
+            interestAmount: updatePayload.interest_amount,
+            discountAmount: updatePayload.discount_amount,
+          } : p),
+          ...(hasRemainder || step2.status === 'failed' ? [] : [mapPayable(insertPayload)]),
+        ],
+        transactions: addTx ? [mapTransaction(txPayload), ...prev.transactions] : prev.transactions,
+        accounts: debited ? prev.accounts.map(a => a.id === accountId ? { ...a, balance: a.balance - paidAmount } : a) : prev.accounts,
+      };
+      saveSnapshot(effectiveUserId, fresh).catch(() => {});
+      return fresh;
+    });
 
     toast.success(`Pagamento parcial registrado. Saldo restante: ${remaining.toFixed(2)}`);
-    if (isOnline) await fetchAll();
-  }, [user, data, fetchAll, markPayablePaid]);
+    if (online) await fetchAll();
+  }), [user, data, fetchAll, markPayablePaid]);
 
   const insertGroupedTransaction = useCallback(async (tx: Omit<Transaction, 'id'>) => {
     if (!user) return;
@@ -1980,15 +2002,15 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     }));
   }, [user, data, fetchAll]);
 
-  const markReceivableReceivedPartial = useCallback(async (
+  const markReceivableReceivedPartial = useCallback((
     id: string, 
     accountId: string, 
     receivedAmount: number,
     interestAmount: number = 0,
     discountAmount: number = 0
-  ) => {
+  ): Promise<void> => withOpLock(`receivable-partial:${id}`, async () => {
     if (!user) return;
-    const isOnline = assertOnline() && !user?.id?.startsWith('guest_');
+    let online = assertOnline() && !user?.id?.startsWith('guest_');
     const receivable = data.receivables.find(x => x.id === id);
     if (!receivable || receivable.status === 'received') return;
     if (receivedAmount <= 0) { toast.error('Valor recebido deve ser maior que zero'); return; }
@@ -2011,7 +2033,13 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       received_base = 0;
     }
 
-    // 1) Marca o registro original como recebido com o valor parcial
+    // IDs DETERMINÍSTICOS: se esta operação for repetida (duplo clique, retry após queda de
+    // internet, replay da fila offline), os registros terão o mesmo ID e o banco rejeita a
+    // duplicata (23505) em vez de criar um segundo saldo restante / transação.
+    const newReceivableId = deterministicId(`receivable-remainder:${id}`);
+    const txId = deterministicId(`receivable-partial-tx:${id}`);
+
+    // 1) Marca o registro original como recebido com o valor parcial (idempotente)
     const updatePayload = {
       status: 'received' as const,
       payment_date: today,
@@ -2022,24 +2050,19 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       notes: `${receivable.notes ? receivable.notes + ' | ' : ''}Recebimento parcial (original: ${receivable.amount.toFixed(2)}, total devido: ${totalDue.toFixed(2)}, recebido: ${receivedAmount.toFixed(2)})`,
     };
 
-    if (isOnline) {
-      const { error: updErr } = await supabase.from('receivables').update(updatePayload).eq('id', id).eq('user_id', effectiveUserId);
-      if (updErr) { console.error('partial receivable update error:', updErr); toast.error('Erro ao registrar recebimento parcial'); return; }
-    } else {
-      await enqueueMutation({
-        userId: effectiveUserId,
-        type: 'UPDATE',
-        payload: { table: 'receivables', data: updatePayload, match: { id } }
-      });
-      setData(prev => {
-        const fresh = { ...prev, receivables: prev.receivables.map(r => r.id === id ? { ...r, ...updatePayload, paymentDate: today, accountId } : r) };
-        saveSnapshot(effectiveUserId, fresh).catch(() => {});
-        return fresh;
-      });
+    const step1 = await runOrQueue(
+      online,
+      () => supabase.from('receivables').update(updatePayload).eq('id', id).eq('user_id', effectiveUserId),
+      { userId: effectiveUserId, type: 'UPDATE', payload: { table: 'receivables', data: updatePayload, match: { id } } }
+    );
+    if (step1.status === 'failed') {
+      console.error('partial receivable update error:', step1.error);
+      toast.error('Erro ao registrar recebimento parcial');
+      return;
     }
+    online = step1.online;
 
     // 2) Cria novo registro pendente com o valor restante
-    const newReceivableId = generateId();
     const insertPayload = {
       id: newReceivableId,
       user_id: effectiveUserId,
@@ -2055,41 +2078,18 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       discount_amount: 0,
     };
 
-    if (isOnline) {
-      const { error: insErr } = await supabase.from('receivables').insert(insertPayload);
-      if (insErr) { console.error('partial receivable insert error:', insErr); toast.error('Erro ao criar saldo restante'); return; }
-    } else {
-      await enqueueMutation({
-        userId: effectiveUserId,
-        type: 'INSERT',
-        payload: { table: 'receivables', data: insertPayload }
-      });
-      const newReceivable = mapReceivable(insertPayload);
-      setData(prev => {
-        const fresh = { ...prev, receivables: [...prev.receivables, newReceivable] };
-        saveSnapshot(effectiveUserId, fresh).catch(() => {});
-        return fresh;
-      });
+    const step2 = await runOrQueue(
+      online,
+      () => supabase.from('receivables').insert(insertPayload),
+      { userId: effectiveUserId, type: 'INSERT', payload: { table: 'receivables', data: insertPayload } }
+    );
+    if (step2.status === 'failed') {
+      console.error('partial receivable insert error:', step2.error);
+      toast.error('Erro ao criar saldo restante');
     }
+    online = step2.online;
 
-    // 3) Credita conta e cria transação
-    if (isOnline) {
-      const { error: balErr } = await supabase.rpc('increment_account_balance' as any, { p_account_id: accountId, p_amount: receivedAmount });
-      if (balErr) console.error('increment balance error:', balErr);
-    } else {
-      await enqueueMutation({
-        userId: effectiveUserId,
-        type: 'RPC',
-        payload: { rpc: 'increment_account_balance', args: { p_account_id: accountId, p_amount: receivedAmount } }
-      });
-      setData(prev => {
-        const fresh = { ...prev, accounts: prev.accounts.map(a => a.id === accountId ? { ...a, balance: a.balance + receivedAmount } : a) };
-        saveSnapshot(effectiveUserId, fresh).catch(() => {});
-        return fresh;
-      });
-    }
-
-    const txId = generateId();
+    // 3) Cria a transação (ANTES de creditar o saldo: ela serve de trava de idempotência)
     const txPayload = {
       id: txId,
       user_id: effectiveUserId,
@@ -2102,30 +2102,64 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       notes: `Recebimento parcial: ${receivable.clientName || ''}`.trim(),
     };
 
-    if (isOnline) {
-      await supabase.from('transactions').insert(txPayload);
-    } else {
-      await enqueueMutation({
-        userId: effectiveUserId,
-        type: 'INSERT',
-        payload: { table: 'transactions', data: txPayload }
-      });
-      const newTx = mapTransaction(txPayload);
-      setData(prev => {
-        const fresh = { ...prev, transactions: [newTx, ...prev.transactions] };
-        saveSnapshot(effectiveUserId, fresh).catch(() => {});
-        return fresh;
-      });
+    const step3 = await runOrQueue(
+      online,
+      () => supabase.from('transactions').insert(txPayload),
+      { userId: effectiveUserId, type: 'INSERT', payload: { table: 'transactions', data: txPayload } }
+    );
+    if (step3.status === 'failed') {
+      console.error('partial receivable transaction error:', step3.error);
+      toast.error('Erro ao registrar a transação do recebimento');
+    }
+    online = step3.online;
+
+    // 4) Credita a conta SOMENTE se a transação foi criada agora (duplicata => já creditado antes)
+    let credited = false;
+    if (step3.status === 'ok' || step3.status === 'queued') {
+      const step4 = await runOrQueue(
+        online,
+        () => supabase.rpc('increment_account_balance' as any, { p_account_id: accountId, p_amount: receivedAmount }),
+        { userId: effectiveUserId, type: 'RPC', payload: { rpc: 'increment_account_balance', args: { p_account_id: accountId, p_amount: receivedAmount } } }
+      );
+      if (step4.status === 'failed') console.error('increment balance error:', step4.error);
+      else credited = true;
+      online = step4.online;
     }
 
+    // Estado local imediato (o fetchAll abaixo reconcilia com o servidor quando online)
+    setData(prev => {
+      const hasRemainder = prev.receivables.some(r => r.id === newReceivableId);
+      const hasTx = prev.transactions.some(t => t.id === txId);
+      const fresh = {
+        ...prev,
+        receivables: [
+          ...prev.receivables.map(r => r.id === id ? {
+            ...r,
+            status: 'received' as const,
+            paymentDate: today,
+            accountId,
+            amount: updatePayload.amount,
+            interestAmount: updatePayload.interest_amount,
+            discountAmount: updatePayload.discount_amount,
+            notes: updatePayload.notes,
+          } : r),
+          ...(hasRemainder || step2.status === 'failed' ? [] : [mapReceivable(insertPayload)]),
+        ],
+        transactions: hasTx || step3.status === 'failed' || step3.status === 'duplicate' ? prev.transactions : [mapTransaction(txPayload), ...prev.transactions],
+        accounts: credited ? prev.accounts.map(a => a.id === accountId ? { ...a, balance: a.balance + receivedAmount } : a) : prev.accounts,
+      };
+      saveSnapshot(effectiveUserId, fresh).catch(() => {});
+      return fresh;
+    });
+
     toast.success(`Recebimento parcial registrado. Saldo restante: ${remaining.toFixed(2)}`);
-    if (isOnline) await fetchAll();
+    if (online) await fetchAll();
 
     // Emite evento de recebimento parcial (para atualizar o link na venda)
     window.dispatchEvent(new CustomEvent('receivable_partial_received', { 
       detail: { originalId: id, newId: newReceivableId, receivedAmount, remaining } 
     }));
-  }, [user, data, fetchAll, markReceivableReceived]);
+  }), [user, data, fetchAll, markReceivableReceived]);
 
   // --- Accounts ---
   const addAccount = useCallback(async (a: Omit<FinancialAccount, 'id'>) => {
